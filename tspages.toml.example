@@ -1,0 +1,12 @@
+[tailscale]
+hostname     = "pages"
+state_dir    = "/var/lib/tspages"
+auth_key     = ""                          # leave empty to use TS_AUTHKEY env var
+capability   = "your-company.com/cap/pages"
+
+[server]
+data_dir      = "/data"
+max_upload_mb = 500
+
+[routing]
+mode = "path"

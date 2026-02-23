@@ -1,0 +1,4 @@
+/tspages
+/data/
+*.toml
+!tspages.toml.example
