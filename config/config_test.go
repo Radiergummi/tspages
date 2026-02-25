@@ -74,7 +74,7 @@ capability = "example.com/cap/pages"
 	}
 }
 
-func TestLoad_MissingCapability(t *testing.T) {
+func TestLoad_CapabilityDefault(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tspages.toml")
 	if err := os.WriteFile(path, []byte(`
@@ -84,9 +84,35 @@ hostname = "pages"
 		t.Fatal(err)
 	}
 
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error for missing capability")
+	t.Setenv("TSPAGES_CAPABILITY", "")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Tailscale.Capability != "tspages.mazetti.me/cap/pages" {
+		t.Errorf("capability = %q, want default", cfg.Tailscale.Capability)
+	}
+}
+
+func TestLoad_CapabilityFromEnv(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tspages.toml")
+	if err := os.WriteFile(path, []byte(`
+[tailscale]
+hostname = "pages"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("TSPAGES_CAPABILITY", "example.com/cap/from-env")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Tailscale.Capability != "example.com/cap/from-env" {
+		t.Errorf("capability = %q, want %q", cfg.Tailscale.Capability, "example.com/cap/from-env")
 	}
 }
 

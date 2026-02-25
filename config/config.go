@@ -62,7 +62,10 @@ func Load(path string) (*Config, error) {
 		cfg.Tailscale.AuthKey = os.Getenv("TS_AUTHKEY")
 	}
 	if cfg.Tailscale.Capability == "" {
-		return nil, fmt.Errorf("tailscale.capability is required")
+		cfg.Tailscale.Capability = os.Getenv("TSPAGES_CAPABILITY")
+	}
+	if cfg.Tailscale.Capability == "" {
+		cfg.Tailscale.Capability = "tspages.mazetti.me/cap/pages"
 	}
 	return &cfg, nil
 }

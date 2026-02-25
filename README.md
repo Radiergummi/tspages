@@ -1,65 +1,98 @@
 # tspages
 
-A lightweight static site hosting platform for your Tailscale network. Deploy pre-built artifacts via `curl` or GitHub
-Actions. Each site gets its own tsnet hostname, served over HTTPS with per-site authorization enforced through Tailscale
-Application Grants -- no shared secrets, no separate auth layer.
+> A lightweight static site hosting platform for your Tailscale network.
+
+Have you ever wanted to host internal documentation, dashboards, or demos for your team without the hassle of setting up
+and maintaining a full server, or exposing sensitive content on the public internet? tspages is a simple, secure
+solution for hosting static sites directly on your tailnet.  
+Each site gets its own tsnet hostname, served over HTTPS with automatic TLS, and access is controlled via Tailscale
+Application Grants—no shared secrets, no separate auth layer.
+
+Features include:
+
+- **Easy deployment**: Upload a ZIP or tarball of your static site, or even a single Markdown file, and it's live
+  immediately.
+- **Admin dashboard**: View all your sites, deployments, and analytics in one place. Activate or roll back deployments
+  with a click. Drop a folder onto the dashboard to deploy right away.
+- **Fine-grained access control**: Use Tailscale's existing ACL system to control who can view or deploy to each site,
+  down to the individual user or group level.
+- **Per-site configuration**: Customize 404 pages, headers, redirects, and SPA behavior on a per-deployment basis with
+  an optional `tspages.toml` included in your upload.
+- **Built-in analytics**: See request counts, top pages, visitor info, and more for each site.
 
 ## Quick Start
 
-1. **Build**
-   ```bash
-   go build -o tspages ./cmd/tspages
-   ```
+### Prerequisites
 
-2. **Configure** -- create `tspages.toml`:
-   ```toml
-   [tailscale]
-   hostname = "pages"
-   state_dir = "/var/lib/tspages"
-   capability = "your-company.com/cap/pages"
+You need a **reusable auth key** tagged with `tag:pages` (or any tag you choose). Create one in the
+[Tailscale admin console](https://login.tailscale.com/admin/settings/keys) under Settings > Keys > Generate auth key.
+Make sure **Reusable** is checked, since tspages registers multiple devices with the same key.
 
-   [server]
-   data_dir = "/data"
-   max_upload_mb = 500
-   ```
+### 1. Add a tailnet grant
 
-3. **Add a tailnet grant** so members can browse sites:
-   ```json
-   {
-     "grants": [
-       {
-         "src": ["autogroup:member"],
-         "dst": ["tag:pages"],
-         "ip": ["443"],
-         "app": {
-           "your-company.com/cap/pages": [
-             { "access": "view" }
-           ]
-         }
-       }
-     ]
-   }
-   ```
+In the Tailscale admin console, go to Access Controls and add a grant so tailnet members can use tspages:
 
-4. **Run**
-   ```bash
-   TS_AUTHKEY=tskey-auth-... ./tspages
-   ```
+```json
+{
+  "grants": [
+    {
+      "src": ["autogroup:member"],
+      "dst": ["tag:pages"],
+      "ip": ["443"],
+      "app": {
+        "tspages.mazetti.me/cap/pages": [
+          { "access": "admin" }
+        ]
+      }
+    }
+  ]
+}
+```
 
-5. **Deploy a site**
-   ```bash
-   cd dist
-   zip -r ../deploy.zip .
-   curl -sf --upload-file ../deploy.zip \
-     -H "Content-Type: application/zip" \
-     https://pages.your-tailnet.ts.net/deploy/my-site
-   ```
+> Start with `admin` access to set things up. You can narrow permissions later -- see [Authorization](#authorization)
+> for fine-grained examples.
 
-Your site is live at `https://my-site.your-tailnet.ts.net/`.
+### 2. Run tspages
+
+#### Docker (recommended)
+
+```bash
+docker run -d \
+  -v tspages-state:/state \
+  -v tspages-data:/data \
+  -e TS_AUTHKEY=tskey-auth-... \
+  ghcr.io/radiergummi/tspages:latest
+```
+
+That's it. The default configuration works out of the box -- state is stored in `/state`, site data in `/data`.
+
+#### Binary
+
+Download the latest release from [GitHub](https://github.com/Radiergummi/tspages/releases/latest), then run:
+
+```bash
+TS_AUTHKEY=tskey-auth-... ./tspages
+```
+
+This uses `./state` and `./data` in the current directory. See [Configuration Reference](#configuration-reference) for
+all options.
+
+### 3. Deploy a site
+
+```bash
+cd your-site/dist
+zip -r ../site.zip .
+curl -sf --upload-file ../site.zip \
+  https://pages.your-tailnet.ts.net/deploy/my-site
+```
+
+Your site is live at `https://my-site.your-tailnet.ts.net/`. Open `https://pages.your-tailnet.ts.net/sites` to see
+the admin dashboard.
 
 ## Admin Dashboard
 
-Every tspages instance includes a built-in admin panel at the control plane hostname. Admins get a full overview of all sites, deployments, and traffic -- deployers see only the sites they have access to.
+Every tspages instance includes a built-in admin panel at the control plane hostname. Admins get a full overview of all
+sites, deployments, and traffic -- deployers see only the sites they have access to.
 
 ### Sites overview
 
@@ -257,7 +290,7 @@ including static content. You must explicitly grant at least `view` access.
 
 ### Capability schema
 
-Capability name is set via `tailscale.capability` in your config (e.g., `your-company.com/cap/pages`).
+Capability name is set via `tailscale.capability` in your config (e.g., `tspages.mazetti.me/cap/pages`).
 
 ```json
 {
@@ -282,7 +315,7 @@ objects for each access level.
 
 ### Example grants
 
-All examples below use `your-company.com/cap/pages` as the capability name. Replace this with whatever you set in
+All examples below use `tspages.mazetti.me/cap/pages` as the capability name. Replace this with whatever you set in
 `tailscale.capability` in your config.
 
 **Let all tailnet members browse all sites:**
@@ -299,7 +332,7 @@ All examples below use `your-company.com/cap/pages` as the capability name. Repl
     "443"
   ],
   "app": {
-    "your-company.com/cap/pages": [
+    "tspages.mazetti.me/cap/pages": [
       {
         "access": "view"
       }
@@ -326,7 +359,7 @@ via [tailscale/github-action](https://github.com/tailscale/github-action)). This
     "443"
   ],
   "app": {
-    "your-company.com/cap/pages": [
+    "tspages.mazetti.me/cap/pages": [
       {
         "access": "deploy",
         "sites": [
@@ -356,7 +389,7 @@ sites -- that requires `admin`.
     "443"
   ],
   "app": {
-    "your-company.com/cap/pages": [
+    "tspages.mazetti.me/cap/pages": [
       {
         "access": "deploy"
       }
@@ -381,7 +414,7 @@ Admins can create and delete sites, deploy to any site, and access the admin das
     "443"
   ],
   "app": {
-    "your-company.com/cap/pages": [
+    "tspages.mazetti.me/cap/pages": [
       {
         "access": "admin"
       }
@@ -407,7 +440,7 @@ others.
     "443"
   ],
   "app": {
-    "your-company.com/cap/pages": [
+    "tspages.mazetti.me/cap/pages": [
       {
         "access": "admin",
         "sites": [
@@ -438,7 +471,7 @@ and instead grant access explicitly.
     "443"
   ],
   "app": {
-    "your-company.com/cap/pages": [
+    "tspages.mazetti.me/cap/pages": [
       {
         "access": "view",
         "sites": [
@@ -664,7 +697,7 @@ The runner joins the tailnet as `tag:ci`. The tailnet policy grants deploy acces
 hostname = "pages"                        # control plane tsnet hostname (default: "pages")
 state_dir = "/var/lib/tspages"             # tsnet state directory (default: "./state")
 auth_key = ""                             # reusable, tagged key; or set TS_AUTHKEY env var
-capability = "your-company.com/cap/pages"   # required
+capability = "tspages.mazetti.me/cap/pages"   # required
 
 [server]
 data_dir = "/data"    # site storage root (default: "./data")
