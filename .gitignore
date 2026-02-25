@@ -1,4 +1,11 @@
-/tspages
-/data/
-*.toml
 !tspages.toml.example
+.DS_Store
+.env
+/.idea/
+/docs/plans/
+/internal/admin/assets/dist/
+/node_modules/
+/tspages
+/tspages.toml
+data/
+state/

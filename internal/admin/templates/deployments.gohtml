@@ -1,0 +1,90 @@
+{{define "title"}} - deployments{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        <header class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold tracking-tight">Deployments</h1>
+        </header>
+
+        {{if .Deployments}}
+            <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
+                <thead>
+                <tr>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        Site
+                    </th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        ID
+                    </th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        Deployed by
+                    </th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        Deployed
+                    </th>
+                    <th class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        Size
+                    </th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        Status
+                    </th>
+                </tr>
+                </thead>
+                <tbody class="[&>tr:last-child>td]:border-b-0">
+                {{range .Deployments}}
+                    <tr>
+                        <td class="px-4 py-3 text-sm border-b border-default">
+                            <a class="text-blue-500 no-underline hover:underline" href="/sites/{{.Site}}">{{.Site}}</a>
+                        </td>
+                        <td class="px-4 py-3 text-sm border-b border-default"><a
+                                    class="font-mono text-sm text-blue-500 no-underline hover:underline"
+                                    href="/sites/{{.Site}}/deployments/{{.ID}}"
+                            >{{.ID}}</a></td>
+                        <td class="px-4 py-3 text-sm border-b border-default text-muted">
+                            {{if .CreatedBy}}<span class="flex items-center gap-2">{{avatarHTML .CreatedBy .CreatedByAvatar}} {{.CreatedBy}}</span>{{else}}&mdash;{{end}}</td>
+                        <td class="px-4 py-3 text-sm border-b border-default"><span
+                                    class="text-muted"
+                                    title="{{abstime .CreatedAt}}"
+                            >{{reltime .CreatedAt}}</span></td>
+                        <td class="px-4 py-3 text-sm border-b border-default font-mono tabular-nums text-right text-muted">{{bytes .SizeBytes}}</td>
+                        <td class="px-4 py-3 text-sm border-b border-default">{{if .Active}}
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">active</span>{{end}}
+                        </td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+
+            {{if or (gt .Page 1) (lt .Page .TotalPages)}}
+                <nav class="flex justify-between items-center mt-4">
+                    <div>
+                        {{if gt .Page 1}}
+                            <a
+                                    class="btn btn-outline inline-block no-underline"
+                                    href="/deployments?page={{sub .Page 1}}"
+                            >&larr; Newer</a>
+                        {{end}}
+                    </div>
+                    <span class="text-muted text-sm">Page {{.Page}} of {{.TotalPages}}</span>
+                    <div>
+                        {{if lt .Page .TotalPages}}
+                            <a
+                                    class="btn btn-outline inline-block no-underline"
+                                    href="/deployments?page={{add .Page 1}}"
+                            >Older &rarr;</a>
+                        {{end}}
+                    </div>
+                </nav>
+            {{end}}
+
+        {{else}}
+            <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md">No deployments
+                yet.
+            </p>
+        {{end}}
+    </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/deployments.ts"}}"></script>
+{{end}}

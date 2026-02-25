@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        :root {
+            color-scheme: light dark;
+
+            --text: light-dark(#24292f, #e6edf3);
+            --text-secondary: light-dark(#57606a, #9198a1);
+            --bg: light-dark(#fff, #0d1117);
+            --link: light-dark(#0969da, #58a6ff);
+            --link-hover: light-dark(#0550ae, #79c0ff);
+            --border: light-dark(#d0d7de, #30363d);
+            --surface: light-dark(#f6f8fa, #161b22);
+            --hr: light-dark(#d8dee4, #30363d);
+            --mark-bg: light-dark(#fff8c5, #bb800926);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--text);
+            background: var(--bg);
+            max-width: 48rem;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+            overflow-wrap: break-word;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            margin: 1.5em 0 0.5em;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-top: 0;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h2 {
+            font-size: 1.5em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h3 {
+            font-size: 1.25em;
+        }
+
+        h4 {
+            font-size: 1em;
+        }
+
+        h5 {
+            font-size: 0.875em;
+        }
+
+        h6 {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        p, ul, ol, dl, blockquote, pre, table, details {
+            margin: 0 0 1em;
+        }
+
+        a {
+            color: var(--link);
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: var(--link-hover);
+            text-decoration: underline;
+        }
+
+        ul, ol {
+            padding-left: 2em;
+        }
+
+        li + li {
+            margin-top: 0.25em;
+        }
+
+        li > ul, li > ol {
+            margin-top: 0.25em;
+            margin-bottom: 0;
+        }
+
+        blockquote {
+            margin-left: 0;
+            margin-right: 0;
+            padding: 0.5em 1em;
+            border-left: 0.25em solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        blockquote > :last-child {
+            margin-bottom: 0;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 0.875em;
+            background: var(--surface);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+        }
+
+        pre {
+            background: var(--surface);
+            padding: 1em;
+            border-radius: 6px;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            padding: 0.5em 1em;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background: var(--surface);
+        }
+
+        hr {
+            border: none;
+            height: 2px;
+            background: var(--hr);
+            margin: 1.5em 0;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        dt {
+            font-weight: 600;
+            margin-top: 1em;
+        }
+
+        dd {
+            margin-left: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .footnotes {
+            margin-top: 2em;
+            padding-top: 1em;
+            border-top: 1px solid var(--border);
+            font-size: 0.875em;
+            color: var(--text-secondary);
+        }
+
+        mark {
+            background: var(--mark-bg);
+            padding: 0.1em 0.2em;
+            border-radius: 3px;
+        }
+
+        details summary {
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        details[open] summary {
+            margin-bottom: 0.5em;
+        }
+    </style>
+</head>
+<body>
+{{.Body}}
+</body>
+</html>

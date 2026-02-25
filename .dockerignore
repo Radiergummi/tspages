@@ -1,0 +1,9 @@
+data/
+state/
+node_modules/
+internal/admin/assets/dist/
+.idea/
+.claude/
+.git/
+tspages
+tspages.toml

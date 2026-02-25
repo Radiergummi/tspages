@@ -1,0 +1,74 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en" class="scheme-light dark:scheme-dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>tspages{{template "title" .}}</title>
+    <link rel="stylesheet" href="{{asset "main.css"}}">
+    {{viteclient}}
+</head>
+<body class="bg-paper dark:bg-base-950 text-black dark:text-base-200 antialiased">
+<svg
+        class="pointer-events-none fixed inset-0 z-99 h-screen mix-blend-overlay"
+        xmlns="http://www.w3.org/2000/svg"
+        width="100%"
+        height="100%"
+        preserveAspectRatio="none"
+>
+    <defs>
+        <filter id="noise-filter">
+            <feTurbulence
+                    type="turbulence"
+                    baseFrequency="1"
+                    numOctaves="1"
+                    stitchTiles="stitch"
+                    result="noise"
+            ></feTurbulence>
+            <feColorMatrix
+                    type="matrix" values="0 0 0 0 0
+                        0 0 0 0 0
+                        0 0 0 0 0
+                        0 0 0 1 0" result="coloredNoise"
+            ></feColorMatrix>
+        </filter>
+    </defs>
+    <rect width="100%" height="100%" filter="url(#noise-filter)"></rect>
+</svg>
+
+<header class="flex items-center px-8 h-13 bg-surface border-b border-default sticky top-0 z-10">
+    <a class="flex items-center gap-2.5 mr-8 shrink-0 no-underline" href="/sites">
+        <span class="text-lg font-semibold text-black dark:text-base-200 tracking-tight">
+            tspages
+        </span>
+    </a>
+    <nav class="flex items-stretch h-full">
+        <a
+                class="flex items-center px-4 text-sm border-b-2 no-underline transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200 aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                href="/sites"
+                {{if eq (nav) "sites"}}aria-current="page"{{end}}>Sites</a>
+        <a
+                class="flex items-center px-4 text-sm border-b-2 no-underline transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200 aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                href="/deployments"
+                {{if eq (nav) "deployments"}}aria-current="page"{{end}}>Deployments</a>
+        <a
+                class="flex items-center px-4 text-sm border-b-2 no-underline transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200 aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                href="/analytics"
+                {{if eq (nav) "analytics"}}aria-current="page"{{end}}>Analytics</a>
+    </nav>
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-2">
+        {{avatarHTML .User.Name .User.ProfilePicURL}}
+        <span class="text-sm text-muted">{{.User.Name}}</span>
+    </div>
+</header>
+
+<main class="max-w-4xl mx-auto p-8 pb-48" {{template "main-attrs" .}}>
+    {{template "content" .}}
+</main>
+
+{{template "script" .}}
+</body>
+</html>{{end}}
+{{define "title"}}{{end}}
+{{define "script"}}{{end}}
+{{define "main-attrs"}}{{end}}

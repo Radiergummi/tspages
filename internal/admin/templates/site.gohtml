@@ -1,0 +1,270 @@
+{{define "title"}} - {{.Site.Name}}{{end}}
+{{define "main-attrs"}}data-site="{{.Site.Name}}"{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        <nav>
+            <a
+                    class="inline-block text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                    href="/sites"
+            >
+                &larr; All sites
+            </a>
+        </nav>
+
+        <header class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold tracking-tight">
+                {{.Site.Name}}
+            </h1>
+
+            <div class="flex gap-2">
+                {{if .AnalyticsEnabled}}
+                    <a
+                            class="btn btn-outline inline-block no-underline"
+                            href="/sites/{{.Site.Name}}/analytics"
+                    >
+                        Analytics
+                    </a>
+                {{end}}
+                {{if .CanDeploy}}
+                    <button
+                            class="btn btn-primary"
+                            data-action="deploy"
+                    >Deploy
+                    </button>
+                {{end}}
+                {{if .CanDelete}}
+                    <button
+                            class="btn btn-danger"
+                            data-action="delete-site"
+                    >Delete site
+                    </button>
+                {{end}}
+            </div>
+        </header>
+
+        <section class="grid gap-4 grid-cols-12">
+            <dl class="col-span-6 lg:col-span-3 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Active deployment
+                </dt>
+                <dd class="font-mono text-base">
+                    {{if .Site.ActiveDeploymentID}}
+                        <a
+                                class="text-blue-500 no-underline hover:underline"
+                                href="/sites/{{.Site.Name}}/deployments/{{.Site.ActiveDeploymentID}}"
+                        >
+                            {{.Site.ActiveDeploymentID}}
+                        </a>
+                    {{else}}
+                        &mdash;
+                    {{end}}
+                </dd>
+            </dl>
+            {{if .Admin}}
+                <dl class="col-span-6 lg:col-span-3 relative overflow-hidden bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500">
+                    <dt class="relative z-1 text-muted text-xs uppercase tracking-wide mb-1.5">
+                        Total requests
+                    </dt>
+                    <dd class="relative z-1 font-mono text-base">
+                        {{fmtnum .Site.Requests}}
+                    </dd>
+                    {{if .Sparkline}}
+                        <div class="absolute bottom-0 left-0 w-full">
+                            <canvas
+                                    id="sparkline"
+                                    data-counts="{{.Sparkline}}"
+                                    class="w-full h-10 pointer-events-none"
+                            ></canvas>
+                        </div>
+                    {{end}}
+                </dl>
+            {{end}}
+
+            <dl class="col-span-12 lg:col-span-6 bg-surface rounded-md px-5 py-4  dark:ring-1 dark:ring-base-500">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">URL</dt>
+                <dd class="font-mono text-base">
+                    {{with siteurl .Site.Name .DNSSuffix}}
+                        <a class="text-blue-500 no-underline hover:underline" href="{{.}}" target="_blank">
+                            {{.}}
+                        </a>
+                    {{else}}
+                        <span class="text-muted">no DNS suffix</span>
+                    {{end}}
+                </dd>
+            </dl>
+        </section>
+
+        <section>
+            <header class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted">
+                    Deployments ({{len .Deployments}})
+                </h2>
+
+                {{if and .CanDeploy .HasInactive}}
+                    <button
+                            class="btn btn-outline"
+                            data-action="cleanup"
+                    >
+                        Clean old deployments
+                    </button>
+                {{end}}
+            </header>
+
+            {{if .Deployments}}
+                <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
+                    <thead>
+                    <tr>
+                        <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-black">
+                            ID
+                        </th>
+                        <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-black">
+                            Deployed by
+                        </th>
+                        <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-black">
+                            Deployed
+                        </th>
+                        <th class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-black">
+                            Size
+                        </th>
+                        <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-black">
+                            Status
+                        </th>
+
+                        {{if .Admin}}
+                            <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-black"></th>
+                        {{end}}
+                    </tr>
+                    </thead>
+                    <tbody class="[&>tr:last-child>td]:border-b-0">
+                    {{range .Deployments}}
+                        <tr>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-black">
+                                <a
+                                        class="font-mono text-sm text-blue-500 no-underline hover:underline"
+                                        href="/sites/{{$.Site.Name}}/deployments/{{.ID}}"
+                                >
+                                    {{.ID}}
+                                </a>
+                            </td>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-black text-muted">
+                                {{if .CreatedBy}}
+                                    <span class="flex items-center gap-2">
+                                        {{avatarHTML .CreatedBy .CreatedByAvatar}}
+                                        {{.CreatedBy}}
+                                    </span>
+                                {{else}}&mdash;{{end}}
+                            </td>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-black">
+                                <span class="text-muted" title="{{abstime .CreatedAt}}">
+                                    {{reltime .CreatedAt}}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-black font-mono tabular-nums text-right text-muted">
+                                {{bytes .SizeBytes}}
+                            </td>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-black">
+                                {{if .Active}}
+                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                                        active
+                                    </span>
+                                {{end}}
+                            </td>
+                            {{if $.Admin}}
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-black text-right">{{if not .Active}}
+                                        <button
+                                                class="btn btn-primary"
+                                                data-action="activate"
+                                                data-deployment-id="{{.ID}}"
+                                        >
+                                            Activate
+                                        </button>
+                                    {{end}}
+                                </td>
+                            {{end}}
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            {{else}}
+                <p class="text-center py-12 px-8 text-muted text-sm rounded-md">
+                    No deployments yet
+                </p>
+            {{end}}
+        </section>
+
+        {{if .CanDeploy}}
+            <div id="deploy-modal" class="hidden fixed inset-0 z-50 bg-black/50 items-center justify-center">
+                <div class="bg-surface border border-default rounded-lg w-full max-w-lg shadow-2xl">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-default">
+                        <h3 class="text-base font-semibold">
+                            Deploy to {{.Site.Name}}
+                        </h3>
+                        <button class="modal-close text-xl text-muted hover:text-black dark:hover:text-base-200 bg-transparent border-0 cursor-pointer p-0 leading-none">
+                            &times;
+                        </button>
+                    </div>
+                    <div class="p-5">
+                        <div
+                                id="modal-dropzone"
+                                class="border-2 border-dashed border-muted rounded-md p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-500/5"
+                        >
+                            <div class="text-2xl mb-2 text-muted">&#8593;</div>
+                            <div>
+                                <span>
+                                    Drop files here or
+                                </span>
+                                <button class="bg-transparent border-0 text-blue-500 cursor-pointer underline hover:text-blue-400">
+                                    browse
+                                </button>
+                            </div>
+                            <div class="text-muted text-xs mt-2">
+                                ZIP, tar.gz, HTML, Markdown, or a folder
+                            </div>
+                            <input type="file" id="deploy-file-input" hidden multiple>
+                        </div>
+                        <div class="flex items-center gap-4 my-5">
+                            <div class="flex-1 h-px bg-base-200 dark:bg-base-800"></div>
+                            <span class="text-muted text-xs uppercase tracking-wide">
+                                or deploy from the command line
+                            </span>
+                            <div class="flex-1 h-px bg-base-200 dark:bg-base-800"></div>
+                        </div>
+                        <div class="flex items-center gap-2 bg-paper dark:bg-base-950 border border-default rounded-md px-4 py-3">
+                            <code
+                                    id="deploy-cmd"
+                                    class="flex-1 font-mono text-sm break-all bg-surface border border-default px-1.5 py-0.5 rounded-[3px]"
+                            >
+                                curl --upload-file site.zip https://{{.Host}}/deploy/{{.Site.Name}}
+                            </code>
+                            <button
+                                    class="bg-transparent border-0 text-lg text-muted hover:text-black dark:hover:text-base-200 cursor-pointer p-1 shrink-0"
+                                    data-action="copy-cmd"
+                                    title="Copy"
+                            >
+                                &#x2398;
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                    id="deploy-overlay"
+                    class="fixed inset-0 z-100 flex flex-col items-center justify-center gap-6 pointer-events-none opacity-0 transition-opacity bg-black/80"
+            >
+                <div class="deploy-overlay-text text-xl font-semibold text-white"></div>
+                <div
+                        class="deploy-progress-bar w-75 h-1.5 bg-base-200 dark:bg-base-800 rounded-full overflow-hidden"
+                        hidden
+                >
+                    <div class="deploy-progress-fill h-full bg-blue-500 transition-[width] duration-200 w-0"></div>
+                </div>
+            </div>
+        {{end}}
+    </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/site.ts"}}"></script>
+{{end}}

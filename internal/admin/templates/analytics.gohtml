@@ -1,0 +1,338 @@
+{{define "title"}} - {{if .SiteName}}{{.SiteName}} analytics{{else}}Analytics{{end}}{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        {{if .SiteName}}
+            <nav>
+                <a
+                        class="inline-block text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                        href="/sites/{{.SiteName}}"
+                >
+                    &larr; {{.SiteName}}
+                </a>
+            </nav>
+        {{end}}
+
+        <header class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold tracking-tight">
+                Analytics
+            </h1>
+            <div class="flex items-center gap-2">
+                <nav class="flex gap-1">
+                    <a
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "PT24H"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            href="?range=PT24H"
+                    >
+                        24H
+                    </a>
+                    <a
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P7D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            href="?range=P7D"
+                    >
+                        7D
+                    </a>
+                    <a
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P30D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            href="?range=P30D"
+                    >
+                        30D
+                    </a>
+                    <a
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "all"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            href="?range=all"
+                    >
+                        ALL
+                    </a>
+                </nav>
+
+                {{if and .SiteName .Admin}}
+                    <form
+                            method="POST" action="/sites/{{.SiteName}}/analytics/purge"
+                            onsubmit="return confirm('Delete all analytics data for this site?')"
+                    >
+                        <button
+                                type="submit"
+                                class="btn btn-danger"
+                        >
+                            Purge
+                        </button>
+                    </form>
+                {{end}}
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <section class="col-span-1 sm:col-span-3 bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                <header class="flex items-end justify-end gap-10 px-5 h-14">
+                    <div class="flex flex-col">
+                        <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                            Requests
+                        </span>
+                        <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                            {{fmtnum .Total}}
+                        </code>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                            Visitors
+                        </span>
+                        <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                            {{fmtnum .Visitors}}
+                        </code>
+                    </div>
+                    {{if .SiteName}}
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Pages
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Pages}}
+                            </code>
+                        </div>
+                    {{else}}
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Sites
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{.SiteCount}}
+                            </code>
+                        </div>
+                    {{end}}
+                </header>
+
+                {{if .TimeSeries}}
+                    <div class="relative pt-4">
+                        <canvas id="requests-chart" height="180"></canvas>
+                    </div>
+                {{end}}
+            </section>
+
+            {{if .TopVisitors}}
+                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-y-auto m-0 max-h-62 overscroll-none">
+                    <header class="sticky top-0 z-10 flex items-center justify-between px-5 h-14 bg-linear-to-b from-base-50 from-80% to-transparent dark:from-base-900">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                            Top visitors
+                        </h2>
+                    </header>
+                    <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+
+                        {{range .TopVisitors}}
+                            <tr>
+                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 flex items-center gap-2.5">
+                                    {{if .ProfilePicURL}}
+                                        <img
+                                                class="w-6 h-6 rounded-full shrink-0 object-cover"
+                                                src="{{.ProfilePicURL}}" alt=""
+                                        >
+                                    {{else}}
+                                        <span
+                                                class="w-6 h-6 rounded-full shrink-0 flex items-center justify-center bg-blue-500/10 text-blue-500 text-xs font-semibold uppercase"
+                                        >
+                                            {{initial .UserName .UserLogin}}
+                                        </span>
+                                    {{end}}
+
+                                    {{if .UserName}}{{.UserName}}{{else}}{{.UserLogin}}{{end}}
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
+                                    {{.Count}}
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </section>
+            {{end}}
+
+            {{if .StatusTimeSeries}}
+                <section class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <header class="flex justify-end items-end gap-10 h-14 px-5">
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-base-500"></span>
+                                1/2/3xx
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .CountOK}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-orange-500"></span>
+                                4xx
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Count4xx}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-red-400"></span>
+                                5xx
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Count5xx}}
+                            </code>
+                        </div>
+                    </header>
+
+                    <div class="relative pt-4 h-48">
+                        <canvas id="status-chart" height="140"></canvas>
+                    </div>
+                </section>
+            {{end}}
+
+            {{if .TopPages}}
+                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-y-auto m-0 max-h-62 overscroll-none">
+                    <header class="sticky top-0 z-10 flex items-center justify-between px-5 h-14 bg-linear-to-b from-base-50 from-80% to-transparent dark:from-base-900">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                            Top pages
+                        </h2>
+                    </header>
+
+                    <div class="z-0 relative">
+                        <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
+                            <tbody class="[&>tr:last-child>td]:border-b-0">
+
+                            {{range .TopPages}}
+                                <tr>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono">
+                                        {{.Path}}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
+                                        {{.Count}}
+                                    </td>
+                                </tr>
+                            {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            {{end}}
+
+            {{if .Sites}}
+                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <header class="flex items-center justify-between px-5 h-14">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                            Sites
+                        </h2>
+                    </header>
+                    <div class="relative px-4 pb-3 h-48">
+                        <canvas id="sites-chart"></canvas>
+                    </div>
+                </section>
+
+                {{if .OS}}
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                Operating systems
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas id="os-chart"></canvas>
+                        </div>
+                    </section>
+                {{end}}
+
+                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <header class="flex items-center justify-between px-5 h-14">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                            Sites
+                        </h2>
+                    </header>
+                    <table class="w-full border-collapse dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden">
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+
+                        {{range .Sites}}
+                            <tr>
+                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800">
+                                    <a
+                                            class="text-blue-500 no-underline hover:underline"
+                                            href="/sites/{{.Site}}/analytics"
+                                    >
+                                        {{.Site}}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
+                                    {{.Count}}
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </section>
+            {{end}}
+
+            {{if and .SiteName (or .OS .Nodes)}}
+                {{if .OS}}
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                Operating systems
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas id="os-chart"></canvas>
+                        </div>
+                    </section>
+                {{end}}
+
+                {{if .Nodes}}
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                Devices
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas id="nodes-chart"></canvas>
+                        </div>
+                    </section>
+                {{end}}
+            {{end}}
+
+            {{if not .SiteName}}
+                {{if .Nodes}}
+                    <section class=" col-span-2 bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                Devices
+                            </h2>
+                        </header>
+                        <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
+                            <tbody class="[&>tr:last-child>td]:border-b-0">
+
+                            {{range .Nodes}}
+                                <tr>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono">
+                                        {{.NodeName}}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800">
+                                        {{.OS}}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
+                                        {{.Count}}
+                                    </td>
+                                </tr>
+                            {{end}}
+                            </tbody>
+                        </table>
+                    </section>
+                {{end}}
+            {{end}}
+        </div>
+
+        {{if and (not .TimeSeries) (not .TopPages) (not .Sites)}}
+            <p class="text-center py-12 px-8 text-muted text-sm border border-base-100 dark:border-base-800 rounded-md">
+                No analytics data for this time range
+            </p>
+        {{end}}
+    </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/analytics.ts"}}"></script>
+{{end}}

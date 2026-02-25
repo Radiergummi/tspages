@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Site}} — No deployment yet</title>
+    <style>
+        :root { color-scheme: light dark }
+        * { margin: 0; padding: 0; box-sizing: border-box }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: light-dark(#fffcf0, #1c1b1a);
+            color: light-dark(#100f0f, #cecdc3);
+            -webkit-font-smoothing: antialiased;
+        }
+        .card {
+            max-width: 480px;
+            padding: 2rem;
+            background: light-dark(#f2f0e5, #282726);
+            border: 1px solid light-dark(#e6e4d9, #403e3c);
+            border-radius: 8px;
+        }
+        h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: .75rem }
+        code {
+            background: light-dark(#e6e4d9, #343331);
+            padding: .15em .4em;
+            border-radius: 3px;
+            font-size: .9em;
+        }
+        pre {
+            background: light-dark(#e6e4d9, #343331);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: .75rem 0;
+            font-size: .85em;
+        }
+        p { line-height: 1.6; margin-bottom: .5rem; color: light-dark(#6f6e69, #878580) }
+        a { color: light-dark(#205ea6, #4385be); text-decoration: none }
+        a:hover { text-decoration: underline }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>{{.Site}}</h1>
+    <p>This site exists but has no deployment yet.</p>
+    <p>Deploy by uploading a ZIP to the control plane:</p>
+    <pre>curl --upload-file site.zip {{.ControlPlane}}/deploy/{{.Site}}</pre>
+    <p>Or drag and drop a ZIP file in the <a href="{{.ControlPlane}}/sites/{{.Site}}">admin dashboard</a>.</p>
+</div>
+</body>
+</html>

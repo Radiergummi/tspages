@@ -1,0 +1,375 @@
+package storage
+
+import (
+	"testing"
+)
+
+func TestParseSiteConfig_Full(t *testing.T) {
+	input := `
+spa = true
+analytics = false
+index_page = "home.html"
+not_found_page = "errors/404.html"
+
+[headers]
+"/*" = { Cache-Control = "public, max-age=3600" }
+"/api/*" = { Access-Control-Allow-Origin = "*", Access-Control-Allow-Methods = "GET, POST" }
+`
+	cfg, err := ParseSiteConfig([]byte(input))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.SPA == nil || *cfg.SPA != true {
+		t.Error("spa should be true")
+	}
+	if cfg.Analytics == nil || *cfg.Analytics != false {
+		t.Error("analytics should be false")
+	}
+	if cfg.IndexPage != "home.html" {
+		t.Errorf("index_page = %q, want home.html", cfg.IndexPage)
+	}
+	if cfg.NotFoundPage != "errors/404.html" {
+		t.Errorf("not_found_page = %q, want errors/404.html", cfg.NotFoundPage)
+	}
+	if len(cfg.Headers) != 2 {
+		t.Fatalf("headers count = %d, want 2", len(cfg.Headers))
+	}
+	if cfg.Headers["/*"]["Cache-Control"] != "public, max-age=3600" {
+		t.Errorf("Cache-Control = %q", cfg.Headers["/*"]["Cache-Control"])
+	}
+}
+
+func TestParseSiteConfig_Empty(t *testing.T) {
+	cfg, err := ParseSiteConfig([]byte(""))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.SPA != nil {
+		t.Error("spa should default to nil")
+	}
+	if cfg.Analytics != nil {
+		t.Error("analytics should default to nil")
+	}
+	if cfg.IndexPage != "" {
+		t.Error("index_page should default to empty")
+	}
+	if cfg.NotFoundPage != "" {
+		t.Error("not_found_page should default to empty")
+	}
+	if cfg.Headers != nil {
+		t.Error("headers should default to nil")
+	}
+}
+
+func TestParseSiteConfig_Invalid(t *testing.T) {
+	_, err := ParseSiteConfig([]byte(`spa = "not a bool"`))
+	if err == nil {
+		t.Fatal("expected error for invalid TOML")
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
+
+func TestWriteReadSiteConfig(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "aaa11111")
+
+	analytics := true
+	cfg := SiteConfig{
+		SPA:          boolPtr(true),
+		Analytics:    &analytics,
+		NotFoundPage: "404.html",
+		Headers: map[string]map[string]string{
+			"/*": {"Cache-Control": "public, max-age=3600"},
+		},
+	}
+	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := s.ReadSiteConfig("docs", "aaa11111")
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.SPA == nil || *got.SPA != true {
+		t.Error("spa should be true")
+	}
+	if got.Analytics == nil || *got.Analytics != true {
+		t.Error("analytics should be true")
+	}
+	if got.NotFoundPage != "404.html" {
+		t.Errorf("not_found_page = %q", got.NotFoundPage)
+	}
+	if got.Headers["/*"]["Cache-Control"] != "public, max-age=3600" {
+		t.Errorf("Cache-Control = %q", got.Headers["/*"]["Cache-Control"])
+	}
+}
+
+func TestReadSiteConfig_Missing(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "aaa11111")
+
+	cfg, err := s.ReadSiteConfig("docs", "aaa11111")
+	if err != nil {
+		t.Fatalf("missing config should not error: %v", err)
+	}
+	if cfg.SPA != nil {
+		t.Error("spa should be nil")
+	}
+	if cfg.Headers != nil {
+		t.Error("headers should be nil")
+	}
+}
+
+func TestReadCurrentSiteConfig(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "aaa11111")
+	s.MarkComplete("docs", "aaa11111")
+	s.ActivateDeployment("docs", "aaa11111")
+
+	cfg := SiteConfig{SPA: boolPtr(true)}
+	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := s.ReadCurrentSiteConfig("docs")
+	if err != nil {
+		t.Fatalf("read current: %v", err)
+	}
+	if got.SPA == nil || *got.SPA != true {
+		t.Error("spa should be true")
+	}
+}
+
+func TestReadCurrentSiteConfig_NoDeployment(t *testing.T) {
+	s := New(t.TempDir())
+
+	cfg, err := s.ReadCurrentSiteConfig("docs")
+	if err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+	if cfg.SPA != nil {
+		t.Error("spa should be nil for missing deployment")
+	}
+}
+
+func TestSiteConfig_Merge(t *testing.T) {
+	defaults := SiteConfig{
+		SPA:          boolPtr(true),
+		Analytics:    boolPtr(true),
+		NotFoundPage: "404.html",
+		Headers: map[string]map[string]string{
+			"/*": {"X-Frame-Options": "DENY", "Cache-Control": "no-store"},
+		},
+	}
+
+	// Deployment overrides SPA and analytics, adds a header path
+	deploy := SiteConfig{
+		SPA:       boolPtr(false),
+		Analytics: boolPtr(false),
+		Headers: map[string]map[string]string{
+			"/assets/*": {"Cache-Control": "public, max-age=86400"},
+		},
+	}
+
+	merged := deploy.Merge(defaults)
+	if merged.SPA == nil || *merged.SPA != false {
+		t.Error("deploy should override spa to false")
+	}
+	if merged.Analytics == nil || *merged.Analytics != false {
+		t.Error("deploy should override analytics to false")
+	}
+	if merged.NotFoundPage != "404.html" {
+		t.Errorf("not_found_page should inherit from defaults, got %q", merged.NotFoundPage)
+	}
+	// Headers: deployment paths override defaults; default-only paths are kept
+	if merged.Headers["/*"]["X-Frame-Options"] != "DENY" {
+		t.Error("should inherit default /* headers")
+	}
+	if merged.Headers["/assets/*"]["Cache-Control"] != "public, max-age=86400" {
+		t.Error("should have deployment /assets/* headers")
+	}
+}
+
+func TestSiteConfig_Merge_EmptyDeployment(t *testing.T) {
+	defaults := SiteConfig{
+		SPA:       boolPtr(true),
+		Analytics: boolPtr(true),
+		IndexPage: "home.html",
+	}
+	deploy := SiteConfig{} // all zero values
+
+	merged := deploy.Merge(defaults)
+	if merged.SPA == nil || *merged.SPA != true {
+		t.Error("should inherit spa from defaults")
+	}
+	if merged.Analytics == nil || *merged.Analytics != true {
+		t.Error("should inherit analytics from defaults")
+	}
+	if merged.IndexPage != "home.html" {
+		t.Errorf("index_page = %q, want home.html", merged.IndexPage)
+	}
+}
+
+func TestSiteConfig_Merge_EmptyDefaults(t *testing.T) {
+	deploy := SiteConfig{SPA: boolPtr(true), IndexPage: "app.html"}
+	defaults := SiteConfig{}
+
+	merged := deploy.Merge(defaults)
+	if merged.SPA == nil || *merged.SPA != true {
+		t.Error("spa should be true")
+	}
+	if merged.IndexPage != "app.html" {
+		t.Errorf("index_page = %q", merged.IndexPage)
+	}
+}
+
+func TestSiteConfig_Merge_DoesNotMutateDefaults(t *testing.T) {
+	defaults := SiteConfig{
+		Headers: map[string]map[string]string{
+			"/*": {"X-Frame-Options": "DENY"},
+		},
+	}
+	deploy := SiteConfig{
+		Headers: map[string]map[string]string{
+			"/assets/*": {"Cache-Control": "public"},
+		},
+	}
+
+	deploy.Merge(defaults)
+
+	// defaults.Headers should not have been mutated
+	if _, ok := defaults.Headers["/assets/*"]; ok {
+		t.Error("Merge mutated the defaults Headers map")
+	}
+	if len(defaults.Headers) != 1 {
+		t.Errorf("defaults.Headers has %d entries, want 1", len(defaults.Headers))
+	}
+}
+
+func TestValidateSiteConfig_ValidPaths(t *testing.T) {
+	cfg := SiteConfig{IndexPage: "index.html", NotFoundPage: "errors/404.html"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateSiteConfig_PathTraversal(t *testing.T) {
+	tests := []SiteConfig{
+		{IndexPage: "../etc/passwd"},
+		{NotFoundPage: "../../secret.html"},
+		{IndexPage: "/absolute/path.html"},
+		{NotFoundPage: "foo/../../bar.html"},
+	}
+	for _, cfg := range tests {
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("expected error for %+v", cfg)
+		}
+	}
+}
+
+func TestValidateSiteConfig_HeaderPaths(t *testing.T) {
+	cfg := SiteConfig{
+		Headers: map[string]map[string]string{
+			"/*":        {"X-Frame-Options": "DENY"},
+			"/assets/*": {"Cache-Control": "public"},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateSiteConfig_EmptyHeaderValue(t *testing.T) {
+	cfg := SiteConfig{
+		Headers: map[string]map[string]string{
+			"/*": {"X-Frame-Options": ""},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for empty header value")
+	}
+}
+
+func TestParseSiteConfig_Redirects(t *testing.T) {
+	input := `
+[[redirects]]
+from = "/old"
+to = "/new"
+status = 301
+
+[[redirects]]
+from = "/blog/:slug"
+to = "/posts/:slug"
+`
+	cfg, err := ParseSiteConfig([]byte(input))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(cfg.Redirects) != 2 {
+		t.Fatalf("redirects count = %d, want 2", len(cfg.Redirects))
+	}
+	if cfg.Redirects[0].From != "/old" || cfg.Redirects[0].To != "/new" || cfg.Redirects[0].Status != 301 {
+		t.Errorf("redirect 0 = %+v", cfg.Redirects[0])
+	}
+	if cfg.Redirects[1].From != "/blog/:slug" || cfg.Redirects[1].To != "/posts/:slug" {
+		t.Errorf("redirect 1 = %+v", cfg.Redirects[1])
+	}
+	if cfg.Redirects[1].Status != 0 {
+		t.Errorf("redirect 1 status = %d, want 0 (default)", cfg.Redirects[1].Status)
+	}
+}
+
+func TestValidateSiteConfig_Redirects(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     SiteConfig
+		wantErr bool
+	}{
+		{"valid exact", SiteConfig{Redirects: []RedirectRule{{From: "/old", To: "/new"}}}, false},
+		{"valid with status", SiteConfig{Redirects: []RedirectRule{{From: "/old", To: "/new", Status: 302}}}, false},
+		{"valid named param", SiteConfig{Redirects: []RedirectRule{{From: "/blog/:slug", To: "/posts/:slug"}}}, false},
+		{"valid splat", SiteConfig{Redirects: []RedirectRule{{From: "/docs/*", To: "/v2/docs/*"}}}, false},
+		{"valid external", SiteConfig{Redirects: []RedirectRule{{From: "/ext", To: "https://example.com"}}}, false},
+		{"empty from", SiteConfig{Redirects: []RedirectRule{{From: "", To: "/new"}}}, true},
+		{"from no slash", SiteConfig{Redirects: []RedirectRule{{From: "old", To: "/new"}}}, true},
+		{"empty to", SiteConfig{Redirects: []RedirectRule{{From: "/old", To: ""}}}, true},
+		{"to no slash or url", SiteConfig{Redirects: []RedirectRule{{From: "/old", To: "new"}}}, true},
+		{"bad status", SiteConfig{Redirects: []RedirectRule{{From: "/old", To: "/new", Status: 200}}}, true},
+		{"duplicate from", SiteConfig{Redirects: []RedirectRule{{From: "/a", To: "/b"}, {From: "/a", To: "/c"}}}, true},
+		{"to param not in from", SiteConfig{Redirects: []RedirectRule{{From: "/blog/:slug", To: "/posts/:id"}}}, true},
+		{"to splat without from splat", SiteConfig{Redirects: []RedirectRule{{From: "/docs/:slug", To: "/v2/*"}}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestSiteConfig_Merge_Redirects(t *testing.T) {
+	defaults := SiteConfig{
+		Redirects: []RedirectRule{{From: "/default", To: "/new-default"}},
+	}
+	deploy := SiteConfig{
+		Redirects: []RedirectRule{{From: "/old", To: "/new"}},
+	}
+	merged := deploy.Merge(defaults)
+	if len(merged.Redirects) != 1 || merged.Redirects[0].From != "/old" {
+		t.Errorf("deployment redirects should replace defaults, got %+v", merged.Redirects)
+	}
+}
+
+func TestSiteConfig_Merge_RedirectsInheritDefaults(t *testing.T) {
+	defaults := SiteConfig{
+		Redirects: []RedirectRule{{From: "/default", To: "/new-default"}},
+	}
+	deploy := SiteConfig{} // nil Redirects
+	merged := deploy.Merge(defaults)
+	if len(merged.Redirects) != 1 || merged.Redirects[0].From != "/default" {
+		t.Errorf("nil deployment redirects should inherit defaults, got %+v", merged.Redirects)
+	}
+}
