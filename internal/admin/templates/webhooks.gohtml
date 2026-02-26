@@ -11,28 +11,21 @@
         {{$ev := .Event}}
         {{$st := .Status}}
         <div class="flex flex-wrap gap-3" aria-label="Filter webhook deliveries">
-            <div class="inline-flex rounded-lg border border-default bg-surface p-0.5" role="group" aria-label="Event type">
-                <a href="{{$bp}}?{{if $st}}status={{$st}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $ev ""}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >All events</a>
-                <a href="{{$bp}}?event=deploy.success{{if $st}}&status={{$st}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $ev "deploy.success"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >deploy.success</a>
-                <a href="{{$bp}}?event=deploy.failed{{if $st}}&status={{$st}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $ev "deploy.failed"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >deploy.failed</a>
-                <a href="{{$bp}}?event=site.created{{if $st}}&status={{$st}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $ev "site.created"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >site.created</a>
-                <a href="{{$bp}}?event=site.deleted{{if $st}}&status={{$st}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $ev "site.deleted"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >site.deleted</a>
-            </div>
+            <form method="GET" action="{{$bp}}" class="contents">
+                {{if $st}}<input type="hidden" name="status" value="{{$st}}">{{end}}
+                <select
+                        name="event"
+                        aria-label="Event type"
+                        onchange="this.form.submit()"
+                        class="text-sm border border-default rounded-lg px-3 py-1.5 bg-surface text-black dark:text-base-200"
+                >
+                    <option value="">All events</option>
+                    <option value="deploy.success"{{if eq $ev "deploy.success"}} selected{{end}}>deploy.success</option>
+                    <option value="deploy.failed"{{if eq $ev "deploy.failed"}} selected{{end}}>deploy.failed</option>
+                    <option value="site.created"{{if eq $ev "site.created"}} selected{{end}}>site.created</option>
+                    <option value="site.deleted"{{if eq $ev "site.deleted"}} selected{{end}}>site.deleted</option>
+                </select>
+            </form>
             <div class="inline-flex rounded-lg border border-default bg-surface p-0.5" role="group" aria-label="Delivery status">
                 <a href="{{$bp}}?{{if $ev}}event={{$ev}}{{end}}"
                    class="px-3 py-1 text-sm rounded-md no-underline transition-colors
@@ -53,24 +46,24 @@
             <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
                 <thead>
                 <tr>
-                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
                         Event
                     </th>
                     {{if .Global}}
-                        <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
                             Site
                         </th>
                     {{end}}
-                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
                         Status
                     </th>
-                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
                         Attempts
                     </th>
-                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
                         URL
                     </th>
-                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
                         Time
                     </th>
                 </tr>
