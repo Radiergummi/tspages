@@ -889,8 +889,8 @@ func TestHandler_CacheControl_HTML(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	if cc := rec.Header().Get("Cache-Control"); cc != "public, no-cache" {
-		t.Errorf("Cache-Control = %q, want %q", cc, "public, no-cache")
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, no-cache, stale-while-revalidate=60" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "public, no-cache, stale-while-revalidate=60")
 	}
 }
 
@@ -908,8 +908,8 @@ func TestHandler_CacheControl_RegularAsset(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if cc := rec.Header().Get("Cache-Control"); cc != "public, max-age=3600" {
-		t.Errorf("Cache-Control = %q, want %q", cc, "public, max-age=3600")
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, max-age=3600, stale-while-revalidate=120" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "public, max-age=3600, stale-while-revalidate=120")
 	}
 }
 

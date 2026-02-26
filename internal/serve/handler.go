@@ -215,12 +215,12 @@ func defaultCacheControl(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
 	case ".html", ".htm":
-		return "public, no-cache"
+		return "public, no-cache, stale-while-revalidate=60"
 	default:
 		if hasContentHash(filePath) {
 			return "public, max-age=31536000, immutable"
 		}
-		return "public, max-age=3600"
+		return "public, max-age=3600, stale-while-revalidate=120"
 	}
 }
 
