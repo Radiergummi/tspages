@@ -286,7 +286,7 @@ func TestHandler_SPA_FallbackToIndex(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPA: &spa})
+	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
 
 	h := NewHandler(store, "app", nil, storage.SiteConfig{})
 
@@ -316,7 +316,7 @@ func TestHandler_SPA_RealFileStillServed(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPA: &spa})
+	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
 
 	h := NewHandler(store, "app", nil, storage.SiteConfig{})
 
@@ -345,7 +345,7 @@ func TestHandler_SPA_CustomIndexPage(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPA: &spa, IndexPage: "app.html"})
+	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa, IndexPage: "app.html"})
 
 	h := NewHandler(store, "app", nil, storage.SiteConfig{})
 
@@ -394,7 +394,7 @@ func TestHandler_SPA_FromDefaults(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	defaults := storage.SiteConfig{SPA: &spa}
+	defaults := storage.SiteConfig{SPARouting: &spa}
 	h := NewHandler(store, "app", nil, defaults)
 
 	req := httptest.NewRequest("GET", "/some/route", nil)
@@ -547,7 +547,7 @@ func TestHandler_FullConfig_Integration(t *testing.T) {
 
 	spa := true
 	store.WriteSiteConfig("app", "int11111", storage.SiteConfig{
-		SPA:          &spa,
+		SPARouting:   &spa,
 		NotFoundPage: "errors/404.html",
 		Headers: map[string]map[string]string{
 			"/*":     {"X-Content-Type-Options": "nosniff"},
@@ -821,7 +821,7 @@ func TestHandler_Redirect_NoMatchServesFile(t *testing.T) {
 	store := storage.New(t.TempDir())
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"index.html": "<h1>Docs</h1>",
-		"about.html": "<h1>About</h1>",
+		"style.css":  "body{}",
 	})
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
 		Redirects: []storage.RedirectRule{
@@ -830,9 +830,9 @@ func TestHandler_Redirect_NoMatchServesFile(t *testing.T) {
 	})
 
 	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
-	req := httptest.NewRequest("GET", "/about.html", nil)
+	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
-	req.SetPathValue("path", "about.html")
+	req.SetPathValue("path", "style.css")
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -840,7 +840,7 @@ func TestHandler_Redirect_NoMatchServesFile(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (no redirect match)", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "About") {
+	if rec.Body.String() != "body{}" {
 		t.Error("should serve the file normally when no redirect matches")
 	}
 }
@@ -1058,13 +1058,13 @@ func TestHandler_Gzip_SkipsImages(t *testing.T) {
 func TestHandler_Gzip_SkipsSmallFiles(t *testing.T) {
 	store := storage.New(t.TempDir())
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
-		"tiny.html": "<p>hi</p>",
+		"tiny.txt": "<p>hi</p>",
 	})
 
 	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
-	req := httptest.NewRequest("GET", "/tiny.html", nil)
+	req := httptest.NewRequest("GET", "/tiny.txt", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
-	req.SetPathValue("path", "tiny.html")
+	req.SetPathValue("path", "tiny.txt")
 	req.Header.Set("Accept-Encoding", "gzip")
 
 	rec := httptest.NewRecorder()
@@ -1584,6 +1584,194 @@ func TestHandler_TrailingSlash_FromDefaults(t *testing.T) {
 
 	if rec.Code != http.StatusMovedPermanently {
 		t.Fatalf("status = %d, want 301 (trailing slash from defaults)", rec.Code)
+	}
+}
+
+// --- Clean URLs ---
+
+func TestHandler_CleanURL_Fallback(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Home</h1>",
+		"about.html": "<h1>About</h1>",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/about", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "About") {
+		t.Errorf("expected about.html content, got: %s", rec.Body.String())
+	}
+}
+
+func TestHandler_CleanURL_CanonicalRedirect(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Home</h1>",
+		"about.html": "<h1>About</h1>",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/about.html", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about.html")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want 301", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/about" {
+		t.Errorf("Location = %q, want /about", loc)
+	}
+}
+
+func TestHandler_CleanURL_ExactFileWins(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Home</h1>",
+		"about":      "exact file",
+		"about.html": "<h1>About HTML</h1>",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/about", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if rec.Body.String() != "exact file" {
+		t.Errorf("expected exact file content, got: %s", rec.Body.String())
+	}
+}
+
+func TestHandler_CleanURL_DirectoryWins(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("docs", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(filepath.Join(contentDir, "about"), 0755)
+	os.WriteFile(filepath.Join(contentDir, "about", "index.html"), []byte("<h1>About Index</h1>"), 0644)
+	os.WriteFile(filepath.Join(contentDir, "about.html"), []byte("<h1>About HTML</h1>"), 0644)
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/about", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "About Index") {
+		t.Errorf("directory index should win over .html fallback, got: %s", rec.Body.String())
+	}
+}
+
+func TestHandler_CleanURL_Disabled(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Home</h1>",
+		"about.html": "<h1>About</h1>",
+	})
+	htmlExt := true
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{HTMLExtensions: &htmlExt})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+
+	// With html_extensions = true, /about should 404 (no clean URL fallback)
+	req := httptest.NewRequest("GET", "/about", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 when html_extensions=true", rec.Code)
+	}
+
+	// /about.html should serve normally (no redirect)
+	req2 := httptest.NewRequest("GET", "/about.html", nil)
+	req2 = withCaps(req2, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req2.SetPathValue("path", "about.html")
+
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 when html_extensions=true", rec2.Code)
+	}
+	if !strings.Contains(rec2.Body.String(), "About") {
+		t.Error("should serve about.html directly when html_extensions=true")
+	}
+}
+
+func TestHandler_CleanURL_NestedPath(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("docs", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(filepath.Join(contentDir, "docs"), 0755)
+	os.WriteFile(filepath.Join(contentDir, "docs", "setup.html"), []byte("<h1>Setup Guide</h1>"), 0644)
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/docs/setup", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "docs/setup")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Setup Guide") {
+		t.Errorf("expected setup.html content, got: %s", rec.Body.String())
+	}
+}
+
+func TestCleanURLRedirect(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+		ok   bool
+	}{
+		{"/about.html", "/about", true},
+		{"/about.htm", "/about", true},
+		{"/docs/setup.html", "/docs/setup", true},
+		{"/About.HTML", "/About", true},
+		{"/index.html", "", false},    // index files excluded
+		{"/index.htm", "", false},     // index files excluded
+		{"/Index.HTML", "", false},    // case insensitive
+		{"/style.css", "", false},     // non-HTML
+		{"/about", "", false},         // no extension
+		{"/", "", false},              // root
+	}
+	for _, tt := range tests {
+		got, ok := cleanURLRedirect(tt.path)
+		if ok != tt.ok || got != tt.want {
+			t.Errorf("cleanURLRedirect(%q) = (%q, %v), want (%q, %v)",
+				tt.path, got, ok, tt.want, tt.ok)
+		}
 	}
 }
 

@@ -13,7 +13,8 @@ log_level       = "warn"   # default: "warn", or TSPAGES_LOG_LEVEL env var
 
 # Per-site defaults. Deployments can override these via their own tspages.toml.
 # [defaults]
-# spa            = false   # default: false; when true, unknown paths serve index page
+# spa_routing    = false   # default: false; when true, unknown paths serve index page
+# html_extensions = false  # default: false; when true, disables clean URLs (keeps .html in paths)
 # analytics      = true    # default: true (when analytics are enabled server-wide)
 # index_page     = "index.html"
 # not_found_page = "404.html"

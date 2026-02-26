@@ -194,7 +194,7 @@ func TestHandler_ParsesSiteConfig(t *testing.T) {
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>SPA</h1>",
-		"tspages.toml": "spa = true\nnot_found_page = \"errors/404.html\"\n",
+		"tspages.toml": "spa_routing = true\nnot_found_page = \"errors/404.html\"\n",
 	})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/zip")
@@ -216,7 +216,7 @@ func TestHandler_ParsesSiteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
-	if cfg.SPA == nil || *cfg.SPA != true {
+	if cfg.SPARouting == nil || *cfg.SPARouting != true {
 		t.Error("spa should be true")
 	}
 	if cfg.NotFoundPage != "errors/404.html" {
@@ -399,7 +399,7 @@ func TestHandler_NoSiteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
-	if cfg.SPA != nil {
+	if cfg.SPARouting != nil {
 		t.Error("spa should be nil when no config")
 	}
 }

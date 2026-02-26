@@ -23,7 +23,8 @@ health_addr = ":9091"      # local health check listener (default: off; see Tele
 # Server-wide defaults for per-site config. Deployments can override these
 # via their own tspages.toml included in the archive.
 [defaults]
-spa = false
+spa_routing = false
+html_extensions = false
 analytics = true
 index_page = "index.html"
 not_found_page = "404.html"

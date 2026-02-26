@@ -108,6 +108,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cleanURLs := cfg.HTMLExtensions == nil || !*cfg.HTMLExtensions
+
+	// Canonical redirect: strip .html/.htm extension when clean URLs are on.
+	if cleanURLs {
+		if target, ok := cleanURLRedirect(r.URL.Path); ok {
+			http.Redirect(w, r, target, http.StatusMovedPermanently)
+			return
+		}
+	}
+
 	indexPage := cfg.IndexPage
 	if indexPage == "" {
 		indexPage = "index.html"
@@ -134,8 +144,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	resolved, err := filepath.EvalSymlinks(fullPath)
 	if err != nil {
-		// File not found — SPA fallback or 404
-		if cfg.SPA != nil && *cfg.SPA {
+		// Clean URL fallback: try path + ".html" before SPA/404.
+		if cleanURLs {
+			htmlPath := fullPath + ".html"
+			if resolvedHTML, err := filepath.EvalSymlinks(htmlPath); err == nil {
+				if strings.HasPrefix(resolvedHTML, resolvedRoot+string(os.PathSeparator)) {
+					htmlFilePath := filePath + ".html"
+					h.sendEarlyHints(w, deploymentID, htmlFilePath, htmlPath)
+					w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
+					h.applyHeaders(w, htmlFilePath, cfg)
+					w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, htmlFilePath))
+					h.serveFileCompressed(w, r, htmlPath)
+					return
+				}
+			}
+		}
+		// SPA fallback or 404
+		if cfg.SPARouting != nil && *cfg.SPARouting {
 			h.serveSPAFallback(w, r, root, resolvedRoot, deploymentID, indexPage, cfg)
 			return
 		}
@@ -166,7 +191,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// No index, no listing — SPA fallback or 404
-		if cfg.SPA != nil && *cfg.SPA {
+		if cfg.SPARouting != nil && *cfg.SPARouting {
 			h.serveSPAFallback(w, r, root, resolvedRoot, deploymentID, indexPage, cfg)
 			return
 		}
@@ -496,6 +521,22 @@ func checkTrailingSlash(reqPath, mode string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// cleanURLRedirect returns a redirect target if the request path has a .html or
+// .htm extension that should be stripped for clean URLs. Index files are not
+// redirected (they're served at their directory path already).
+func cleanURLRedirect(reqPath string) (string, bool) {
+	ext := strings.ToLower(filepath.Ext(reqPath))
+	if ext != ".html" && ext != ".htm" {
+		return "", false
+	}
+	base := filepath.Base(reqPath)
+	baseLower := strings.ToLower(base)
+	if baseLower == "index.html" || baseLower == "index.htm" {
+		return "", false
+	}
+	return strings.TrimSuffix(reqPath, filepath.Ext(reqPath)), true
 }
 
 func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg storage.SiteConfig) {

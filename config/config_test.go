@@ -167,7 +167,7 @@ func TestLoad_SiteDefaults(t *testing.T) {
 capability = "example.com/cap/pages"
 
 [defaults]
-spa = true
+spa_routing = true
 analytics = true
 not_found_page = "404.html"
 
@@ -179,7 +179,7 @@ not_found_page = "404.html"
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Defaults.SPA == nil || *cfg.Defaults.SPA != true {
+	if cfg.Defaults.SPARouting == nil || *cfg.Defaults.SPARouting != true {
 		t.Error("defaults.spa should be true")
 	}
 	if cfg.Defaults.Analytics == nil || *cfg.Defaults.Analytics != true {
@@ -205,7 +205,7 @@ capability = "example.com/cap/pages"
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Defaults.SPA != nil {
+	if cfg.Defaults.SPARouting != nil {
 		t.Error("defaults.spa should be nil")
 	}
 }

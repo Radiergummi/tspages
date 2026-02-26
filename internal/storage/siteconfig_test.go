@@ -6,7 +6,7 @@ import (
 
 func TestParseSiteConfig_Full(t *testing.T) {
 	input := `
-spa = true
+spa_routing = true
 analytics = false
 index_page = "home.html"
 not_found_page = "errors/404.html"
@@ -19,7 +19,7 @@ not_found_page = "errors/404.html"
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if cfg.SPA == nil || *cfg.SPA != true {
+	if cfg.SPARouting == nil || *cfg.SPARouting != true {
 		t.Error("spa should be true")
 	}
 	if cfg.Analytics == nil || *cfg.Analytics != false {
@@ -44,7 +44,7 @@ func TestParseSiteConfig_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if cfg.SPA != nil {
+	if cfg.SPARouting != nil {
 		t.Error("spa should default to nil")
 	}
 	if cfg.Analytics != nil {
@@ -62,7 +62,7 @@ func TestParseSiteConfig_Empty(t *testing.T) {
 }
 
 func TestParseSiteConfig_Invalid(t *testing.T) {
-	_, err := ParseSiteConfig([]byte(`spa = "not a bool"`))
+	_, err := ParseSiteConfig([]byte(`spa_routing = "not a bool"`))
 	if err == nil {
 		t.Fatal("expected error for invalid TOML")
 	}
@@ -76,7 +76,7 @@ func TestWriteReadSiteConfig(t *testing.T) {
 
 	analytics := true
 	cfg := SiteConfig{
-		SPA:          boolPtr(true),
+		SPARouting:          boolPtr(true),
 		Analytics:    &analytics,
 		NotFoundPage: "404.html",
 		Headers: map[string]map[string]string{
@@ -91,7 +91,7 @@ func TestWriteReadSiteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if got.SPA == nil || *got.SPA != true {
+	if got.SPARouting == nil || *got.SPARouting != true {
 		t.Error("spa should be true")
 	}
 	if got.Analytics == nil || *got.Analytics != true {
@@ -113,7 +113,7 @@ func TestReadSiteConfig_Missing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing config should not error: %v", err)
 	}
-	if cfg.SPA != nil {
+	if cfg.SPARouting != nil {
 		t.Error("spa should be nil")
 	}
 	if cfg.Headers != nil {
@@ -127,7 +127,7 @@ func TestReadCurrentSiteConfig(t *testing.T) {
 	s.MarkComplete("docs", "aaa11111")
 	s.ActivateDeployment("docs", "aaa11111")
 
-	cfg := SiteConfig{SPA: boolPtr(true)}
+	cfg := SiteConfig{SPARouting: boolPtr(true)}
 	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestReadCurrentSiteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read current: %v", err)
 	}
-	if got.SPA == nil || *got.SPA != true {
+	if got.SPARouting == nil || *got.SPARouting != true {
 		t.Error("spa should be true")
 	}
 }
@@ -148,14 +148,14 @@ func TestReadCurrentSiteConfig_NoDeployment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
-	if cfg.SPA != nil {
+	if cfg.SPARouting != nil {
 		t.Error("spa should be nil for missing deployment")
 	}
 }
 
 func TestSiteConfig_Merge(t *testing.T) {
 	defaults := SiteConfig{
-		SPA:          boolPtr(true),
+		SPARouting:          boolPtr(true),
 		Analytics:    boolPtr(true),
 		NotFoundPage: "404.html",
 		Headers: map[string]map[string]string{
@@ -165,7 +165,7 @@ func TestSiteConfig_Merge(t *testing.T) {
 
 	// Deployment overrides SPA and analytics, adds a header path
 	deploy := SiteConfig{
-		SPA:       boolPtr(false),
+		SPARouting:       boolPtr(false),
 		Analytics: boolPtr(false),
 		Headers: map[string]map[string]string{
 			"/assets/*": {"Cache-Control": "public, max-age=86400"},
@@ -173,7 +173,7 @@ func TestSiteConfig_Merge(t *testing.T) {
 	}
 
 	merged := deploy.Merge(defaults)
-	if merged.SPA == nil || *merged.SPA != false {
+	if merged.SPARouting == nil || *merged.SPARouting != false {
 		t.Error("deploy should override spa to false")
 	}
 	if merged.Analytics == nil || *merged.Analytics != false {
@@ -193,14 +193,14 @@ func TestSiteConfig_Merge(t *testing.T) {
 
 func TestSiteConfig_Merge_EmptyDeployment(t *testing.T) {
 	defaults := SiteConfig{
-		SPA:       boolPtr(true),
+		SPARouting:       boolPtr(true),
 		Analytics: boolPtr(true),
 		IndexPage: "home.html",
 	}
 	deploy := SiteConfig{} // all zero values
 
 	merged := deploy.Merge(defaults)
-	if merged.SPA == nil || *merged.SPA != true {
+	if merged.SPARouting == nil || *merged.SPARouting != true {
 		t.Error("should inherit spa from defaults")
 	}
 	if merged.Analytics == nil || *merged.Analytics != true {
@@ -212,11 +212,11 @@ func TestSiteConfig_Merge_EmptyDeployment(t *testing.T) {
 }
 
 func TestSiteConfig_Merge_EmptyDefaults(t *testing.T) {
-	deploy := SiteConfig{SPA: boolPtr(true), IndexPage: "app.html"}
+	deploy := SiteConfig{SPARouting: boolPtr(true), IndexPage: "app.html"}
 	defaults := SiteConfig{}
 
 	merged := deploy.Merge(defaults)
-	if merged.SPA == nil || *merged.SPA != true {
+	if merged.SPARouting == nil || *merged.SPARouting != true {
 		t.Error("spa should be true")
 	}
 	if merged.IndexPage != "app.html" {

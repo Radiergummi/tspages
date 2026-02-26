@@ -12,7 +12,8 @@ import (
 
 // SiteConfig holds per-deployment configuration parsed from tspages.toml.
 type SiteConfig struct {
-	SPA              *bool                        `toml:"spa"`
+	SPARouting       *bool                        `toml:"spa_routing"`
+	HTMLExtensions   *bool                        `toml:"html_extensions"`
 	Analytics        *bool                        `toml:"analytics"`
 	DirectoryListing *bool                        `toml:"directory_listing"`
 	IndexPage        string                       `toml:"index_page"`
@@ -242,8 +243,11 @@ func (s *Store) ReadSiteConfig(site, id string) (SiteConfig, error) {
 func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 	merged := defaults
 
-	if c.SPA != nil {
-		merged.SPA = c.SPA
+	if c.SPARouting != nil {
+		merged.SPARouting = c.SPARouting
+	}
+	if c.HTMLExtensions != nil {
+		merged.HTMLExtensions = c.HTMLExtensions
 	}
 	if c.Analytics != nil {
 		merged.Analytics = c.Analytics

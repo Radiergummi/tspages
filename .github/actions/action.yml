@@ -1,0 +1,75 @@
+name: 'Deploy to tspages'
+description: 'Deploy a directory or file to a tspages static site on your Tailscale network'
+
+inputs:
+  site:
+    description: 'Site name to deploy to'
+    required: true
+  path:
+    description: 'Directory or file to deploy'
+    required: true
+  server:
+    description: 'Control plane URL (e.g. https://pages.mynet.ts.net)'
+    required: true
+  activate:
+    description: 'Activate the deployment after upload'
+    required: false
+    default: 'true'
+
+outputs:
+  deployment-id:
+    description: 'The deployment ID'
+    value: ${{ steps.deploy.outputs.deployment-id }}
+  url:
+    description: 'The site URL'
+    value: ${{ steps.deploy.outputs.url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy to tspages
+      id: deploy
+      shell: bash
+      env:
+        INPUT_SITE: ${{ inputs.site }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_SERVER: ${{ inputs.server }}
+        INPUT_ACTIVATE: ${{ inputs.activate }}
+      run: |
+        set -euo pipefail
+
+        server="${INPUT_SERVER%/}"
+        url="${server}/deploy/${INPUT_SITE}"
+
+        # Prepare upload body
+        upload_file=""
+        if [ -d "$INPUT_PATH" ]; then
+          upload_file="$(mktemp /tmp/tspages-XXXXXX.zip)"
+          trap 'rm -f "$upload_file"' EXIT
+          (cd "$INPUT_PATH" && zip -qr "$upload_file" .)
+        elif [ -f "$INPUT_PATH" ]; then
+          upload_file="$INPUT_PATH"
+          url="${url}/$(basename "$INPUT_PATH")"
+        else
+          echo "::error::Path not found: $INPUT_PATH"
+          exit 1
+        fi
+
+        if [ "$INPUT_ACTIVATE" = "false" ]; then
+          url="${url}?activate=false"
+        fi
+
+        # Deploy
+        response="$(curl -sf --fail-with-body -X PUT --data-binary "@${upload_file}" "$url")"
+
+        # Parse response and set outputs
+        deployment_id="$(echo "$response" | jq -r '.deployment_id')"
+        site_url="$(echo "$response" | jq -r '.url')"
+
+        echo "deployment-id=${deployment_id}" >> "$GITHUB_OUTPUT"
+        echo "url=${site_url}" >> "$GITHUB_OUTPUT"
+
+        echo "Deployed ${INPUT_SITE} (${deployment_id})"
+        if [ -n "$site_url" ] && [ "$site_url" != "null" ]; then
+          echo "URL: ${site_url}"
+        fi

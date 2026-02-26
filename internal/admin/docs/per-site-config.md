@@ -5,7 +5,7 @@ alongside the deployment metadata, and removed from the served content. Settings
 deployment is activated.
 
 ```toml
-spa = true
+spa_routing = true
 not_found_page = "404.html"
 
 [headers]
@@ -26,7 +26,8 @@ to = "/wiki/*"
 
 | Field            | Type                         | Default        | Description                                                               |
 |------------------|------------------------------|----------------|---------------------------------------------------------------------------|
-| `spa`            | `bool`                       | `false`        | When true, unresolved paths serve the index page instead of 404.          |
+| `spa_routing`    | `bool`                       | `false`        | When true, unresolved paths serve the index page instead of 404.          |
+| `html_extensions`| `bool`                       | `false`        | When true, disables clean URLs (keeps `.html` in paths).                  |
 | `analytics`      | `bool`                       | `true`         | When false, disables analytics recording for this site.                   |
 | `index_page`     | `string`                     | `"index.html"` | File served for directory paths.                                          |
 | `not_found_page` | `string`                     | `"404.html"`   | Custom 404 page. Falls back to a built-in default if the file is missing. |
@@ -62,11 +63,26 @@ checked before file resolution -- the first matching rule wins.
 - Named params used in `to` must appear in `from`
 - `*` in `to` requires `*` in `from`
 
+## Clean URLs
+
+By default, tspages serves files without requiring the `.html` extension in the URL:
+
+- `/about` serves `about.html`
+- `/about.html` redirects (301) to `/about`
+- `/docs/setup` serves `docs/setup.html`
+
+The lookup order is: exact file → directory index → `.html` fallback → SPA fallback → 404.
+
+If an exact file `/about` exists, it takes precedence over `about.html`. Likewise, a directory `/about/` with an
+`index.html` takes precedence over `about.html`.
+
+To disable clean URLs and require `.html` extensions in paths, set `html_extensions = true`.
+
 ## Merge with server defaults
 
 The server config can define `[defaults]` with the same fields. Per-deployment values override defaults:
 
-- `spa`, `analytics`: deployment value wins when set; `nil` inherits the default
+- `spa_routing`, `html_extensions`, `analytics`: deployment value wins when set; `nil` inherits the default
 - `index_page`, `not_found_page`: deployment value wins when non-empty
 - `headers`: deployment path patterns overlay defaults per-path
 - `redirects`: deployment value entirely replaces defaults (no merging)
