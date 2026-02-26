@@ -435,6 +435,82 @@ func TestParseRedirectsFile(t *testing.T) {
 	}
 }
 
+func TestParseHeadersFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    map[string]map[string]string
+		wantErr bool
+	}{
+		{
+			name:  "single path",
+			input: "/*\n  X-Frame-Options: DENY\n  X-Content-Type-Options: nosniff\n",
+			want: map[string]map[string]string{
+				"/*": {"X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff"},
+			},
+		},
+		{
+			name:  "multiple paths",
+			input: "/*\n  X-Frame-Options: DENY\n/*.css\n  Cache-Control: public, max-age=86400\n",
+			want: map[string]map[string]string{
+				"/*":     {"X-Frame-Options": "DENY"},
+				"/*.css": {"Cache-Control": "public, max-age=86400"},
+			},
+		},
+		{
+			name:  "comments and blank lines",
+			input: "# global headers\n/*\n  X-Frame-Options: DENY\n\n# css headers\n/*.css\n  Cache-Control: public\n",
+			want: map[string]map[string]string{
+				"/*":     {"X-Frame-Options": "DENY"},
+				"/*.css": {"Cache-Control": "public"},
+			},
+		},
+		{
+			name:  "header value with colon",
+			input: "/*\n  Link: </style.css>; rel=preload; as=style\n",
+			want: map[string]map[string]string{
+				"/*": {"Link": "</style.css>; rel=preload; as=style"},
+			},
+		},
+		{
+			name:    "header line without path",
+			input:   "  X-Frame-Options: DENY\n",
+			wantErr: true,
+		},
+		{
+			name:  "empty input",
+			input: "",
+			want:  nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseHeadersFile([]byte(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d paths, want %d", len(got), len(tt.want))
+			}
+			for path, wantHdrs := range tt.want {
+				gotHdrs, ok := got[path]
+				if !ok {
+					t.Errorf("missing path %q", path)
+					continue
+				}
+				for k, v := range wantHdrs {
+					if gotHdrs[k] != v {
+						t.Errorf("path %q header %q = %q, want %q", path, k, gotHdrs[k], v)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestSiteConfig_Merge_RedirectsInheritDefaults(t *testing.T) {
 	defaults := SiteConfig{
 		Redirects: []RedirectRule{{From: "/default", To: "/new-default"}},

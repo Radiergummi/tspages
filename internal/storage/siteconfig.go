@@ -152,6 +152,41 @@ func ParseRedirectsFile(data []byte) ([]RedirectRule, error) {
 	return rules, nil
 }
 
+// ParseHeadersFile parses a Netlify-style _headers file.
+// Format: path on its own line (no leading whitespace), indented header lines below.
+// Lines starting with # are comments. Blank lines are ignored.
+func ParseHeadersFile(data []byte) (map[string]map[string]string, error) {
+	var result map[string]map[string]string
+	var currentPath string
+	for i, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if line[0] != ' ' && line[0] != '\t' {
+			// Path line
+			currentPath = trimmed
+			if result == nil {
+				result = make(map[string]map[string]string)
+			}
+			if result[currentPath] == nil {
+				result[currentPath] = make(map[string]string)
+			}
+		} else {
+			// Header line
+			if currentPath == "" {
+				return nil, fmt.Errorf("_headers line %d: header without path", i+1)
+			}
+			name, value, ok := strings.Cut(trimmed, ":")
+			if !ok {
+				return nil, fmt.Errorf("_headers line %d: expected Name: Value", i+1)
+			}
+			result[currentPath][strings.TrimSpace(name)] = strings.TrimSpace(value)
+		}
+	}
+	return result, nil
+}
+
 func (s *Store) WriteSiteConfig(site, id string, cfg SiteConfig) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
