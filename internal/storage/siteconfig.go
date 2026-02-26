@@ -122,6 +122,36 @@ func ParseSiteConfig(data []byte) (SiteConfig, error) {
 	return cfg, nil
 }
 
+// ParseRedirectsFile parses a Netlify-style _redirects file into redirect rules.
+// Format: /from /to [status]
+// Lines starting with # are comments. Blank lines are ignored.
+func ParseRedirectsFile(data []byte) ([]RedirectRule, error) {
+	var rules []RedirectRule
+	for i, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			return nil, fmt.Errorf("_redirects line %d: need at least <from> <to>", i+1)
+		}
+		rule := RedirectRule{From: fields[0], To: fields[1]}
+		if len(fields) >= 3 {
+			var status int
+			if _, err := fmt.Sscanf(fields[2], "%d", &status); err != nil {
+				return nil, fmt.Errorf("_redirects line %d: invalid status %q", i+1, fields[2])
+			}
+			if status != 301 && status != 302 {
+				return nil, fmt.Errorf("_redirects line %d: status must be 301 or 302", i+1)
+			}
+			rule.Status = status
+		}
+		rules = append(rules, rule)
+	}
+	return rules, nil
+}
+
 func (s *Store) WriteSiteConfig(site, id string, cfg SiteConfig) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {

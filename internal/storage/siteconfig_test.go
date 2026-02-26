@@ -363,6 +363,78 @@ func TestSiteConfig_Merge_Redirects(t *testing.T) {
 	}
 }
 
+func TestParseRedirectsFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []RedirectRule
+		wantErr bool
+	}{
+		{
+			name:  "basic rules",
+			input: "/old /new 301\n/blog/:slug /posts/:slug\n",
+			want: []RedirectRule{
+				{From: "/old", To: "/new", Status: 301},
+				{From: "/blog/:slug", To: "/posts/:slug"},
+			},
+		},
+		{
+			name:  "comments and blank lines",
+			input: "# redirect rules\n\n/old /new\n  # indented comment\n\n",
+			want:  []RedirectRule{{From: "/old", To: "/new"}},
+		},
+		{
+			name:  "splat",
+			input: "/docs/* /v2/docs/* 302\n",
+			want:  []RedirectRule{{From: "/docs/*", To: "/v2/docs/*", Status: 302}},
+		},
+		{
+			name:  "external url",
+			input: "/ext https://example.com 302\n",
+			want:  []RedirectRule{{From: "/ext", To: "https://example.com", Status: 302}},
+		},
+		{
+			name:    "missing to",
+			input:   "/old\n",
+			wantErr: true,
+		},
+		{
+			name:    "invalid status",
+			input:   "/old /new 200\n",
+			wantErr: true,
+		},
+		{
+			name:  "empty input",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "trailing whitespace",
+			input: "/old  /new  301  \n",
+			want:  []RedirectRule{{From: "/old", To: "/new", Status: 301}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseRedirectsFile([]byte(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d rules, want %d", len(got), len(tt.want))
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("rule %d = %+v, want %+v", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestSiteConfig_Merge_RedirectsInheritDefaults(t *testing.T) {
 	defaults := SiteConfig{
 		Redirects: []RedirectRule{{From: "/default", To: "/new-default"}},
