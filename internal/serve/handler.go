@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -266,16 +267,51 @@ func isMixedAlphanumeric(s string) bool {
 	return hasLetter && hasDigit
 }
 
-// serveFileCompressed serves a file with gzip compression when the client
-// supports it and the content type is compressible.
+// serveFileCompressed serves a file, preferring a precompressed variant on
+// disk (.br, .gz) before falling back to on-the-fly gzip compression.
 func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
+	if acceptsBrotli(r) {
+		if servePrecompressed(w, r, path, ".br", "br") {
+			return
+		}
+	}
 	if acceptsGzip(r) {
+		if servePrecompressed(w, r, path, ".gz", "gzip") {
+			return
+		}
 		cw := &compressWriter{ResponseWriter: w}
 		defer cw.Close()
 		http.ServeFile(cw, r, path)
-	} else {
-		http.ServeFile(w, r, path)
+		return
 	}
+	http.ServeFile(w, r, path)
+}
+
+// servePrecompressed tries to serve a precompressed variant of origPath
+// (e.g. style.css.br for style.css). Returns true if the file existed
+// and was served.
+func servePrecompressed(w http.ResponseWriter, r *http.Request, origPath, ext, encoding string) bool {
+	f, err := os.Open(origPath + ext)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return false
+	}
+
+	if ct := mime.TypeByExtension(filepath.Ext(origPath)); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	}
+	w.Header().Set("Content-Encoding", encoding)
+	w.Header().Set("Vary", "Accept-Encoding")
+
+	// ETag is already set by the caller; http.ServeContent handles
+	// If-None-Match and range requests.
+	http.ServeContent(w, r, "", stat.ModTime(), f)
+	return true
 }
 
 // matchHeaderPath matches a request path against a header pattern.

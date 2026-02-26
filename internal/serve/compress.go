@@ -14,6 +14,11 @@ func acceptsGzip(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
 }
 
+// acceptsBrotli reports whether the request accepts brotli encoding.
+func acceptsBrotli(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("Accept-Encoding"), "br")
+}
+
 // isCompressible reports whether the given Content-Type benefits from compression.
 func isCompressible(contentType string) bool {
 	ct := contentType

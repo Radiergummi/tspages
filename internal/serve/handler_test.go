@@ -1169,6 +1169,132 @@ func TestHandler_Gzip_CompressesCSS(t *testing.T) {
 	}
 }
 
+// --- Precompressed Assets ---
+
+func TestHandler_Precompressed_PrefersBrotli(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css":    "original-css",
+		"style.css.br": "brotli-compressed",
+		"style.css.gz": "gzip-compressed",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+	req.Header.Set("Accept-Encoding", "gzip, br")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "br" {
+		t.Errorf("Content-Encoding = %q, want br", ce)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/css") {
+		t.Errorf("Content-Type = %q, want text/css", ct)
+	}
+	if rec.Header().Get("Vary") != "Accept-Encoding" {
+		t.Errorf("Vary = %q, want Accept-Encoding", rec.Header().Get("Vary"))
+	}
+	if body := rec.Body.String(); body != "brotli-compressed" {
+		t.Errorf("body = %q, want brotli-compressed", body)
+	}
+}
+
+func TestHandler_Precompressed_GzipFallback(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css":    "original-css",
+		"style.css.gz": "gzip-compressed",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+	req.Header.Set("Accept-Encoding", "gzip, br")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "gzip" {
+		t.Errorf("Content-Encoding = %q, want gzip", ce)
+	}
+	if body := rec.Body.String(); body != "gzip-compressed" {
+		t.Errorf("body = %q, want gzip-compressed", body)
+	}
+}
+
+func TestHandler_Precompressed_OnTheFlyFallback(t *testing.T) {
+	store := storage.New(t.TempDir())
+	content := strings.Repeat("body { color: red; }\n", 30)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css": content,
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip (on-the-fly)", ce)
+	}
+	gr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	defer gr.Close()
+	body, err := io.ReadAll(gr)
+	if err != nil {
+		t.Fatalf("reading gzip body: %v", err)
+	}
+	if string(body) != content {
+		t.Errorf("decompressed length = %d, want %d", len(body), len(content))
+	}
+}
+
+func TestHandler_Precompressed_NoEncoding(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css":    "original-css",
+		"style.css.br": "brotli-compressed",
+		"style.css.gz": "gzip-compressed",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "" {
+		t.Errorf("Content-Encoding = %q, want empty", ce)
+	}
+	if body := rec.Body.String(); body != "original-css" {
+		t.Errorf("body = %q, want original-css", body)
+	}
+}
+
 // --- Directory Listing ---
 
 func TestHandler_DirectoryListing_Enabled(t *testing.T) {
