@@ -103,7 +103,7 @@ func setupHandlers(t *testing.T) (*Handlers, *storage.Store) {
 	store := setupStore(t)
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	return NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}), store
+	return NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil), store
 }
 
 var (
@@ -317,7 +317,7 @@ func TestSiteHandler_HidesAnalyticsWhenDisabled(t *testing.T) {
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 	h := hs.Site
 	req := reqWithAuth("GET", "/sites/docs", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -457,7 +457,7 @@ func TestDeploymentHandler_FileListing(t *testing.T) {
 	store.ActivateDeployment("docs", "aaa11111")
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 	h := hs.Deployment
 
 	req := reqWithAuth("GET", "/sites/docs/deployments/aaa11111", adminCaps, adminID)
@@ -531,7 +531,7 @@ func TestDeploymentHandler_DiffAgainstPrevious(t *testing.T) {
 	store.ActivateDeployment("docs", "bbb22222")
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 	h := hs.Deployment
 
 	req := reqWithAuth("GET", "/sites/docs/deployments/bbb22222", adminCaps, adminID)
@@ -826,7 +826,7 @@ func TestCreateSiteHandler_CallsEnsureServer(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	mock := &mockEnsurer{}
-	hs := NewHandlers(store, nil, &dnsSuffix, mock, mock, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, mock, mock, storage.SiteConfig{}, nil)
 	h := hs.CreateSite
 
 	req := formReqWithAuth("/sites", "name=newsite5", adminCaps, adminID)
@@ -911,7 +911,7 @@ func TestAnalyticsHandler_Disabled(t *testing.T) {
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/sites/docs/analytics", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -931,7 +931,7 @@ func TestAnalyticsHandler_DisabledViaDefaults(t *testing.T) {
 	analytics := false
 	defaults := storage.SiteConfig{Analytics: &analytics}
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, defaults)
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, defaults, nil)
 
 	req := reqWithAuth("GET", "/sites/docs/analytics", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -978,7 +978,7 @@ func TestAllAnalyticsHandler_AdminJSON(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 	req.Header.Set("Accept", "application/json")
@@ -1008,7 +1008,7 @@ func TestAllAnalyticsHandler_AdminHTML(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 
@@ -1034,7 +1034,7 @@ func TestAllAnalyticsHandler_FilteredByAccess(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	// viewerCaps only grants view on "docs"
 	req := reqWithAuth("GET", "/analytics?range=all", viewerCaps, viewerID)
@@ -1071,7 +1071,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 	store.WriteSiteConfig("demo", "bbb22222", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 	req.Header.Set("Accept", "application/json")
@@ -1102,7 +1102,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 func TestAllAnalyticsHandler_NoRecorder(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics", adminCaps, adminID)
 

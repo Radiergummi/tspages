@@ -17,7 +17,7 @@ func TestDeleteHandler_Success(t *testing.T) {
 	store.ActivateDeployment("docs", "aaa11111")
 
 	mgr := newMockManager()
-	h := NewDeleteHandler(store, mgr)
+	h := NewDeleteHandler(store, mgr, nil, storage.SiteConfig{})
 
 	req := httptest.NewRequest("DELETE", "/deploy/docs", nil)
 	req = withCaps(req, []auth.Cap{{Access: "admin"}})
@@ -44,7 +44,7 @@ func TestDeleteHandler_Success(t *testing.T) {
 func TestDeleteHandler_Forbidden(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewDeleteHandler(store, mgr)
+	h := NewDeleteHandler(store, mgr, nil, storage.SiteConfig{})
 
 	// Deploy permission is not enough — site deletion requires admin
 	req := httptest.NewRequest("DELETE", "/deploy/docs", nil)
@@ -60,7 +60,7 @@ func TestDeleteHandler_Forbidden(t *testing.T) {
 }
 
 func TestDeleteHandler_InvalidSite(t *testing.T) {
-	h := NewDeleteHandler(storage.New(t.TempDir()), newMockManager())
+	h := NewDeleteHandler(storage.New(t.TempDir()), newMockManager(), nil, storage.SiteConfig{})
 
 	req := httptest.NewRequest("DELETE", "/deploy/..", nil)
 	req = withCaps(req, []auth.Cap{{Access: "admin"}})

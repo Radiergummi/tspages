@@ -7,16 +7,19 @@ import (
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/webhook"
 )
 
 // DeleteHandler handles DELETE /deploy/{site}.
 type DeleteHandler struct {
-	store   *storage.Store
-	manager SiteManager
+	store    *storage.Store
+	manager  SiteManager
+	notifier *webhook.Notifier
+	defaults storage.SiteConfig
 }
 
-func NewDeleteHandler(store *storage.Store, manager SiteManager) *DeleteHandler {
-	return &DeleteHandler{store: store, manager: manager}
+func NewDeleteHandler(store *storage.Store, manager SiteManager, notifier *webhook.Notifier, defaults storage.SiteConfig) *DeleteHandler {
+	return &DeleteHandler{store: store, manager: manager, notifier: notifier, defaults: defaults}
 }
 
 func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +46,15 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+
+	if h.notifier != nil {
+		resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
+		identity := auth.IdentityFromContext(r.Context())
+		h.notifier.Fire("site.deleted", site, resolvedCfg, map[string]any{
+			"site":       site,
+			"deleted_by": identity.DisplayName,
+		})
+	}
 }
 
 // ListDeploymentsHandler handles GET /deploy/{site}.

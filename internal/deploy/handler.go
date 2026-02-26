@@ -14,6 +14,7 @@ import (
 	"tspages/internal/auth"
 	"tspages/internal/metrics"
 	"tspages/internal/storage"
+	"tspages/internal/webhook"
 )
 
 // SiteManager manages per-site tsnet server lifecycle.
@@ -34,10 +35,12 @@ type Handler struct {
 	maxUploadMB    int
 	maxDeployments int
 	dnsSuffix      *string
+	notifier       *webhook.Notifier
+	defaults       storage.SiteConfig
 }
 
-func NewHandler(store *storage.Store, manager SiteManager, maxUploadMB, maxDeployments int, dnsSuffix *string) *Handler {
-	return &Handler{store: store, manager: manager, maxUploadMB: maxUploadMB, maxDeployments: maxDeployments, dnsSuffix: dnsSuffix}
+func NewHandler(store *storage.Store, manager SiteManager, maxUploadMB, maxDeployments int, dnsSuffix *string, notifier *webhook.Notifier, defaults storage.SiteConfig) *Handler {
+	return &Handler{store: store, manager: manager, maxUploadMB: maxUploadMB, maxDeployments: maxDeployments, dnsSuffix: dnsSuffix, notifier: notifier, defaults: defaults}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +103,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = Extract(req, contentDir, maxBytes)
 	if err != nil {
 		os.RemoveAll(deployDir)
+		if h.notifier != nil {
+			resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
+			h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
+				"site":  site,
+				"error": err.Error(),
+			})
+		}
 		http.Error(w, fmt.Sprintf("extracting upload: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -220,6 +230,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		URL:          fmt.Sprintf("https://%s.%s/", site, *h.dnsSuffix),
 	}
 	writeJSON(w, resp)
+
+	if h.notifier != nil {
+		resolvedCfg := siteCfg.Merge(h.defaults)
+		h.notifier.Fire("deploy.success", site, resolvedCfg, map[string]any{
+			"site":          site,
+			"deployment_id": id,
+			"created_by":    deployedBy,
+			"url":           resp.URL,
+			"size_bytes":    int64(len(body)),
+		})
+	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

@@ -48,7 +48,7 @@ func withIdentity(r *http.Request, id auth.Identity) *http.Request {
 func TestHandler_Success(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
@@ -81,7 +81,7 @@ func TestHandler_Success(t *testing.T) {
 
 func TestHandler_Forbidden(t *testing.T) {
 	store := storage.New(t.TempDir())
-	h := NewHandler(store, newMockManager(), 10, 10, &testDNSSuffix)
+	h := NewHandler(store, newMockManager(), 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{"index.html": "hi"})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
@@ -99,7 +99,7 @@ func TestHandler_Forbidden(t *testing.T) {
 func TestHandler_WritesManifest(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
@@ -142,7 +142,7 @@ func TestHandler_WritesManifest(t *testing.T) {
 func TestHandler_UploadTooLarge(t *testing.T) {
 	store := storage.New(t.TempDir())
 	// maxUploadMB=1 means 1 MiB limit
-	h := NewHandler(store, newMockManager(), 1, 10, &testDNSSuffix)
+	h := NewHandler(store, newMockManager(), 1, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	// Random data doesn't compress — zip body will exceed 1 MiB
 	randomData := make([]byte, 2<<20)
@@ -164,7 +164,7 @@ func TestHandler_UploadTooLarge(t *testing.T) {
 func TestHandler_ActivateFalse(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{"index.html": "hi"})
 	req := httptest.NewRequest("POST", "/deploy/docs?activate=false", bytes.NewReader(body))
@@ -190,7 +190,7 @@ func TestHandler_ActivateFalse(t *testing.T) {
 func TestHandler_ParsesSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>SPA</h1>",
@@ -233,7 +233,7 @@ func TestHandler_ParsesSiteConfig(t *testing.T) {
 func TestHandler_ParsesRedirectsFile(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{
 		"index.html": "<h1>Hi</h1>",
@@ -274,7 +274,7 @@ func TestHandler_ParsesRedirectsFile(t *testing.T) {
 func TestHandler_ParsesHeadersFile(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{
 		"index.html": "<h1>Hi</h1>",
@@ -312,7 +312,7 @@ func TestHandler_ParsesHeadersFile(t *testing.T) {
 func TestHandler_TomlOverridesNetlifyFiles(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>Hi</h1>",
@@ -352,7 +352,7 @@ func TestHandler_TomlOverridesNetlifyFiles(t *testing.T) {
 func TestHandler_InvalidSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>Hi</h1>",
@@ -374,7 +374,7 @@ func TestHandler_InvalidSiteConfig(t *testing.T) {
 func TestHandler_NoSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
 
 	body := makeZip(t, map[string]string{
 		"index.html": "<h1>Hi</h1>",

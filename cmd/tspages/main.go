@@ -24,6 +24,7 @@ import (
 	"tspages/internal/multihost"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
+	"tspages/internal/webhook"
 
 	"tailscale.com/tsnet"
 )
@@ -75,6 +76,11 @@ func main() {
 	}
 	defer recorder.Close()
 
+	notifier, err := webhook.NewNotifier(recorder.DB())
+	if err != nil {
+		log.Fatalf("creating webhook notifier: %v", err)
+	}
+
 	var dnsSuffix string
 	mgr := multihost.New(store, cfg.Tailscale.StateDir, cfg.Tailscale.AuthKey, cfg.Tailscale.Capability, cfg.Server.MaxSites, recorder, &dnsSuffix, cfg.Defaults)
 	defer mgr.Close()
@@ -95,13 +101,13 @@ func main() {
 	whoIsClient := tsadapter.New(lc)
 	withAuth := auth.Middleware(whoIsClient, cfg.Tailscale.Capability)
 
-	deployHandler := deploy.NewHandler(store, mgr, cfg.Server.MaxUploadMB, cfg.Server.MaxDeployments, &dnsSuffix)
-	deleteHandler := deploy.NewDeleteHandler(store, mgr)
+	deployHandler := deploy.NewHandler(store, mgr, cfg.Server.MaxUploadMB, cfg.Server.MaxDeployments, &dnsSuffix, notifier, cfg.Defaults)
+	deleteHandler := deploy.NewDeleteHandler(store, mgr, notifier, cfg.Defaults)
 	listHandler := deploy.NewListDeploymentsHandler(store)
 	deleteDeploymentHandler := deploy.NewDeleteDeploymentHandler(store)
 	cleanupDeploymentsHandler := deploy.NewCleanupDeploymentsHandler(store)
 	activateHandler := deploy.NewActivateHandler(store, mgr)
-	h := admin.NewHandlers(store, recorder, &dnsSuffix, mgr, mgr, cfg.Defaults)
+	h := admin.NewHandlers(store, recorder, &dnsSuffix, mgr, mgr, cfg.Defaults, notifier)
 	healthHandler := admin.NewHealthHandler(store, recorder)
 
 	mux := http.NewServeMux()

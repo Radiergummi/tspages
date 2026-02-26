@@ -157,6 +157,9 @@ func (r *Recorder) flush(events []Event) {
 	}
 }
 
+// DB returns the underlying database connection for shared use.
+func (r *Recorder) DB() *sql.DB { return r.db }
+
 // Ping checks whether the analytics database is reachable.
 func (r *Recorder) Ping() error {
 	return r.db.Ping()

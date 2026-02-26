@@ -14,6 +14,7 @@ import (
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/webhook"
 )
 
 // SiteStatus is the per-site data returned by the sites list endpoint.
@@ -102,13 +103,13 @@ type Handlers struct {
 	SiteHealth     *SiteHealthHandler
 }
 
-func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig) *Handlers {
+func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
 	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
 	return &Handlers{
 		Sites:          &SitesHandler{d},
 		Site:           &SiteHandler{d},
 		Deployment:     &DeploymentHandler{d},
-		CreateSite:     &CreateSiteHandler{handlerDeps: d, ensurer: ensurer},
+		CreateSite:     &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
 		Deployments:    &DeploymentsHandler{d},
 		Analytics:      &AnalyticsHandler{d},
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
@@ -190,7 +191,8 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type CreateSiteHandler struct {
 	handlerDeps
-	ensurer SiteEnsurer
+	ensurer  SiteEnsurer
+	notifier *webhook.Notifier
 }
 
 func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +219,15 @@ func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.ensurer.EnsureServer(name); err != nil {
 		log.Printf("warning: site %q created but server failed to start: %v", name, err)
+	}
+
+	if h.notifier != nil {
+		identity := auth.IdentityFromContext(r.Context())
+		resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
+		h.notifier.Fire("site.created", name, resolvedCfg, map[string]any{
+			"site":       name,
+			"created_by": identity.DisplayName,
+		})
 	}
 
 	if wantsJSON(r) {
