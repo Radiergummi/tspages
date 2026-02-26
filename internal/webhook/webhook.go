@@ -168,6 +168,124 @@ func (n *Notifier) logDelivery(webhookID, event, site, url, payload string, atte
 	}
 }
 
+// DeliverySummary represents a grouped webhook delivery (one row per webhook_id).
+type DeliverySummary struct {
+	WebhookID    string `json:"webhook_id"`
+	Event        string `json:"event"`
+	Site         string `json:"site"`
+	URL          string `json:"url"`
+	Attempts     int    `json:"attempts"`
+	Succeeded    bool   `json:"succeeded"`
+	FirstAttempt string `json:"first_attempt"`
+	LastAttempt  string `json:"last_attempt"`
+}
+
+// DeliveryAttempt represents a single delivery attempt.
+type DeliveryAttempt struct {
+	Attempt   int    `json:"attempt"`
+	Status    int    `json:"status"`
+	Error     string `json:"error"`
+	CreatedAt string `json:"created_at"`
+	Payload   string `json:"payload"`
+}
+
+// ListDeliveries returns grouped webhook deliveries with optional filters.
+// It returns the page of results, the total count, and any error.
+func (n *Notifier) ListDeliveries(site, event, status string, limit, offset int) ([]DeliverySummary, int, error) {
+	var whereConds []string
+	var args []any
+
+	if site != "" {
+		whereConds = append(whereConds, "site = ?")
+		args = append(args, site)
+	}
+	if event != "" {
+		whereConds = append(whereConds, "event = ?")
+		args = append(args, event)
+	}
+
+	whereClause := ""
+	if len(whereConds) > 0 {
+		whereClause = "WHERE " + strings.Join(whereConds, " AND ")
+	}
+
+	havingClause := ""
+	switch status {
+	case "succeeded":
+		havingClause = "HAVING succeeded = 1"
+	case "failed":
+		havingClause = "HAVING succeeded = 0"
+	}
+
+	innerQuery := fmt.Sprintf(`SELECT webhook_id, event, site, url,
+		MAX(attempt) as attempts,
+		MAX(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) as succeeded,
+		MIN(created_at) as first_attempt,
+		MAX(created_at) as last_attempt
+		FROM webhook_deliveries
+		%s
+		GROUP BY webhook_id
+		%s`, whereClause, havingClause)
+
+	// Get total count.
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM (%s)", innerQuery)
+	var total int
+	if err := n.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count deliveries: %w", err)
+	}
+
+	// Get page of results.
+	pageQuery := fmt.Sprintf("%s ORDER BY first_attempt DESC LIMIT ? OFFSET ?", innerQuery)
+	pageArgs := append(append([]any{}, args...), limit, offset)
+
+	rows, err := n.db.Query(pageQuery, pageArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list deliveries: %w", err)
+	}
+	defer rows.Close()
+
+	var deliveries []DeliverySummary
+	for rows.Next() {
+		var d DeliverySummary
+		if err := rows.Scan(&d.WebhookID, &d.Event, &d.Site, &d.URL, &d.Attempts, &d.Succeeded, &d.FirstAttempt, &d.LastAttempt); err != nil {
+			return nil, 0, fmt.Errorf("scan delivery: %w", err)
+		}
+		deliveries = append(deliveries, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate deliveries: %w", err)
+	}
+
+	return deliveries, total, nil
+}
+
+// GetDeliveryAttempts returns all attempts for a given webhook ID, ordered by attempt number.
+func (n *Notifier) GetDeliveryAttempts(webhookID string) ([]DeliveryAttempt, error) {
+	rows, err := n.db.Query(
+		`SELECT attempt, status, error, created_at, payload
+		 FROM webhook_deliveries WHERE webhook_id = ? ORDER BY attempt`,
+		webhookID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get delivery attempts: %w", err)
+	}
+	defer rows.Close()
+
+	var attempts []DeliveryAttempt
+	for rows.Next() {
+		var a DeliveryAttempt
+		if err := rows.Scan(&a.Attempt, &a.Status, &a.Error, &a.CreatedAt, &a.Payload); err != nil {
+			return nil, fmt.Errorf("scan attempt: %w", err)
+		}
+		attempts = append(attempts, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate attempts: %w", err)
+	}
+
+	return attempts, nil
+}
+
 func randomHex(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {

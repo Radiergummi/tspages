@@ -282,6 +282,136 @@ func TestNotifier_LogsDeliveries(t *testing.T) {
 	}
 }
 
+func TestNotifier_ListDeliveries(t *testing.T) {
+	n, _ := testNotifier(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	// Fire two webhooks to different sites.
+	n.Fire("deploy.success", "docs", storage.SiteConfig{WebhookURL: srv.URL}, map[string]any{"id": "1"})
+	n.Fire("site.created", "blog", storage.SiteConfig{WebhookURL: srv.URL}, map[string]any{"id": "2"})
+
+	time.Sleep(500 * time.Millisecond)
+
+	// List all deliveries.
+	deliveries, total, err := n.ListDeliveries("", "", "", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deliveries
+	if total != 2 {
+		t.Fatalf("total = %d, want 2", total)
+	}
+
+	// Filter by site "docs".
+	deliveries, total, err = n.ListDeliveries("docs", "", "", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deliveries
+	if total != 1 {
+		t.Fatalf("total by site = %d, want 1", total)
+	}
+
+	// Filter by event "site.created".
+	deliveries, total, err = n.ListDeliveries("", "site.created", "", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deliveries
+	if total != 1 {
+		t.Fatalf("total by event = %d, want 1", total)
+	}
+}
+
+func TestNotifier_ListDeliveries_StatusFilter(t *testing.T) {
+	n, db := testNotifier(t)
+
+	// msg_1: 1 attempt, status 200 (succeeded).
+	_, err := db.Exec(
+		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"msg_1", "deploy.success", "docs", "http://example.com", "{}", 1, 200, "", "2025-01-01T00:00:00Z",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// msg_2: 2 attempts, both status 500 (failed).
+	for attempt := 1; attempt <= 2; attempt++ {
+		_, err := db.Exec(
+			`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"msg_2", "deploy.success", "docs", "http://example.com", "{}", attempt, 500, "server error", "2025-01-01T00:00:01Z",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Filter succeeded.
+	deliveries, total, err := n.ListDeliveries("", "", "succeeded", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deliveries
+	if total != 1 {
+		t.Fatalf("succeeded total = %d, want 1", total)
+	}
+
+	// Filter failed.
+	deliveries, total, err = n.ListDeliveries("", "", "failed", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = deliveries
+	if total != 1 {
+		t.Fatalf("failed total = %d, want 1", total)
+	}
+}
+
+func TestNotifier_GetDeliveryAttempts(t *testing.T) {
+	n, db := testNotifier(t)
+
+	// Insert 2 rows for the same webhook_id.
+	for attempt := 1; attempt <= 2; attempt++ {
+		_, err := db.Exec(
+			`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"msg_test", "deploy.success", "docs", "http://example.com", `{"v":1}`, attempt, 500+attempt, "", "2025-01-01T00:00:00Z",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	attempts, err := n.GetDeliveryAttempts("msg_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(attempts) != 2 {
+		t.Fatalf("got %d attempts, want 2", len(attempts))
+	}
+	if attempts[0].Attempt != 1 {
+		t.Errorf("first attempt = %d, want 1", attempts[0].Attempt)
+	}
+	if attempts[1].Attempt != 2 {
+		t.Errorf("second attempt = %d, want 2", attempts[1].Attempt)
+	}
+	if attempts[0].Status != 501 {
+		t.Errorf("first status = %d, want 501", attempts[0].Status)
+	}
+	if attempts[1].Status != 502 {
+		t.Errorf("second status = %d, want 502", attempts[1].Status)
+	}
+	if attempts[0].Payload != `{"v":1}` {
+		t.Errorf("payload = %q, want {\"v\":1}", attempts[0].Payload)
+	}
+}
+
 func TestNotifier_RejectsPrivateIP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
