@@ -3,23 +3,51 @@
 {{define "content"}}
     <article class="flex flex-col gap-8">
         <header class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold tracking-tight">Webhooks{{if .Site}} <span class="text-muted font-normal">{{.Site}}</span>{{end}}</h1>
+            <h1 class="text-2xl font-semibold tracking-tight">Webhooks{{if .Site}}
+            <span class="text-muted font-normal">{{.Site}}</span>{{end}}</h1>
         </header>
 
-        <form method="GET" action="{{.BasePath}}" class="flex gap-4">
-            <select name="event" onchange="this.form.submit()" class="text-sm border border-default rounded-md px-3 py-1.5 bg-surface text-black dark:text-base-200">
-                <option value="">All events</option>
-                <option value="deploy.success"{{if eq .Event "deploy.success"}} selected{{end}}>deploy.success</option>
-                <option value="deploy.failed"{{if eq .Event "deploy.failed"}} selected{{end}}>deploy.failed</option>
-                <option value="site.created"{{if eq .Event "site.created"}} selected{{end}}>site.created</option>
-                <option value="site.deleted"{{if eq .Event "site.deleted"}} selected{{end}}>site.deleted</option>
-            </select>
-            <select name="status" onchange="this.form.submit()" class="text-sm border border-default rounded-md px-3 py-1.5 bg-surface text-black dark:text-base-200">
-                <option value="">All statuses</option>
-                <option value="succeeded"{{if eq .Status "succeeded"}} selected{{end}}>Succeeded</option>
-                <option value="failed"{{if eq .Status "failed"}} selected{{end}}>Failed</option>
-            </select>
-        </form>
+        {{$bp := .BasePath}}
+        {{$ev := .Event}}
+        {{$st := .Status}}
+        <div class="flex flex-wrap gap-3" aria-label="Filter webhook deliveries">
+            <div class="inline-flex rounded-lg border border-default bg-surface p-0.5" role="group" aria-label="Event type">
+                <a href="{{$bp}}?{{if $st}}status={{$st}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $ev ""}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >All events</a>
+                <a href="{{$bp}}?event=deploy.success{{if $st}}&status={{$st}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $ev "deploy.success"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >deploy.success</a>
+                <a href="{{$bp}}?event=deploy.failed{{if $st}}&status={{$st}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $ev "deploy.failed"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >deploy.failed</a>
+                <a href="{{$bp}}?event=site.created{{if $st}}&status={{$st}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $ev "site.created"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >site.created</a>
+                <a href="{{$bp}}?event=site.deleted{{if $st}}&status={{$st}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $ev "site.deleted"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >site.deleted</a>
+            </div>
+            <div class="inline-flex rounded-lg border border-default bg-surface p-0.5" role="group" aria-label="Delivery status">
+                <a href="{{$bp}}?{{if $ev}}event={{$ev}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $st ""}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >All</a>
+                <a href="{{$bp}}?status=succeeded{{if $ev}}&event={{$ev}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $st "succeeded"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >Succeeded</a>
+                <a href="{{$bp}}?status=failed{{if $ev}}&event={{$ev}}{{end}}"
+                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq $st "failed"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >Failed</a>
+            </div>
+        </div>
 
         {{if .Deliveries}}
             <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
@@ -55,7 +83,10 @@
                         </td>
                         {{if $.Global}}
                             <td class="px-4 py-3 text-sm border-b border-default">
-                                <a class="text-blue-500 no-underline hover:underline" href="/sites/{{.Site}}">{{.Site}}</a>
+                                <a
+                                        class="text-blue-500 no-underline hover:underline"
+                                        href="/sites/{{.Site}}"
+                                >{{.Site}}</a>
                             </td>
                         {{end}}
                         <td class="px-4 py-3 text-sm border-b border-default">
@@ -66,7 +97,10 @@
                             {{end}}
                         </td>
                         <td class="px-4 py-3 text-sm border-b border-default text-muted">{{.Attempts}}</td>
-                        <td class="px-4 py-3 text-sm border-b border-default font-mono text-muted truncate max-w-[200px]" title="{{.URL}}">{{.URL}}</td>
+                        <td
+                                class="px-4 py-3 text-sm border-b border-default font-mono text-muted truncate max-w-[200px]"
+                                title="{{.URL}}"
+                        >{{.URL}}</td>
                         <td class="px-4 py-3 text-sm border-b border-default text-muted">{{.FirstAttempt}}</td>
                     </tr>
                 {{end}}
@@ -74,7 +108,7 @@
             </table>
 
             {{if or (gt .Page 1) (lt .Page .TotalPages)}}
-                <nav class="flex justify-between items-center mt-4">
+                <nav aria-label="Pagination" class="flex justify-between items-center mt-4">
                     <div>
                         {{if gt .Page 1}}
                             <a
@@ -96,7 +130,9 @@
             {{end}}
 
         {{else}}
-            <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md">No webhook deliveries yet.</p>
+            <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
+                No webhook deliveries yet.
+            </p>
         {{end}}
     </article>
 {{end}}
