@@ -533,7 +533,7 @@ func setAlternateLinks(w http.ResponseWriter, alternates [][2]string) {
 	w.Header().Set("Link", strings.Join(parts, ", "))
 }
 
-func renderPage(w http.ResponseWriter, t *tmpl, nav string, data any) {
+func renderPage(w http.ResponseWriter, r *http.Request, t *tmpl, nav string, data any) {
 	tpl := t.cached
 	if devModeFlag.Load() {
 		paths := make([]string, len(t.files))
@@ -542,20 +542,23 @@ func renderPage(w http.ResponseWriter, t *tmpl, nav string, data any) {
 		}
 		parsed, err := template.New("").Funcs(funcs).ParseFiles(paths...)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("template error: %v", err), http.StatusInternalServerError)
+			log.Printf("template parse error (%s): %v", nav, err)
+			RenderError(w, r, http.StatusInternalServerError, "template error")
 			return
 		}
 		tpl = parsed
 	}
 	tpl, err := tpl.Clone()
 	if err != nil {
-		http.Error(w, "rendering page", http.StatusInternalServerError)
+		log.Printf("template clone error (%s): %v", nav, err)
+		RenderError(w, r, http.StatusInternalServerError, "rendering page")
 		return
 	}
 	tpl.Funcs(template.FuncMap{"nav": func() string { return nav }})
 	var buf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&buf, "layout", data); err != nil {
-		http.Error(w, "rendering page", http.StatusInternalServerError)
+		log.Printf("template error (%s): %v", nav, err)
+		RenderError(w, r, http.StatusInternalServerError, "rendering page")
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

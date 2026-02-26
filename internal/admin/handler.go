@@ -183,7 +183,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Server validates the specific name on POST.
 	canCreate := auth.IsAdmin(caps)
 
-	renderPage(w, sitesTmpl, "sites", struct {
+	renderPage(w, r, sitesTmpl, "sites", struct {
 		SitesResponse
 		CanCreate  bool
 		Host       string
@@ -336,7 +336,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	renderPage(w, siteTmpl, "sites", struct {
+	renderPage(w, r, siteTmpl, "sites", struct {
 		SiteDetailResponse
 		User              UserInfo
 		Admin             bool
@@ -441,7 +441,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	renderPage(w, deploymentTmpl, "sites", struct {
+	renderPage(w, r, deploymentTmpl, "sites", struct {
 		User       UserInfo
 		Admin      bool
 		CanDeploy  bool
@@ -544,7 +544,7 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, deploymentsTmpl, "deployments", struct {
+	renderPage(w, r, deploymentsTmpl, "deployments", struct {
 		DeploymentsResponse
 		User UserInfo
 	}{resp, userInfo(identity)})
@@ -726,7 +726,7 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CountOK: countOK, Count4xx: count4xx, Count5xx: count5xx,
 		OS: osBreakdown, Nodes: nodes,
 	}
-	renderPage(w, analyticsTmpl, "sites", data)
+	renderPage(w, r, analyticsTmpl, "sites", data)
 }
 
 // --- GET /analytics ---
@@ -790,7 +790,7 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		CountOK: countOK, Count4xx: count4xx, Count5xx: count5xx,
 		OS: osBreakdown, Nodes: nodes,
 	}
-	renderPage(w, analyticsTmpl, "analytics", data)
+	renderPage(w, r, analyticsTmpl, "analytics", data)
 }
 
 // --- POST /sites/{site}/analytics/purge ---
@@ -873,7 +873,7 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, webhooksTmpl, "webhooks", struct {
+	renderPage(w, r, webhooksTmpl, "webhooks", struct {
 		Deliveries []webhook.DeliverySummary
 		Page       int
 		TotalPages int
@@ -941,7 +941,7 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	renderPage(w, webhooksTmpl, "sites", struct {
+	renderPage(w, r, webhooksTmpl, "sites", struct {
 		Deliveries []webhook.DeliverySummary
 		Page       int
 		TotalPages int
@@ -1010,7 +1010,7 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, helpTmpl, "help", struct {
+	renderPage(w, r, helpTmpl, "help", struct {
 		User    UserInfo
 		Pages   []DocPage
 		Current DocPage
@@ -1024,7 +1024,7 @@ type APIHandler struct{}
 
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	identity := auth.IdentityFromContext(r.Context())
-	renderPage(w, apiTmpl, "api", struct {
+	renderPage(w, r, apiTmpl, "api", struct {
 		User UserInfo
 	}{userInfo(identity)})
 }
