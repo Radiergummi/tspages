@@ -91,6 +91,8 @@ type Handlers struct {
 	AllAnalytics   *AllAnalyticsHandler
 	Help           *HelpHandler
 	API            *APIHandler
+	Feed           *FeedHandler
+	SiteFeed       *SiteFeedHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, defaults storage.SiteConfig) *Handlers {
@@ -106,6 +108,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		AllAnalytics:   &AllAnalyticsHandler{d},
 		Help:           &HelpHandler{},
 		API:            &APIHandler{},
+		Feed:           &FeedHandler{d},
+		SiteFeed:       &SiteFeedHandler{d},
 	}
 }
 

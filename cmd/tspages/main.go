@@ -129,6 +129,8 @@ func main() {
 	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
 	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
 	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
+	mux.Handle("GET /feed.atom", withAuth(h.Feed))
+	mux.Handle("GET /sites/{site}/feed.atom", withAuth(h.SiteFeed))
 	mux.Handle("GET /help", withAuth(h.Help))
 	mux.Handle("GET /help/{page...}", withAuth(h.Help))
 	mux.Handle("GET /assets/dist/{file...}", admin.AssetHandler())
