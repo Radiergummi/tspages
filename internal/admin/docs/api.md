@@ -113,17 +113,6 @@ The sites list is accessible to any authenticated user; admins see all sites, ot
 `deploy` access to. Deployment detail pages show a diff against the previous deployment (added, removed, and changed
 files).
 
-## Prometheus metrics
-
-```
-GET /metrics
-```
-
-Returns metrics in Prometheus exposition format. Includes request counts, request durations, deployment counts, deployment
-sizes, and active site count.
-
-Requires `metrics` (or `admin`) capability.
-
 ## Browse sites
 
 Each site is served at the root of its own hostname:

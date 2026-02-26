@@ -18,6 +18,7 @@ max_upload_mb = 500        # max upload size in MB (default: 500)
 max_sites = 100            # max concurrent site servers (default: 100)
 max_deployments = 10       # max deployments kept per site (default: 10)
 log_level = "warn"         # "debug", "info", "warn", "error" (default: "warn")
+health_addr = ":9091"      # local health check listener (default: off; see Telemetry)
 
 # Server-wide defaults for per-site config. Deployments can override these
 # via their own tspages.toml included in the archive.
@@ -38,6 +39,7 @@ not_found_page = "404.html"
 | `TS_AUTHKEY`         | `tailscale.auth_key`     | Reusable, tagged auth key       |
 | `TSPAGES_CAPABILITY` | `tailscale.capability`   | Capability name for grants      |
 | `TSPAGES_LOG_LEVEL`  | `server.log_level`       | Config file takes precedence    |
+| `TSPAGES_HEALTH_ADDR`| `server.health_addr`     | Local health check listener     |
 | `TSPAGES_SERVER`     | --                       | Used by the CLI deploy command  |
 
 ## Docker
