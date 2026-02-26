@@ -123,13 +123,21 @@
                 <h2 class="inline-flex items-center text-sm font-semibold uppercase tracking-wide text-muted mb-4">
                     Configuration {{helpicon "per-site-config" "How to configure"}}
                 </h2>
-                <div class="bg-surface rounded-md dark:ring-1 dark:ring-base-500/25 divide-y divide-paper dark:divide-base-950">
+                <div class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
                     <div class="flex items-center justify-between px-5 py-3">
-                        <span class="text-sm text-muted">SPA mode</span>
-                        {{if deref .Config.SPA}}
+                        <span class="text-sm text-muted">SPA routing</span>
+                        {{if deref .Config.SPARouting}}
                             <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
                         {{else}}
                             <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                        {{end}}
+                    </div>
+                    <div class="flex items-center justify-between px-5 py-3">
+                        <span class="text-sm text-muted">Clean URLs</span>
+                        {{if deref .Config.HTMLExtensions}}
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                        {{else}}
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
                         {{end}}
                     </div>
                     <div class="flex items-center justify-between px-5 py-3">
@@ -169,7 +177,7 @@
                     {{if .Config.WebhookURL}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Webhook</span>
-                            <span class="text-sm font-mono truncate max-w-[300px]" title="{{.Config.WebhookURL}}">{{.Config.WebhookURL}}</span>
+                            <span class="text-sm font-mono truncate max-w-75" title="{{.Config.WebhookURL}}">{{.Config.WebhookURL}}</span>
                         </div>
                     {{end}}
                     {{if .Config.Headers}}
@@ -308,6 +316,48 @@
                 </p>
             {{end}}
         </section>
+
+        {{if .RecentDeliveries}}
+        <section>
+            <header class="flex items-center mb-4 gap-4">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-2 me-auto">
+                    Recent Webhook Deliveries
+                </h2>
+                <a href="/sites/{{.Site.Name}}/webhooks" class="text-sm text-blue-500 no-underline hover:underline">View all</a>
+            </header>
+
+            <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
+                <thead>
+                <tr>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950">Event</th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950">Status</th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950">Attempts</th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950">URL</th>
+                    <th class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950">Time</th>
+                </tr>
+                </thead>
+                <tbody class="[&>tr:last-child>td]:border-b-0">
+                {{range .RecentDeliveries}}
+                    <tr>
+                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                            <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">{{.Event}}</span>
+                        </td>
+                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                            {{if .Succeeded}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">ok</span>
+                            {{else}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">failed</span>
+                            {{end}}
+                        </td>
+                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">{{.Attempts}}</td>
+                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono text-muted truncate max-w-[200px]" title="{{.URL}}">{{.URL}}</td>
+                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">{{.FirstAttempt}}</td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
 
         {{if .CanDeploy}}
             <div id="deploy-modal" class="hidden fixed inset-0 z-50 bg-black/50 items-center justify-center">

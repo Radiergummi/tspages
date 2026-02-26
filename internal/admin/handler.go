@@ -96,6 +96,8 @@ type Handlers struct {
 	Analytics      *AnalyticsHandler
 	PurgeAnalytics *PurgeAnalyticsHandler
 	AllAnalytics   *AllAnalyticsHandler
+	Webhooks       *WebhooksHandler
+	SiteWebhooks   *SiteWebhooksHandler
 	Help           *HelpHandler
 	API            *APIHandler
 	Feed           *FeedHandler
@@ -107,13 +109,15 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
 	return &Handlers{
 		Sites:          &SitesHandler{d},
-		Site:           &SiteHandler{d},
+		Site:           &SiteHandler{handlerDeps: d, notifier: notifier},
 		Deployment:     &DeploymentHandler{d},
 		CreateSite:     &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
 		Deployments:    &DeploymentsHandler{d},
 		Analytics:      &AnalyticsHandler{d},
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
 		AllAnalytics:   &AllAnalyticsHandler{d},
+		Webhooks:       &WebhooksHandler{handlerDeps: d, notifier: notifier},
+		SiteWebhooks:   &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
 		Help:           &HelpHandler{},
 		API:            &APIHandler{},
 		Feed:           &FeedHandler{d},
@@ -240,7 +244,10 @@ func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // --- GET /sites/{site} ---
 
-type SiteHandler struct{ handlerDeps }
+type SiteHandler struct {
+	handlerDeps
+	notifier *webhook.Notifier
+}
 
 func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := trimSuffix(r.PathValue("site"))
@@ -305,6 +312,11 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return deployments[i].CreatedAt.After(deployments[j].CreatedAt)
 	})
 
+	var recentDeliveries []webhook.DeliverySummary
+	if h.notifier != nil {
+		recentDeliveries, _, _ = h.notifier.ListDeliveries(siteName, "", "", 5, 0)
+	}
+
 	resp := SiteDetailResponse{Site: ss, Deployments: deployments}
 
 	if wantsJSON(r) {
@@ -326,17 +338,18 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	renderPage(w, siteTmpl, "sites", struct {
 		SiteDetailResponse
-		User             UserInfo
-		Admin            bool
-		CanDelete        bool
-		CanDeploy        bool
-		HasInactive      bool
-		AnalyticsEnabled bool
-		Config           storage.SiteConfig
-		DNSSuffix        string
-		Host             string
-		Sparkline        string
-	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline})
+		User              UserInfo
+		Admin             bool
+		CanDelete         bool
+		CanDeploy         bool
+		HasInactive       bool
+		AnalyticsEnabled  bool
+		Config            storage.SiteConfig
+		DNSSuffix         string
+		Host              string
+		Sparkline         string
+		RecentDeliveries  []webhook.DeliverySummary
+	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline, recentDeliveries})
 }
 
 // --- GET /sites/{site}/deployments/{id} ---
@@ -809,6 +822,136 @@ func (h *PurgeAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 	http.Redirect(w, r, "/sites/"+siteName+"/analytics", http.StatusSeeOther)
+}
+
+// --- GET /webhooks ---
+
+const webhooksPageSize = 50
+
+type WebhooksHandler struct {
+	handlerDeps
+	notifier *webhook.Notifier
+}
+
+func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	caps := auth.CapsFromContext(r.Context())
+	identity := auth.IdentityFromContext(r.Context())
+
+	if !auth.IsAdmin(caps) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	event := r.URL.Query().Get("event")
+	status := r.URL.Query().Get("status")
+	page := 1
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+
+	offset := (page - 1) * webhooksPageSize
+	var deliveries []webhook.DeliverySummary
+	var total int
+	if h.notifier != nil {
+		deliveries, total, _ = h.notifier.ListDeliveries("", event, status, webhooksPageSize, offset)
+	}
+
+	totalPages := (total + webhooksPageSize - 1) / webhooksPageSize
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	if wantsJSON(r) {
+		writeJSON(w, map[string]any{
+			"deliveries":  deliveries,
+			"page":        page,
+			"total_pages": totalPages,
+		})
+		return
+	}
+
+	renderPage(w, webhooksTmpl, "webhooks", struct {
+		Deliveries []webhook.DeliverySummary
+		Page       int
+		TotalPages int
+		Site       string
+		Global     bool
+		Event      string
+		Status     string
+		User       UserInfo
+		BasePath   string
+	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity), "/webhooks"})
+}
+
+// --- GET /sites/{site}/webhooks ---
+
+type SiteWebhooksHandler struct {
+	handlerDeps
+	notifier *webhook.Notifier
+}
+
+func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	siteName := trimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	identity := auth.IdentityFromContext(r.Context())
+
+	if !auth.IsAdmin(caps) && !auth.CanView(caps, siteName) && !auth.CanDeploy(caps, siteName) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	event := r.URL.Query().Get("event")
+	status := r.URL.Query().Get("status")
+	page := 1
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+
+	offset := (page - 1) * webhooksPageSize
+	var deliveries []webhook.DeliverySummary
+	var total int
+	if h.notifier != nil {
+		deliveries, total, _ = h.notifier.ListDeliveries(siteName, event, status, webhooksPageSize, offset)
+	}
+
+	totalPages := (total + webhooksPageSize - 1) / webhooksPageSize
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	basePath := "/sites/" + siteName + "/webhooks"
+
+	if wantsJSON(r) {
+		writeJSON(w, map[string]any{
+			"deliveries":  deliveries,
+			"page":        page,
+			"total_pages": totalPages,
+		})
+		return
+	}
+
+	renderPage(w, webhooksTmpl, "sites", struct {
+		Deliveries []webhook.DeliverySummary
+		Page       int
+		TotalPages int
+		Site       string
+		Global     bool
+		Event      string
+		Status     string
+		User       UserInfo
+		BasePath   string
+	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity), basePath})
 }
 
 // countsJSON returns a JSON array of counts from the given time buckets,

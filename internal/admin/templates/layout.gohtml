@@ -14,6 +14,7 @@
 
 <!-- region Noise overlay -->
 <svg
+        aria-hidden="true"
         class="pointer-events-none fixed inset-0 z-99 h-screen mix-blend-overlay"
         xmlns="http://www.w3.org/2000/svg"
         width="100%"
@@ -53,7 +54,7 @@
         <!-- endregion -->
 
         <!-- region Navigation -->
-        <nav class="flex items-stretch h-full">
+        <nav aria-label="Main" class="flex items-stretch h-full">
             <a
                     class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
@@ -82,9 +83,9 @@
                     class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                    href="/help"
-                    {{if eq (nav) "help"}}aria-current="page"{{end}}>
-                Help
+                    href="/webhooks"
+                    {{if eq (nav) "webhooks"}}aria-current="page"{{end}}>
+                Webhooks
             </a>
             <a
                     class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
@@ -93,6 +94,14 @@
                     href="/api"
                     {{if eq (nav) "api"}}aria-current="page"{{end}}>
                 API
+            </a>
+            <a
+                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                    href="/help"
+                    {{if eq (nav) "help"}}aria-current="page"{{end}}>
+                Help
             </a>
         </nav>
         <!-- endregion -->
