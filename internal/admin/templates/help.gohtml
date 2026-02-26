@@ -4,11 +4,12 @@
 
 {{define "content"}}
 <div class="flex gap-8">
-    <nav class="w-48 shrink-0 sticky top-21 self-start">
+    <nav aria-label="Help topics" class="w-48 shrink-0 sticky top-21 self-start">
         <ul class="flex flex-col gap-0.5">
             {{range .Pages}}
             <li>
                 <a href="/help/{{.Slug}}"
+                   {{if eq .Slug $.Current.Slug}}aria-current="page"{{end}}
                    class="block px-3 py-1.5 rounded-md text-sm no-underline transition-colors
                           {{if eq .Slug $.Current.Slug}}bg-blue-500/10 text-blue-500 font-medium
                           {{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}">

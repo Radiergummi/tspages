@@ -21,7 +21,7 @@
                 Analytics {{helpicon "analytics" "About analytics"}}
             </h1>
             <div class="flex items-center gap-2">
-                <nav class="flex gap-1">
+                <nav aria-label="Time range" class="flex gap-1">
                     <a
                             class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "PT24H"}} text-white bg-blue-500{{else}} text-muted{{end}}"
                             href="?range=PT24H"
@@ -106,7 +106,7 @@
 
                 {{if .TimeSeries}}
                     <div class="relative pt-4">
-                        <canvas id="requests-chart" height="180"></canvas>
+                        <canvas id="requests-chart" height="180" aria-label="Requests over time" role="img"></canvas>
                     </div>
                 {{end}}
             </section>
@@ -182,7 +182,7 @@
                     </header>
 
                     <div class="relative pt-4 h-48">
-                        <canvas id="status-chart" height="140"></canvas>
+                        <canvas id="status-chart" height="140" aria-label="Responses by status code" role="img"></canvas>
                     </div>
                 </section>
             {{end}}
@@ -223,7 +223,7 @@
                         </h2>
                     </header>
                     <div class="relative px-4 pb-3 h-48">
-                        <canvas id="sites-chart"></canvas>
+                        <canvas id="sites-chart" aria-label="Requests by site" role="img"></canvas>
                     </div>
                 </section>
 
@@ -235,7 +235,7 @@
                             </h2>
                         </header>
                         <div class="relative px-4 pb-3 h-48">
-                            <canvas id="os-chart"></canvas>
+                            <canvas id="os-chart" aria-label="Requests by operating system" role="img"></canvas>
                         </div>
                     </section>
                 {{end}}
@@ -278,7 +278,7 @@
                             </h2>
                         </header>
                         <div class="relative px-4 pb-3 h-48">
-                            <canvas id="os-chart"></canvas>
+                            <canvas id="os-chart" aria-label="Requests by operating system" role="img"></canvas>
                         </div>
                     </section>
                 {{end}}
@@ -291,7 +291,7 @@
                             </h2>
                         </header>
                         <div class="relative px-4 pb-3 h-48">
-                            <canvas id="nodes-chart"></canvas>
+                            <canvas id="nodes-chart" aria-label="Requests by device" role="img"></canvas>
                         </div>
                     </section>
                 {{end}}

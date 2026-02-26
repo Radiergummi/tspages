@@ -12,6 +12,8 @@
 
 <body class="bg-base-50 dark:bg-black text-black dark:text-base-200 antialiased">
 
+<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:px-4 focus:py-2 focus:bg-blue-500 focus:text-white focus:rounded-md focus:m-2">Skip to content</a>
+
 <!-- region Noise overlay -->
 <svg
         aria-hidden="true"
@@ -119,7 +121,7 @@
 
     <!-- region Main content area -->
     <div class="px-2 pb-2 h-full overflow-hidden">
-        <main class="overflow-y-auto h-full bg-paper dark:bg-base-950 rounded-lg border border-default">
+        <main id="main-content" class="overflow-y-auto h-full bg-paper dark:bg-base-950 rounded-lg border border-default">
             <div class="max-w-4xl mx-auto p-8 pb-48 data-wide:max-w-full data-wide:px-0" {{template "main-attrs" .}}>
                 {{template "content" .}}
             </div>
