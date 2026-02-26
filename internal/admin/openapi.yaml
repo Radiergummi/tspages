@@ -1,0 +1,762 @@
+openapi: "3.1.0"
+info:
+  title: tspages API
+  description: Static site hosting platform for Tailscale networks.
+  version: "1.0"
+
+servers:
+  - url: https://pages.{tailnet}
+    description: Control plane
+    variables:
+      tailnet:
+        default: example.ts.net
+
+paths:
+  /deploy/{site}:
+    put:
+      operationId: deploySite
+      summary: Deploy a site
+      description: |
+        Upload a site archive or single file. The format is auto-detected from
+        magic bytes. If the site does not exist, it is created (requires admin).
+        Old deployments are cleaned up automatically.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: activate
+          in: query
+          schema:
+            type: string
+            enum: ["false"]
+          description: Set to "false" to upload without switching live traffic.
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [markdown]
+          description: Force format detection (e.g. for plain-text Markdown).
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+          application/gzip:
+            schema:
+              type: string
+              format: binary
+          application/x-tar:
+            schema:
+              type: string
+              format: binary
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          text/markdown:
+            schema:
+              type: string
+          text/html:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Deployment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeployResponse"
+        "400":
+          description: Invalid site name, empty upload, or bad archive.
+        "403":
+          description: Missing deploy capability.
+        "413":
+          description: Upload exceeds size limit.
+      security:
+        - tailscale: [deploy]
+
+    post:
+      operationId: deploySitePost
+      summary: Deploy a site (POST)
+      description: Alias for PUT /deploy/{site}.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: activate
+          in: query
+          schema:
+            type: string
+            enum: ["false"]
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Deployment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeployResponse"
+      security:
+        - tailscale: [deploy]
+
+    get:
+      operationId: listDeployments
+      summary: List deployments
+      description: Returns all deployments for a site, including which one is active.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Deployment list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeploymentInfo"
+      security:
+        - tailscale: [deploy]
+
+    delete:
+      operationId: deleteSite
+      summary: Delete a site
+      description: Stops the site server and removes all deployments.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "204":
+          description: Site deleted.
+        "403":
+          description: Missing admin capability.
+      security:
+        - tailscale: [admin]
+
+  /deploy/{site}/{filename}:
+    put:
+      operationId: deploySiteWithFilename
+      summary: Deploy a single file
+      description: |
+        Upload a single file with a filename hint for format detection.
+        For example, PUT /deploy/notes/README.md triggers Markdown rendering.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Filename used for format detection (e.g. README.md).
+        - name: activate
+          in: query
+          schema:
+            type: string
+            enum: ["false"]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Deployment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeployResponse"
+      security:
+        - tailscale: [deploy]
+
+  /deploy/{site}/deployments:
+    delete:
+      operationId: deleteInactiveDeployments
+      summary: Delete all inactive deployments
+      description: Removes all deployments except the currently active one.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Inactive deployments deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+      security:
+        - tailscale: [deploy]
+
+  /deploy/{site}/{id}:
+    delete:
+      operationId: deleteDeployment
+      summary: Delete a deployment
+      description: Removes a specific deployment. Cannot delete the active deployment.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - $ref: "#/components/parameters/deploymentId"
+      responses:
+        "204":
+          description: Deployment deleted.
+        "404":
+          description: Deployment not found.
+        "409":
+          description: Cannot delete the active deployment.
+      security:
+        - tailscale: [deploy]
+
+  /deploy/{site}/{id}/activate:
+    post:
+      operationId: activateDeployment
+      summary: Activate a deployment
+      description: Switches live traffic to a specific deployment. Useful for rollbacks.
+      tags: [deploy]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - $ref: "#/components/parameters/deploymentId"
+      responses:
+        "200":
+          description: Deployment activated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentInfo"
+        "404":
+          description: Deployment not found or not complete.
+      security:
+        - tailscale: [deploy]
+
+  /sites:
+    get:
+      operationId: listSites
+      summary: List all sites
+      description: |
+        Returns all sites visible to the caller. Admins see all sites;
+        others see only sites they have view or deploy access to.
+      tags: [admin]
+      responses:
+        "200":
+          description: Sites list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SitesResponse"
+      security:
+        - tailscale: [view]
+
+    post:
+      operationId: createSite
+      summary: Create a site
+      description: Creates an empty site and starts its server.
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Site name (DNS label, lowercase alphanumeric + hyphens, max 63 chars).
+              required: [name]
+      responses:
+        "200":
+          description: Site created (JSON response).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                required: [name]
+        "303":
+          description: Site created (HTML redirect to /sites/{name}).
+        "400":
+          description: Invalid site name.
+        "409":
+          description: Site already exists.
+      security:
+        - tailscale: [admin]
+
+  /sites/{site}:
+    get:
+      operationId: getSite
+      summary: Site detail
+      description: Returns site info with its deployment history, sorted newest-first.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Site detail with deployments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteDetailResponse"
+      security:
+        - tailscale: [view]
+
+  /sites/{site}/deployments/{id}:
+    get:
+      operationId: getDeployment
+      summary: Deployment detail
+      description: Returns metadata for a specific deployment.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - $ref: "#/components/parameters/deploymentId"
+      responses:
+        "200":
+          description: Deployment detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentInfo"
+        "404":
+          description: Deployment not found.
+      security:
+        - tailscale: [view]
+
+  /deployments:
+    get:
+      operationId: listAllDeployments
+      summary: Global deployment feed
+      description: |
+        Paginated feed of all deployments across all sites.
+        Only includes sites the caller has deploy access to.
+      tags: [admin]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        "200":
+          description: Paginated deployments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentsResponse"
+      security:
+        - tailscale: [deploy]
+
+  /sites/{site}/analytics:
+    get:
+      operationId: getSiteAnalytics
+      summary: Per-site analytics
+      description: Request counts, top pages, visitors, and device breakdowns for a site.
+      tags: [analytics]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - $ref: "#/components/parameters/range"
+      responses:
+        "200":
+          description: Site analytics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteAnalyticsResponse"
+        "404":
+          description: Analytics disabled for this site.
+      security:
+        - tailscale: [view]
+
+  /sites/{site}/analytics/purge:
+    post:
+      operationId: purgeSiteAnalytics
+      summary: Purge site analytics
+      description: Deletes all analytics data for a site.
+      tags: [analytics]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Analytics purged.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+        "303":
+          description: Redirects to site analytics page (HTML).
+      security:
+        - tailscale: [admin]
+
+  /analytics:
+    get:
+      operationId: getAllAnalytics
+      summary: Cross-site analytics
+      description: |
+        Aggregated analytics across all sites the caller can view.
+        Includes per-site breakdown instead of top pages.
+      tags: [analytics]
+      parameters:
+        - $ref: "#/components/parameters/range"
+      responses:
+        "200":
+          description: Global analytics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllAnalyticsResponse"
+      security:
+        - tailscale: [view]
+
+components:
+  parameters:
+    site:
+      name: site
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+      description: Site name (DNS label).
+
+    deploymentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Deployment ID (8-character hex string).
+
+    range:
+      name: range
+      in: query
+      schema:
+        type: string
+        enum: [PT24H, P7D, P30D, P1Y, all]
+        default: PT24H
+      description: Time range as ISO 8601 duration.
+
+  schemas:
+    DeployResponse:
+      type: object
+      properties:
+        deployment_id:
+          type: string
+        site:
+          type: string
+        url:
+          type: string
+          format: uri
+      required: [deployment_id, site, url]
+
+    DeploymentInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+        created_by_avatar:
+          type: string
+          format: uri
+        size_bytes:
+          type: integer
+          format: int64
+      required: [id, active]
+
+    SiteStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        active_deployment_id:
+          type: string
+        requests:
+          type: integer
+          format: int64
+        sparkline:
+          type: string
+          description: JSON array of hourly request counts (admin only).
+        last_deployed_by:
+          type: string
+        last_deployed_by_avatar:
+          type: string
+          format: uri
+        last_deployed_at:
+          type: string
+          format: date-time
+      required: [name, requests]
+
+    UserInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        profile_pic_url:
+          type: string
+          format: uri
+      required: [name]
+
+    SitesResponse:
+      type: object
+      properties:
+        admin:
+          type: boolean
+        user:
+          $ref: "#/components/schemas/UserInfo"
+        dns_suffix:
+          type: string
+        sites:
+          type: array
+          items:
+            $ref: "#/components/schemas/SiteStatus"
+      required: [admin, user, dns_suffix, sites]
+
+    SiteDetailResponse:
+      type: object
+      properties:
+        site:
+          $ref: "#/components/schemas/SiteStatus"
+        deployments:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentInfo"
+      required: [site, deployments]
+
+    DeploymentEntry:
+      allOf:
+        - $ref: "#/components/schemas/DeploymentInfo"
+        - type: object
+          properties:
+            site:
+              type: string
+          required: [site]
+
+    DeploymentsResponse:
+      type: object
+      properties:
+        deployments:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentEntry"
+        page:
+          type: integer
+        total_pages:
+          type: integer
+      required: [deployments, page, total_pages]
+
+    TimeBucket:
+      type: object
+      properties:
+        time:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [time, count]
+
+    StatusTimeBucket:
+      type: object
+      properties:
+        time:
+          type: string
+        ok:
+          type: integer
+          format: int64
+        client_err:
+          type: integer
+          format: int64
+        server_err:
+          type: integer
+          format: int64
+      required: [time, ok, client_err, server_err]
+
+    PathCount:
+      type: object
+      properties:
+        path:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [path, count]
+
+    VisitorCount:
+      type: object
+      properties:
+        user_login:
+          type: string
+        user_name:
+          type: string
+        profile_pic_url:
+          type: string
+          format: uri
+        count:
+          type: integer
+          format: int64
+      required: [user_login, user_name, count]
+
+    StatusCount:
+      type: object
+      properties:
+        status:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [status, count]
+
+    OSCount:
+      type: object
+      properties:
+        os:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [os, count]
+
+    NodeCount:
+      type: object
+      properties:
+        node_name:
+          type: string
+        os:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [node_name, os, count]
+
+    SiteCount:
+      type: object
+      properties:
+        site:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [site, count]
+
+    SiteAnalyticsResponse:
+      type: object
+      properties:
+        site:
+          type: string
+        range:
+          type: string
+        total:
+          type: integer
+          format: int64
+        unique_visitors:
+          type: integer
+          format: int64
+        unique_pages:
+          type: integer
+          format: int64
+        time_series:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeBucket"
+        status_time_series:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusTimeBucket"
+        top_pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathCount"
+        top_visitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitorCount"
+        status_codes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusCount"
+        os:
+          type: array
+          items:
+            $ref: "#/components/schemas/OSCount"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeCount"
+      required: [site, range, total, unique_visitors, unique_pages]
+
+    AllAnalyticsResponse:
+      type: object
+      properties:
+        range:
+          type: string
+        total:
+          type: integer
+          format: int64
+        unique_visitors:
+          type: integer
+          format: int64
+        time_series:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeBucket"
+        status_time_series:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusTimeBucket"
+        sites:
+          type: array
+          items:
+            $ref: "#/components/schemas/SiteCount"
+        top_visitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitorCount"
+        status_codes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusCount"
+        os:
+          type: array
+          items:
+            $ref: "#/components/schemas/OSCount"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeCount"
+      required: [range, total, unique_visitors]
+
+  securitySchemes:
+    tailscale:
+      type: http
+      scheme: mutual-tls
+      description: |
+        All requests are authenticated via Tailscale WhoIs. The caller's
+        node identity is verified by the local Tailscale daemon. Access
+        levels (view, deploy, admin) are granted via tailnet application
+        grants with the configured capability name.

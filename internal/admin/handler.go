@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"html/template"
 	"log"
 	"net/http"
 	"sort"
@@ -88,6 +89,8 @@ type Handlers struct {
 	Analytics      *AnalyticsHandler
 	PurgeAnalytics *PurgeAnalyticsHandler
 	AllAnalytics   *AllAnalyticsHandler
+	Help           *HelpHandler
+	API            *APIHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, defaults storage.SiteConfig) *Handlers {
@@ -101,6 +104,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		Analytics:      &AnalyticsHandler{d},
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
 		AllAnalytics:   &AllAnalyticsHandler{d},
+		Help:           &HelpHandler{},
+		API:            &APIHandler{},
 	}
 }
 
@@ -236,7 +241,14 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Name:               found.Name,
 		ActiveDeploymentID: found.ActiveDeploymentID,
 	}
-	analyticsOn := h.analyticsEnabled(siteName)
+	// Read the merged config for the active deployment.
+	var siteConfig storage.SiteConfig
+	if found.ActiveDeploymentID != "" {
+		cfg, _ := h.store.ReadSiteConfig(siteName, found.ActiveDeploymentID)
+		siteConfig = cfg.Merge(h.defaults)
+	}
+
+	analyticsOn := siteConfig.Analytics == nil || *siteConfig.Analytics
 	var sparkline string
 	if admin && h.recorder != nil && analyticsOn {
 		now := time.Now()
@@ -289,10 +301,11 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CanDeploy        bool
 		HasInactive      bool
 		AnalyticsEnabled bool
+		Config           storage.SiteConfig
 		DNSSuffix        string
 		Host             string
 		Sparkline        string
-	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, *h.dnsSuffix, r.Host, sparkline})
+	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline})
 }
 
 // --- GET /sites/{site}/deployments/{id} ---
@@ -778,6 +791,55 @@ func countsJSON(buckets []analytics.TimeBucket) string {
 		return ""
 	}
 	return sb.String()
+}
+
+// --- GET /help/{page...} ---
+
+type HelpHandler struct{}
+
+func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	identity := auth.IdentityFromContext(r.Context())
+
+	slug := r.PathValue("page")
+	if slug == "" {
+		slug = DocPages()[0].Slug
+	}
+
+	var current *DocPage
+	for i := range DocPages() {
+		if DocPages()[i].Slug == slug {
+			current = &DocPages()[i]
+			break
+		}
+	}
+	if current == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	content, err := RenderDoc(slug)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	renderPage(w, helpTmpl, "help", struct {
+		User    UserInfo
+		Pages   []DocPage
+		Current DocPage
+		Content template.HTML
+	}{userInfo(identity), DocPages(), *current, content})
+}
+
+// --- GET /api ---
+
+type APIHandler struct{}
+
+func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	identity := auth.IdentityFromContext(r.Context())
+	renderPage(w, apiTmpl, "api", struct {
+		User UserInfo
+	}{userInfo(identity)})
 }
 
 // diffFiles compares two file lists and returns added, removed, and changed paths.
