@@ -97,8 +97,9 @@ type Handlers struct {
 	PurgeAnalytics *PurgeAnalyticsHandler
 	AllAnalytics   *AllAnalyticsHandler
 	Webhooks       *WebhooksHandler
-	SiteWebhooks   *SiteWebhooksHandler
-	Help           *HelpHandler
+	SiteWebhooks      *SiteWebhooksHandler
+	SiteDeployments   *SiteDeploymentsHandler
+	Help              *HelpHandler
 	API            *APIHandler
 	Feed           *FeedHandler
 	SiteFeed       *SiteFeedHandler
@@ -117,7 +118,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
 		AllAnalytics:   &AllAnalyticsHandler{d},
 		Webhooks:       &WebhooksHandler{handlerDeps: d, notifier: notifier},
-		SiteWebhooks:   &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
+		SiteWebhooks:      &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
+		SiteDeployments:   &SiteDeploymentsHandler{d},
 		Help:           &HelpHandler{},
 		API:            &APIHandler{},
 		Feed:           &FeedHandler{d},
@@ -336,6 +338,8 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	totalDeployments := len(deployments)
+
 	renderPage(w, r, siteTmpl, "sites", struct {
 		SiteDetailResponse
 		User              UserInfo
@@ -349,7 +353,8 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Host              string
 		Sparkline         string
 		RecentDeliveries  []webhook.DeliverySummary
-	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline, recentDeliveries})
+		TotalDeployments  int
+	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
 }
 
 // --- GET /sites/{site}/deployments/{id} ---
@@ -864,11 +869,28 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		page = totalPages
 	}
 
+	rangeParam, from, now := parseRange(r)
+
+	var statsTotal, statsSucceeded, statsFailed int64
+	var timeSeries []webhook.DeliveryTimeBucket
+	var events []webhook.EventCount
+	if h.notifier != nil {
+		statsTotal, statsSucceeded, statsFailed, _ = h.notifier.DeliveryStats("", from, now)
+		timeSeries, _ = h.notifier.DeliveriesOverTime("", from, now)
+		events, _ = h.notifier.EventBreakdown("", from, now)
+	}
+
 	if wantsJSON(r) {
 		writeJSON(w, map[string]any{
 			"deliveries":  deliveries,
 			"page":        page,
 			"total_pages": totalPages,
+			"range":       rangeParam,
+			"total":       statsTotal,
+			"succeeded":   statsSucceeded,
+			"failed":      statsFailed,
+			"time_series": timeSeries,
+			"events":      events,
 		})
 		return
 	}
@@ -883,7 +905,14 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Status     string
 		User       UserInfo
 		BasePath   string
-	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity), "/webhooks"})
+		Range      string
+		Total      int64
+		Succeeded  int64
+		Failed     int64
+		TimeSeries []webhook.DeliveryTimeBucket
+		Events     []webhook.EventCount
+	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity), "/webhooks",
+		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events})
 }
 
 // --- GET /sites/{site}/webhooks ---
@@ -931,12 +960,28 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	basePath := "/sites/" + siteName + "/webhooks"
+	rangeParam, from, now := parseRange(r)
+
+	var statsTotal, statsSucceeded, statsFailed int64
+	var timeSeries []webhook.DeliveryTimeBucket
+	var events []webhook.EventCount
+	if h.notifier != nil {
+		statsTotal, statsSucceeded, statsFailed, _ = h.notifier.DeliveryStats(siteName, from, now)
+		timeSeries, _ = h.notifier.DeliveriesOverTime(siteName, from, now)
+		events, _ = h.notifier.EventBreakdown(siteName, from, now)
+	}
 
 	if wantsJSON(r) {
 		writeJSON(w, map[string]any{
 			"deliveries":  deliveries,
 			"page":        page,
 			"total_pages": totalPages,
+			"range":       rangeParam,
+			"total":       statsTotal,
+			"succeeded":   statsSucceeded,
+			"failed":      statsFailed,
+			"time_series": timeSeries,
+			"events":      events,
 		})
 		return
 	}
@@ -951,7 +996,96 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		Status     string
 		User       UserInfo
 		BasePath   string
-	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity), basePath})
+		Range      string
+		Total      int64
+		Succeeded  int64
+		Failed     int64
+		TimeSeries []webhook.DeliveryTimeBucket
+		Events     []webhook.EventCount
+	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity), basePath,
+		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events})
+}
+
+// --- GET /sites/{site}/deployments ---
+
+const siteDeploymentsPageSize = 50
+
+type SiteDeploymentsHandler struct{ handlerDeps }
+
+func (h *SiteDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	siteName := trimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	identity := auth.IdentityFromContext(r.Context())
+	admin := auth.IsAdmin(caps)
+
+	if !admin && !auth.CanView(caps, siteName) && !auth.CanDeploy(caps, siteName) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	deployments, err := h.store.ListDeployments(siteName)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "listing deployments")
+		return
+	}
+	if deployments == nil {
+		deployments = []storage.DeploymentInfo{}
+	}
+	sort.Slice(deployments, func(i, j int) bool {
+		return deployments[i].CreatedAt.After(deployments[j].CreatedAt)
+	})
+
+	// Pagination.
+	page := 1
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	totalPages := (len(deployments) + siteDeploymentsPageSize - 1) / siteDeploymentsPageSize
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start := (page - 1) * siteDeploymentsPageSize
+	end := start + siteDeploymentsPageSize
+	if end > len(deployments) {
+		end = len(deployments)
+	}
+	pageItems := deployments[start:end]
+
+	if wantsJSON(r) {
+		writeJSON(w, map[string]any{
+			"deployments": pageItems,
+			"page":        page,
+			"total_pages": totalPages,
+		})
+		return
+	}
+
+	hasInactive := false
+	for _, d := range deployments {
+		if !d.Active {
+			hasInactive = true
+			break
+		}
+	}
+
+	renderPage(w, r, siteDeploymentsTmpl, "sites", struct {
+		Deployments []storage.DeploymentInfo
+		Page        int
+		TotalPages  int
+		Site        string
+		Admin       bool
+		CanDeploy   bool
+		HasInactive bool
+		User        UserInfo
+	}{pageItems, page, totalPages, siteName, admin, auth.CanDeploy(caps, siteName), hasInactive, userInfo(identity)})
 }
 
 // countsJSON returns a JSON array of counts from the given time buckets,

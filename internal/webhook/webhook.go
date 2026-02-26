@@ -168,6 +168,200 @@ func (n *Notifier) logDelivery(webhookID, event, site, url, payload string, atte
 	}
 }
 
+// DeliveryTimeBucket represents a time bucket with succeeded/failed counts.
+type DeliveryTimeBucket struct {
+	Time      string `json:"time"`
+	Succeeded int64  `json:"succeeded"`
+	Failed    int64  `json:"failed"`
+}
+
+// EventCount represents an event type with its delivery count.
+type EventCount struct {
+	Event string `json:"event"`
+	Count int64  `json:"count"`
+}
+
+// deliveryBucketSQL is the SQL expression that truncates created_at to a bucket
+// boundary using epoch-based rounding. It requires two int parameters: the
+// step size in seconds, passed twice.
+const deliveryBucketSQL = `strftime('%Y-%m-%dT%H:%M:%SZ', (CAST(strftime('%s', created_at) AS INTEGER) / ?) * ?, 'unixepoch')`
+
+// deliveryBucketStep returns the largest "nice" step that produces at least 64 buckets.
+func deliveryBucketStep(from, to time.Time) time.Duration {
+	d := to.Sub(from)
+	steps := []time.Duration{
+		24 * time.Hour,
+		12 * time.Hour,
+		8 * time.Hour,
+		6 * time.Hour,
+		4 * time.Hour,
+		2 * time.Hour,
+		time.Hour,
+		30 * time.Minute,
+		15 * time.Minute,
+	}
+	for _, s := range steps {
+		if d/s >= 64 {
+			return s
+		}
+	}
+	return 15 * time.Minute
+}
+
+// fillDeliveryBuckets takes sparse SQL results and returns a complete series
+// with zero-filled gaps from `from` to `to`.
+func fillDeliveryBuckets(sparse []DeliveryTimeBucket, from, to time.Time) []DeliveryTimeBucket {
+	if from.IsZero() && len(sparse) > 0 {
+		t, err := time.Parse(time.RFC3339, sparse[0].Time)
+		if err == nil {
+			from = t
+		}
+	}
+	if from.IsZero() {
+		return sparse
+	}
+
+	step := deliveryBucketStep(from, to)
+	from = from.UTC().Truncate(step)
+
+	type pair struct{ succeeded, failed int64 }
+	lookup := make(map[string]pair, len(sparse))
+	for _, b := range sparse {
+		lookup[b.Time] = pair{b.Succeeded, b.Failed}
+	}
+
+	var out []DeliveryTimeBucket
+	for t := from; !t.After(to.UTC()); t = t.Add(step) {
+		key := t.Format(time.RFC3339)
+		p := lookup[key]
+		out = append(out, DeliveryTimeBucket{Time: key, Succeeded: p.succeeded, Failed: p.failed})
+	}
+	return out
+}
+
+// DeliveryStats returns aggregate counts for webhook deliveries.
+func (n *Notifier) DeliveryStats(site string, from, to time.Time) (total, succeeded, failed int64, err error) {
+	var whereConds []string
+	var args []any
+	if site != "" {
+		whereConds = append(whereConds, "site = ?")
+		args = append(args, site)
+	}
+	if !from.IsZero() {
+		whereConds = append(whereConds, "created_at >= ?")
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	whereConds = append(whereConds, "created_at <= ?")
+	args = append(args, to.UTC().Format(time.RFC3339))
+
+	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+
+	query := fmt.Sprintf(`SELECT COUNT(*),
+		SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END),
+		SUM(CASE WHEN succeeded = 0 THEN 1 ELSE 0 END)
+		FROM (
+			SELECT webhook_id,
+				MAX(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) AS succeeded
+			FROM webhook_deliveries %s GROUP BY webhook_id
+		)`, whereClause)
+
+	err = n.db.QueryRow(query, args...).Scan(&total, &succeeded, &failed)
+	return
+}
+
+// DeliveriesOverTime returns time-bucketed delivery counts.
+func (n *Notifier) DeliveriesOverTime(site string, from, to time.Time) ([]DeliveryTimeBucket, error) {
+	stepSecs := int(deliveryBucketStep(from, to).Seconds())
+
+	var whereConds []string
+	var args []any
+	// bucket step args come first
+	args = append(args, stepSecs, stepSecs)
+	if site != "" {
+		whereConds = append(whereConds, "site = ?")
+		args = append(args, site)
+	}
+	if !from.IsZero() {
+		whereConds = append(whereConds, "created_at >= ?")
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	whereConds = append(whereConds, "created_at <= ?")
+	args = append(args, to.UTC().Format(time.RFC3339))
+
+	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+
+	query := fmt.Sprintf(`SELECT bucket,
+		SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END),
+		SUM(CASE WHEN succeeded = 0 THEN 1 ELSE 0 END)
+		FROM (
+			SELECT webhook_id,
+				MIN(%s) AS bucket,
+				MAX(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) AS succeeded
+			FROM webhook_deliveries %s GROUP BY webhook_id
+		) GROUP BY bucket ORDER BY bucket`, deliveryBucketSQL, whereClause)
+
+	rows, err := n.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("deliveries over time: %w", err)
+	}
+	defer rows.Close()
+
+	var buckets []DeliveryTimeBucket
+	for rows.Next() {
+		var b DeliveryTimeBucket
+		if err := rows.Scan(&b.Time, &b.Succeeded, &b.Failed); err != nil {
+			return nil, fmt.Errorf("scan bucket: %w", err)
+		}
+		buckets = append(buckets, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate buckets: %w", err)
+	}
+
+	return fillDeliveryBuckets(buckets, from, to), nil
+}
+
+// EventBreakdown returns delivery counts grouped by event type.
+func (n *Notifier) EventBreakdown(site string, from, to time.Time) ([]EventCount, error) {
+	var whereConds []string
+	var args []any
+	if site != "" {
+		whereConds = append(whereConds, "site = ?")
+		args = append(args, site)
+	}
+	if !from.IsZero() {
+		whereConds = append(whereConds, "created_at >= ?")
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	whereConds = append(whereConds, "created_at <= ?")
+	args = append(args, to.UTC().Format(time.RFC3339))
+
+	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+
+	query := fmt.Sprintf(`SELECT event, COUNT(DISTINCT webhook_id)
+		FROM webhook_deliveries %s GROUP BY event ORDER BY COUNT(DISTINCT webhook_id) DESC`, whereClause)
+
+	rows, err := n.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("event breakdown: %w", err)
+	}
+	defer rows.Close()
+
+	var events []EventCount
+	for rows.Next() {
+		var e EventCount
+		if err := rows.Scan(&e.Event, &e.Count); err != nil {
+			return nil, fmt.Errorf("scan event: %w", err)
+		}
+		events = append(events, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate events: %w", err)
+	}
+
+	return events, nil
+}
+
 // DeliverySummary represents a grouped webhook delivery (one row per webhook_id).
 type DeliverySummary struct {
 	WebhookID    string `json:"webhook_id"`

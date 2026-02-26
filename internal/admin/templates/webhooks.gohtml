@@ -1,18 +1,138 @@
 {{define "title"}} - webhooks{{if .Site}} - {{.Site}}{{end}}{{end}}
+{{define "head-extra"}}
+    <link rel="alternate" type="application/json" title="Webhooks (JSON)" href="{{.BasePath}}">
+{{end}}
 
 {{define "content"}}
     <article class="flex flex-col gap-8">
+        {{if .Site}}
+            <nav>
+                <a
+                        class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                        href="/sites/{{.Site}}"
+                >
+                    <svg
+                            aria-hidden="true"
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                    >
+                        <path d="M9 14 4 9l5-5" />
+                        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+                    </svg>
+                    <span>{{.Site}}</span>
+                </a>
+            </nav>
+        {{end}}
+
         <header class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold tracking-tight">Webhooks{{if .Site}}
-            <span class="text-muted font-normal">{{.Site}}</span>{{end}}</h1>
+            <h1 class="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight">
+                Webhooks
+
+                {{if .Site}}
+                    <span class="text-muted font-normal">
+                        {{.Site}}
+                    </span>
+                {{end}}
+            </h1>
+            <nav aria-label="Time range" class="flex gap-1">
+                <a
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "PT24H"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        href="{{.BasePath}}?range=PT24H{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                >
+                    24H
+                </a>
+                <a
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P7D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        href="{{.BasePath}}?range=P7D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                >
+                    7D
+                </a>
+                <a
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P30D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        href="{{.BasePath}}?range=P30D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                >
+                    30D
+                </a>
+                <a
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "all"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        href="{{.BasePath}}?range=all{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                >
+                    ALL
+                </a>
+            </nav>
         </header>
 
-        {{$bp := .BasePath}}
-        {{$ev := .Event}}
-        {{$st := .Status}}
-        <div class="flex flex-wrap gap-3" aria-label="Filter webhook deliveries">
-            <form method="GET" action="{{$bp}}" class="contents">
-                {{if $st}}<input type="hidden" name="status" value="{{$st}}">{{end}}
+        {{if .Total}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <section class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                    <header class="flex items-end justify-end gap-10 px-5 h-14">
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Total
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Total}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-green-500"></span>
+                                Succeeded
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Succeeded}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-red-400"></span>
+                                Failed
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Failed}}
+                            </code>
+                        </div>
+                    </header>
+
+                    {{if .TimeSeries}}
+                        <div class="relative pt-4 h-48">
+                            <canvas id="deliveries-chart" height="140" aria-label="Deliveries over time" role="img"></canvas>
+                        </div>
+                    {{end}}
+                </section>
+
+                {{if .Events}}
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                Events
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas id="events-chart" aria-label="Deliveries by event type" role="img"></canvas>
+                        </div>
+                    </section>
+                {{end}}
+            </div>
+        {{end}}
+
+        <div class="flex justify-end flex-wrap gap-3" role="search" aria-label="Filter webhook deliveries">
+            <!-- region Event filter -->
+            <form method="GET" action="{{.BasePath}}" class="contents">
+                {{if .Range}}
+                    <input type="hidden" name="range" value="{{.Range}}">
+                {{end}}
+                {{if .Status}}
+                    <input type="hidden" name="status" value="{{.Status}}">
+                {{end}}
+
                 <select
                         name="event"
                         aria-label="Event type"
@@ -20,112 +140,225 @@
                         class="text-sm border border-default rounded-lg px-3 py-1.5 bg-surface text-black dark:text-base-200"
                 >
                     <option value="">All events</option>
-                    <option value="deploy.success"{{if eq $ev "deploy.success"}} selected{{end}}>deploy.success</option>
-                    <option value="deploy.failed"{{if eq $ev "deploy.failed"}} selected{{end}}>deploy.failed</option>
-                    <option value="site.created"{{if eq $ev "site.created"}} selected{{end}}>site.created</option>
-                    <option value="site.deleted"{{if eq $ev "site.deleted"}} selected{{end}}>site.deleted</option>
+                    <option value="deploy.success"{{if eq .Event "deploy.success"}} selected{{end}}>
+                        Deployment succeeded
+                    </option>
+                    <option value="deploy.failed"{{if eq .Event "deploy.failed"}} selected{{end}}>
+                        Deployment failed
+                    </option>
+                    <option value="site.created"{{if eq .Event "site.created"}} selected{{end}}>
+                        Site created
+                    </option>
+                    <option value="site.deleted"{{if eq .Event "site.deleted"}} selected{{end}}>
+                        Site deleted
+                    </option>
                 </select>
             </form>
-            <div class="inline-flex rounded-lg border border-default bg-surface p-0.5" role="group" aria-label="Delivery status">
-                <a href="{{$bp}}?{{if $ev}}event={{$ev}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $st ""}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >All</a>
-                <a href="{{$bp}}?status=succeeded{{if $ev}}&event={{$ev}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $st "succeeded"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >Succeeded</a>
-                <a href="{{$bp}}?status=failed{{if $ev}}&event={{$ev}}{{end}}"
-                   class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq $st "failed"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
-                >Failed</a>
+            <!-- endregion -->
+
+            <!-- region Status filter -->
+            <div
+                    class="inline-flex rounded-lg border border-default bg-surface p-0.5"
+                    role="group"
+                    aria-label="Delivery status"
+            >
+                <a
+                        href="{{.BasePath}}?{{if .Range}}range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
+                        {{if eq .Status ""}}aria-current="true"{{end}}
+                        class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq .Status ""}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >
+                    All
+                </a>
+                <a
+                        href="{{.BasePath}}?status=succeeded{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
+                        {{if eq .Status "succeeded"}}aria-current="true"{{end}}
+                        class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq .Status "succeeded"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >
+                    Succeeded
+                </a>
+                <a
+                        href="{{.BasePath}}?status=failed{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
+                        {{if eq .Status "failed"}}aria-current="true"{{end}}
+                        class="px-3 py-1 text-sm rounded-md no-underline transition-colors
+                          {{if eq .Status "failed"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
+                >
+                    Failed
+                </a>
             </div>
+            <!-- endregion -->
         </div>
 
         {{if .Deliveries}}
-            <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
+            <!-- region Deliveries table -->
+            <table class="w-full border-collapse rounded-md overflow-hidden">
                 <thead>
                 <tr>
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    >
                         Event
                     </th>
+
                     {{if .Global}}
-                        <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        <th
+                                scope="col"
+                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
                             Site
                         </th>
                     {{end}}
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    >
                         Status
                     </th>
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    >
                         Attempts
                     </th>
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    >
                         URL
                     </th>
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    >
                         Time
                     </th>
                 </tr>
                 </thead>
+
                 <tbody class="[&>tr:last-child>td]:border-b-0">
+
                 {{range .Deliveries}}
                     <tr>
-                        <td class="px-4 py-3 text-sm border-b border-default">
-                            <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">{{.Event}}</span>
+                        <td class="px-4 py-3 text-xs border-b border-default">
+                            <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                                {{.Event}}
+                            </span>
                         </td>
+
                         {{if $.Global}}
-                            <td class="px-4 py-3 text-sm border-b border-default">
+                            <td class="px-4 py-3 text-xs border-b border-default">
                                 <a
                                         class="text-blue-500 no-underline hover:underline"
                                         href="/sites/{{.Site}}"
-                                >{{.Site}}</a>
+                                >
+                                    {{.Site}}
+                                </a>
                             </td>
                         {{end}}
-                        <td class="px-4 py-3 text-sm border-b border-default">
+
+                        <td class="px-4 py-3 text-xs border-b border-default">
                             {{if .Succeeded}}
                                 <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">ok</span>
                             {{else}}
                                 <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">failed</span>
                             {{end}}
                         </td>
-                        <td class="px-4 py-3 text-sm border-b border-default text-muted">{{.Attempts}}</td>
+                        <td class="px-4 py-3 text-xs border-b border-default text-muted">
+                            {{.Attempts}}
+                        </td>
                         <td
-                                class="px-4 py-3 text-sm border-b border-default font-mono text-muted truncate max-w-[200px]"
+                                class="px-4 py-3 text-xs border-b border-default font-mono text-muted truncate max-w-50"
                                 title="{{.URL}}"
-                        >{{.URL}}</td>
-                        <td class="px-4 py-3 text-sm border-b border-default text-muted">{{.FirstAttempt}}</td>
+                        >
+                            {{.URL}}
+                        </td>
+                        <td class="px-4 py-3 text-xs border-b border-default text-muted">
+                            <time
+                                    datetime="{{.FirstAttempt}}"
+                                    title="{{.FirstAttempt}}"
+                            >
+                                {{reltime .FirstAttempt}}
+                            </time>
+                        </td>
                     </tr>
                 {{end}}
                 </tbody>
             </table>
+            <!-- endregion -->
 
+            <!-- region Pagination -->
             {{if or (gt .Page 1) (lt .Page .TotalPages)}}
-                <nav aria-label="Pagination" class="flex justify-between items-center mt-4">
+                <nav aria-label="Pagination" class="grid grid-cols-3 items-center mt-4">
                     <div>
                         {{if gt .Page 1}}
                             <a
-                                    class="btn btn-outline inline-block no-underline"
-                                    href="{{.BasePath}}?page={{sub .Page 1}}{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
-                            >&larr; Newer</a>
+                                    class="btn btn-outline inline-flex items-center gap-2 no-underline"
+                                    href="{{.BasePath}}?page={{sub .Page 1}}{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                            >
+                                <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                >
+                                    <path d="m12 19-7-7 7-7" />
+                                    <path d="M19 12H5" />
+                                </svg>
+                                <span>Newer</span>
+                            </a>
                         {{end}}
                     </div>
-                    <span class="text-muted text-sm">Page {{.Page}} of {{.TotalPages}}</span>
-                    <div>
+
+                    <span class="text-muted text-sm text-center">
+                        Page {{.Page}} of {{.TotalPages}}
+                    </span>
+
+                    <div class="place-self-end">
                         {{if lt .Page .TotalPages}}
                             <a
-                                    class="btn btn-outline inline-block no-underline"
-                                    href="{{.BasePath}}?page={{add .Page 1}}{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
-                            >Older &rarr;</a>
+                                    class="btn btn-outline inline-flex items-center gap-2 no-underline"
+                                    href="{{.BasePath}}?page={{add .Page 1}}{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                            >
+                                <span>Older</span>
+                                <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                >
+                                    <path d="M5 12h14" />
+                                    <path d="m12 5 7 7-7 7" />
+                                </svg>
+                            </a>
                         {{end}}
                     </div>
                 </nav>
             {{end}}
+            <!-- endregion -->
 
         {{else}}
+            <!-- region Empty state -->
             <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
                 No webhook deliveries yet.
             </p>
+            <!-- endregion -->
         {{end}}
     </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/webhooks.ts"}}"></script>
 {{end}}
