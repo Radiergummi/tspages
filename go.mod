@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/prometheus/client_golang v1.23.2
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.0-20260218190227-a1773d7ffc57
 	github.com/yuin/goldmark v1.7.16
 	modernc.org/sqlite v1.46.1
 	tailscale.com v1.94.2
