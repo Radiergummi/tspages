@@ -38,6 +38,7 @@ type Handler struct {
 	mu        sync.RWMutex
 	cachedID  string
 	cachedCfg storage.SiteConfig
+	hintCache map[string][]string
 }
 
 func NewHandler(store *storage.Store, site string, dnsSuffix *string, defaults storage.SiteConfig) *Handler {
@@ -63,6 +64,7 @@ func (h *Handler) loadConfig(deploymentID string) storage.SiteConfig {
 	h.mu.Lock()
 	h.cachedID = deploymentID
 	h.cachedCfg = merged
+	h.hintCache = nil
 	h.mu.Unlock()
 
 	return merged
@@ -151,6 +153,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resolvedIndex, err := filepath.EvalSymlinks(dirIndexPath)
 		if err == nil && (strings.HasPrefix(resolvedIndex, resolvedRoot+string(os.PathSeparator)) || resolvedIndex == resolvedRoot) {
 			indexFilePath := filepath.Join(filePath, indexPage)
+			h.sendEarlyHints(w, deploymentID, indexFilePath, dirIndexPath)
 			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
 			h.applyHeaders(w, indexFilePath, cfg)
 			w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexFilePath))
@@ -171,6 +174,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send early hints for HTML files before setting final response headers.
+	h.sendEarlyHints(w, deploymentID, filePath, fullPath)
 	// Set default Cache-Control before user headers so [headers] config can override.
 	w.Header().Set("Cache-Control", defaultCacheControl(filePath))
 	h.applyHeaders(w, filePath, cfg)
@@ -191,6 +196,7 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, root,
 		h.serveDefault404(w)
 		return
 	}
+	h.sendEarlyHints(w, deploymentID, indexPage, indexPath)
 	w.Header().Set("Cache-Control", defaultCacheControl(indexPage))
 	h.applyHeaders(w, indexPage, cfg)
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexPage))
