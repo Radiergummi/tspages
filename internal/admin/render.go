@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"tspages/internal/auth"
+	"tspages/internal/storage"
 )
 
 //go:embed templates/*.gohtml
@@ -473,12 +474,18 @@ var funcs = template.FuncMap{
 	},
 	"helpicon": func(slug, title string) template.HTML {
 		return template.HTML(fmt.Sprintf(
-			`<a href="/help/%s" class="inline-block align-middle ml-1 text-base-300 dark:text-base-700 hover:text-blue-500 transition" title="%s">`+
-				`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`+
+			`<a href="/help/%s" class="inline-block align-middle ml-1 text-base-300 dark:text-base-700 hover:text-blue-500 transition" title="%s" aria-label="%s">`+
+				`<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`+
 				`<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>`+
 				`</svg></a>`,
-			template.HTMLEscapeString(slug), template.HTMLEscapeString(title),
+			template.HTMLEscapeString(slug), template.HTMLEscapeString(title), template.HTMLEscapeString(title),
 		))
+	},
+	"first": func(n int, items []storage.DeploymentInfo) []storage.DeploymentInfo {
+		if n >= len(items) {
+			return items
+		}
+		return items[:n]
 	},
 	"siteurl": func(name, dnsSuffix string) string {
 		if dnsSuffix == "" {
@@ -496,8 +503,9 @@ var (
 	analyticsTmpl   = newTmpl("templates/layout.gohtml", "templates/analytics.gohtml")
 	helpTmpl        = newTmpl("templates/layout.gohtml", "templates/help.gohtml")
 	apiTmpl         = newTmpl("templates/layout.gohtml", "templates/api.gohtml")
-	webhooksTmpl    = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
-	errorTmpl       = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
+	webhooksTmpl         = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
+	siteDeploymentsTmpl  = newTmpl("templates/layout.gohtml", "templates/site-deployments.gohtml")
+	errorTmpl            = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
 )
 
 // wantsJSON returns true if the request prefers JSON output,
