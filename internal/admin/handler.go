@@ -97,9 +97,9 @@ type Handlers struct {
 	PurgeAnalytics *PurgeAnalyticsHandler
 	AllAnalytics   *AllAnalyticsHandler
 	Webhooks       *WebhooksHandler
-	SiteWebhooks      *SiteWebhooksHandler
-	SiteDeployments   *SiteDeploymentsHandler
-	Help              *HelpHandler
+	SiteWebhooks    *SiteWebhooksHandler
+	SiteDeployments *SiteDeploymentsHandler
+	Help            *HelpHandler
 	API            *APIHandler
 	Feed           *FeedHandler
 	SiteFeed       *SiteFeedHandler
@@ -118,8 +118,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
 		AllAnalytics:   &AllAnalyticsHandler{d},
 		Webhooks:       &WebhooksHandler{handlerDeps: d, notifier: notifier},
-		SiteWebhooks:      &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
-		SiteDeployments:   &SiteDeploymentsHandler{d},
+		SiteWebhooks:    &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
+		SiteDeployments: &SiteDeploymentsHandler{d},
 		Help:           &HelpHandler{},
 		API:            &APIHandler{},
 		Feed:           &FeedHandler{d},
@@ -1008,8 +1008,6 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 // --- GET /sites/{site}/deployments ---
 
-const siteDeploymentsPageSize = 50
-
 type SiteDeploymentsHandler struct{ handlerDeps }
 
 func (h *SiteDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -1045,15 +1043,15 @@ func (h *SiteDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
 		page = p
 	}
-	totalPages := (len(deployments) + siteDeploymentsPageSize - 1) / siteDeploymentsPageSize
+	totalPages := (len(deployments) + deploymentsPageSize - 1) / deploymentsPageSize
 	if totalPages == 0 {
 		totalPages = 1
 	}
 	if page > totalPages {
 		page = totalPages
 	}
-	start := (page - 1) * siteDeploymentsPageSize
-	end := start + siteDeploymentsPageSize
+	start := (page - 1) * deploymentsPageSize
+	end := start + deploymentsPageSize
 	if end > len(deployments) {
 		end = len(deployments)
 	}

@@ -112,31 +112,44 @@ sites, deployments, and traffic -- deployers see only the sites they have access
 
 The main view lists all sites with their last deploy info and a request sparkline.
 
-<img width="2254" height="1990" alt="Sites overview showing all hosted sites with deploy info and request sparklines" src="https://github.com/user-attachments/assets/91f5b3da-c40e-41e4-87e9-3d434a28dd4b" />
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/4eeeeda5-7a10-4b0a-9952-6a7152429184" />
 
 ### Site detail
 
 Drill into a site to see its deployment history, activate or roll back deployments, and manage the site.
 
-<img width="2254" height="1990" alt="Site detail page with deployment history and management actions" src="https://github.com/user-attachments/assets/4dc2f56d-9253-4866-ab8f-f1914ef56e13" />
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/7b810351-ce85-44e6-964b-788d90393cb2" />
 
 ### Deployment detail
 
 Each deployment shows a file listing and a diff against the previous deployment (added, removed, and changed files).
 
-<img width="2254" height="1990" alt="Deployment detail showing file diff against previous deployment" src="https://github.com/user-attachments/assets/ca5b8cbe-39ae-4d3d-9e55-e5af65343b30" />
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/0e733885-553a-41df-b3a8-eb6af1d6d7bb" />
 
 ### Deployment feed
 
 A global, paginated feed of all deployments across all sites.
 
-<img width="2254" height="1990" alt="Global deployment feed showing all recent deployments" src="https://github.com/user-attachments/assets/9742dcfe-ec62-477f-acd3-ac388a8ff62c" />
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/68fd4e3a-c3f3-4f87-809d-f779228c22c0" />
 
 ### Analytics
 
 Cross-site and per-site analytics with request counts, top pages, visitors, and device breakdowns.
 
-<img width="2254" height="1990" alt="Analytics dashboard with request counts, top pages, and visitor info" src="https://github.com/user-attachments/assets/f3bb2a2a-1d05-4c51-a119-239d4c17f6de" />
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/3e250e6a-2f63-4abb-8397-077adadf78e4" />
+
+### Webhooks
+
+Configure webhooks to get notified of new deployments, site changes, or other events. Webhooks can be set globally or
+per-site, and support custom payloads with deployment details.
+
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/c04db74a-f9c0-4927-9b08-8ddceabe6b05" />
+
+### API
+
+The admin dashboard exposes a REST API for all operations, and provides an OpenAPI spec for easy integration.
+
+<img width="3452" height="1990" alt="Image" src="https://github.com/user-attachments/assets/43dc92a1-ed7c-44dd-8a5b-4aa744b01e7e" />
 
 ## Architecture
 

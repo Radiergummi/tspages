@@ -503,9 +503,9 @@ var (
 	analyticsTmpl   = newTmpl("templates/layout.gohtml", "templates/analytics.gohtml")
 	helpTmpl        = newTmpl("templates/layout.gohtml", "templates/help.gohtml")
 	apiTmpl         = newTmpl("templates/layout.gohtml", "templates/api.gohtml")
-	webhooksTmpl         = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
-	siteDeploymentsTmpl  = newTmpl("templates/layout.gohtml", "templates/site-deployments.gohtml")
-	errorTmpl            = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
+	webhooksTmpl        = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
+	siteDeploymentsTmpl = newTmpl("templates/layout.gohtml", "templates/site-deployments.gohtml")
+	errorTmpl           = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
 )
 
 // wantsJSON returns true if the request prefers JSON output,
