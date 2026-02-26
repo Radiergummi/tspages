@@ -596,3 +596,114 @@ func TestSiteConfig_Merge_TrailingSlash(t *testing.T) {
 		t.Errorf("deployment should override trailing_slash, got %q", merged2.TrailingSlash)
 	}
 }
+
+func TestParseSiteConfig_Webhook(t *testing.T) {
+	input := `
+webhook_url = "https://example.com/hook"
+webhook_events = ["deploy.success", "deploy.failed"]
+webhook_secret = "s3cret"
+`
+	cfg, err := ParseSiteConfig([]byte(input))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.WebhookURL != "https://example.com/hook" {
+		t.Errorf("webhook_url = %q", cfg.WebhookURL)
+	}
+	if len(cfg.WebhookEvents) != 2 || cfg.WebhookEvents[0] != "deploy.success" || cfg.WebhookEvents[1] != "deploy.failed" {
+		t.Errorf("webhook_events = %v", cfg.WebhookEvents)
+	}
+	if cfg.WebhookSecret != "s3cret" {
+		t.Errorf("webhook_secret = %q", cfg.WebhookSecret)
+	}
+}
+
+func TestValidateSiteConfig_WebhookURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+	}{
+		{"empty", "", false},
+		{"https", "https://example.com/hook", false},
+		{"http", "http://internal.ts.net/hook", false},
+		{"ftp", "ftp://example.com", true},
+		{"no scheme", "example.com/hook", true},
+		{"just text", "not-a-url", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := SiteConfig{WebhookURL: tt.url}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateSiteConfig_WebhookEvents(t *testing.T) {
+	tests := []struct {
+		name    string
+		events  []string
+		wantErr bool
+	}{
+		{"nil", nil, false},
+		{"empty", []string{}, false},
+		{"valid single", []string{"deploy.success"}, false},
+		{"valid all", []string{"deploy.success", "deploy.failed", "site.created", "site.deleted"}, false},
+		{"unknown event", []string{"deploy.success", "deploy.started"}, true},
+		{"empty string event", []string{""}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := SiteConfig{WebhookEvents: tt.events}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestSiteConfig_Merge_WebhookOverride(t *testing.T) {
+	defaults := SiteConfig{
+		WebhookURL:    "https://global.example.com/hook",
+		WebhookEvents: []string{"deploy.success", "deploy.failed"},
+		WebhookSecret: "global-secret",
+	}
+	deploy := SiteConfig{
+		WebhookURL:    "https://site.example.com/hook",
+		WebhookEvents: []string{"site.created"},
+		// WebhookSecret intentionally empty
+	}
+	merged := deploy.Merge(defaults)
+	if merged.WebhookURL != "https://site.example.com/hook" {
+		t.Errorf("webhook_url = %q, want site URL", merged.WebhookURL)
+	}
+	if len(merged.WebhookEvents) != 1 || merged.WebhookEvents[0] != "site.created" {
+		t.Errorf("webhook_events = %v, want [site.created]", merged.WebhookEvents)
+	}
+	if merged.WebhookSecret != "" {
+		t.Errorf("webhook_secret = %q, want empty (per-site override replaces all)", merged.WebhookSecret)
+	}
+}
+
+func TestSiteConfig_Merge_WebhookInherit(t *testing.T) {
+	defaults := SiteConfig{
+		WebhookURL:    "https://global.example.com/hook",
+		WebhookEvents: []string{"deploy.success"},
+		WebhookSecret: "global-secret",
+	}
+	deploy := SiteConfig{} // empty webhook_url → inherit global
+	merged := deploy.Merge(defaults)
+	if merged.WebhookURL != "https://global.example.com/hook" {
+		t.Errorf("webhook_url = %q, want global URL", merged.WebhookURL)
+	}
+	if len(merged.WebhookEvents) != 1 || merged.WebhookEvents[0] != "deploy.success" {
+		t.Errorf("webhook_events = %v, want [deploy.success]", merged.WebhookEvents)
+	}
+	if merged.WebhookSecret != "global-secret" {
+		t.Errorf("webhook_secret = %q, want global-secret", merged.WebhookSecret)
+	}
+}

@@ -20,6 +20,9 @@ type SiteConfig struct {
 	TrailingSlash    string                       `toml:"trailing_slash"`
 	Headers          map[string]map[string]string `toml:"headers"`
 	Redirects        []RedirectRule               `toml:"redirects"`
+	WebhookURL       string                       `toml:"webhook_url"`
+	WebhookEvents    []string                     `toml:"webhook_events"`
+	WebhookSecret    string                       `toml:"webhook_secret"`
 }
 
 // RedirectRule defines a single redirect from one path pattern to another.
@@ -87,6 +90,21 @@ func (c SiteConfig) Validate() error {
 			if !fromParams[p] {
 				return fmt.Errorf("redirect %d: 'to' references :%s not in 'from'", i, p)
 			}
+		}
+	}
+
+	if c.WebhookURL != "" && !strings.HasPrefix(c.WebhookURL, "http://") && !strings.HasPrefix(c.WebhookURL, "https://") {
+		return fmt.Errorf("webhook_url: must start with http:// or https://, got %q", c.WebhookURL)
+	}
+	validEvents := map[string]bool{
+		"deploy.success": true,
+		"deploy.failed":  true,
+		"site.created":   true,
+		"site.deleted":   true,
+	}
+	for i, ev := range c.WebhookEvents {
+		if !validEvents[ev] {
+			return fmt.Errorf("webhook_events[%d]: unknown event %q", i, ev)
 		}
 	}
 
@@ -256,6 +274,12 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 
 	if c.Redirects != nil {
 		merged.Redirects = c.Redirects
+	}
+
+	if c.WebhookURL != "" {
+		merged.WebhookURL = c.WebhookURL
+		merged.WebhookEvents = c.WebhookEvents
+		merged.WebhookSecret = c.WebhookSecret
 	}
 
 	return merged
