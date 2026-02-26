@@ -557,8 +557,8 @@ func TestDeploymentHandler_DiffAgainstPrevious(t *testing.T) {
 		t.Error("HTML missing 'removed' indicator")
 	}
 	// index.html changed size
-	if !strings.Contains(body, "changed") {
-		t.Error("HTML missing 'changed' indicator")
+	if !strings.Contains(body, "modified") {
+		t.Error("HTML missing 'modified' indicator")
 	}
 }
 
