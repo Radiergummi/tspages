@@ -318,6 +318,40 @@ paths:
       security:
         - tailscale: [view]
 
+  /sites/{site}/deployments:
+    get:
+      operationId: listSiteDeployments
+      summary: Site deployments
+      description: Paginated list of deployments for a site, sorted newest-first.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        "200":
+          description: Paginated deployment list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deployments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DeploymentInfo"
+                  page:
+                    type: integer
+                  total_pages:
+                    type: integer
+                required: [deployments, page, total_pages]
+      security:
+        - tailscale: [view]
+
   /sites/{site}/deployments/{id}:
     get:
       operationId: getDeployment

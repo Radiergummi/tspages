@@ -16,7 +16,7 @@ Features include:
   with a click. Drop a folder onto the dashboard to deploy right away.
 - **Fine-grained access control**: Use Tailscale's existing ACL system to control who can view or deploy to each site,
   down to the individual user or group level.
-- **Per-site configuration**: Customize 404 pages, headers, redirects, and SPA behavior on a per-deployment basis with
+- **Per-site configuration**: Customize 404 pages, headers, redirects, and SPA routing on a per-deployment basis with
   an optional `tspages.toml` included in your upload.
 - **Built-in analytics**: See request counts, top pages, visitor info, and more for each site.
 

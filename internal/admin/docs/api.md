@@ -102,7 +102,8 @@ Requires `admin` access for the site.
 
 ```
 GET /sites                           # all sites
-GET /sites/{site}                    # site detail with deployment list
+GET /sites/{site}                    # site detail (last 5 deployments)
+GET /sites/{site}/deployments        # all deployments for a site (paginated)
 GET /sites/{site}/deployments/{id}   # deployment detail with file listing and diff
 GET /deployments                     # global deployment feed (paginated)
 GET /analytics                       # cross-site analytics (admins)
