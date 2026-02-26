@@ -1,6 +1,8 @@
 package serve
 
 import (
+	"compress/gzip"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -865,5 +867,623 @@ func TestHandler_Redirect_FromDefaults(t *testing.T) {
 
 	if rec.Code != http.StatusMovedPermanently {
 		t.Fatalf("status = %d, want 301 (redirect from defaults)", rec.Code)
+	}
+}
+
+// --- Cache-Control ---
+
+func TestHandler_CacheControl_HTML(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Docs</h1>",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, no-cache" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "public, no-cache")
+	}
+}
+
+func TestHandler_CacheControl_RegularAsset(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css": "body{}",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, max-age=3600" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "public, max-age=3600")
+	}
+}
+
+func TestHandler_CacheControl_HashedAsset(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"main.a1b2c3d4.js": "console.log('hi')",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/main.a1b2c3d4.js", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "main.a1b2c3d4.js")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	want := "public, max-age=31536000, immutable"
+	if cc := rec.Header().Get("Cache-Control"); cc != want {
+		t.Errorf("Cache-Control = %q, want %q", cc, want)
+	}
+}
+
+func TestHandler_CacheControl_UserOverride(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("docs", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "style.css"), []byte("body{}"), 0644)
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+		Headers: map[string]map[string]string{
+			"/*.css": {"Cache-Control": "public, max-age=86400"},
+		},
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	// User config should override the default "public, max-age=3600".
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, max-age=86400" {
+		t.Errorf("Cache-Control = %q, want user override %q", cc, "public, max-age=86400")
+	}
+}
+
+func TestHasContentHash(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"main.a1b2c3d4.js", true},
+		{"index-BdH3bPq2.js", true},
+		{"style-abc12345.css", true},
+		{"app.DfG4h5J6k7.css", true},
+		{"assets/main.a1b2c3d4.js", true},
+		{"style.css", false},
+		{"index.html", false},
+		{"dashboard.js", false},     // all letters, no digits
+		{"12345678.js", false},      // all digits, no letters
+		{"ab12.js", false},          // too short
+		{"readme.txt", false},       // no hash segment
+		{"some-file-name.js", false}, // segments too short
+	}
+	for _, tt := range tests {
+		if got := hasContentHash(tt.name); got != tt.want {
+			t.Errorf("hasContentHash(%q) = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// --- Compression ---
+
+func TestHandler_Gzip_CompressesHTML(t *testing.T) {
+	store := storage.New(t.TempDir())
+	// Need enough content to exceed compressMinBytes (256).
+	content := strings.Repeat("<p>Hello world</p>\n", 30)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": content,
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+	req.Header.Set("Accept-Encoding", "gzip, deflate")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip", ce)
+	}
+	if rec.Header().Get("Content-Length") != "" {
+		t.Error("Content-Length should be removed when compressing")
+	}
+	if rec.Header().Get("Vary") != "Accept-Encoding" {
+		t.Errorf("Vary = %q, want Accept-Encoding", rec.Header().Get("Vary"))
+	}
+
+	// Verify the body is valid gzip that decompresses to the original content.
+	gr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	defer gr.Close()
+	body, err := io.ReadAll(gr)
+	if err != nil {
+		t.Fatalf("reading gzip body: %v", err)
+	}
+	if string(body) != content {
+		t.Errorf("decompressed body length = %d, want %d", len(body), len(content))
+	}
+}
+
+func TestHandler_Gzip_SkipsImages(t *testing.T) {
+	store := storage.New(t.TempDir())
+	// Fake PNG content (doesn't need to be valid, just large enough).
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"image.png": strings.Repeat("x", 1000),
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/image.png", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "image.png")
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Content-Encoding") == "gzip" {
+		t.Error("images should not be compressed")
+	}
+}
+
+func TestHandler_Gzip_SkipsSmallFiles(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"tiny.html": "<p>hi</p>",
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/tiny.html", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "tiny.html")
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Content-Encoding") == "gzip" {
+		t.Error("files < 256 bytes should not be compressed")
+	}
+	// Vary should still be set for compressible types.
+	if rec.Header().Get("Vary") != "Accept-Encoding" {
+		t.Errorf("Vary = %q, want Accept-Encoding even for small compressible files", rec.Header().Get("Vary"))
+	}
+}
+
+func TestHandler_Gzip_SkipsWithoutAcceptEncoding(t *testing.T) {
+	store := storage.New(t.TempDir())
+	content := strings.Repeat("<p>Hello</p>\n", 50)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": content,
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+	// No Accept-Encoding header.
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Content-Encoding") == "gzip" {
+		t.Error("should not compress when client doesn't accept gzip")
+	}
+	if rec.Body.String() != content {
+		t.Error("body should be uncompressed original content")
+	}
+}
+
+func TestHandler_Gzip_304NotCompressed(t *testing.T) {
+	store := storage.New(t.TempDir())
+	content := strings.Repeat("<p>Hello</p>\n", 50)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": content,
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+
+	// First request to get ETag.
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+	req.Header.Set("Accept-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	etag := rec.Header().Get("ETag")
+
+	// Second request with If-None-Match — should get 304, no body.
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2 = withCaps(req2, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req2.SetPathValue("path", "")
+	req2.Header.Set("Accept-Encoding", "gzip")
+	req2.Header.Set("If-None-Match", etag)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusNotModified {
+		t.Fatalf("status = %d, want 304", rec2.Code)
+	}
+	if rec2.Header().Get("Content-Encoding") == "gzip" {
+		t.Error("304 response should not have Content-Encoding")
+	}
+}
+
+func TestHandler_Gzip_CompressesCSS(t *testing.T) {
+	store := storage.New(t.TempDir())
+	content := strings.Repeat("body { color: red; }\n", 30)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css": content,
+	})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Content-Encoding") != "gzip" {
+		t.Error("CSS should be compressed")
+	}
+
+	gr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	defer gr.Close()
+	body, _ := io.ReadAll(gr)
+	if string(body) != content {
+		t.Errorf("decompressed length = %d, want %d", len(body), len(content))
+	}
+}
+
+// --- Directory Listing ---
+
+func TestHandler_DirectoryListing_Enabled(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content", "docs")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "readme.txt"), []byte("hello"), 0644)
+	os.WriteFile(filepath.Join(contentDir, "guide.pdf"), []byte("pdf"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	dl := true
+	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+
+	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/docs/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "readme.txt") {
+		t.Error("listing should contain readme.txt")
+	}
+	if !strings.Contains(body, "guide.pdf") {
+		t.Error("listing should contain guide.pdf")
+	}
+	if !strings.Contains(body, "Index of") {
+		t.Error("listing should contain 'Index of' heading")
+	}
+}
+
+func TestHandler_DirectoryListing_Disabled(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content", "docs")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "readme.txt"), []byte("hello"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	// directory_listing defaults to nil (off)
+	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/docs/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 when directory listing disabled", rec.Code)
+	}
+}
+
+func TestHandler_DirectoryListing_IndexTakesPrecedence(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content", "docs")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "index.html"), []byte("<h1>Docs Index</h1>"), 0644)
+	os.WriteFile(filepath.Join(contentDir, "readme.txt"), []byte("hello"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	dl := true
+	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+
+	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/docs/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Docs Index") {
+		t.Error("should serve index.html, not directory listing")
+	}
+	if strings.Contains(body, "Index of") {
+		t.Error("should not render directory listing when index exists")
+	}
+}
+
+func TestHandler_DirectoryListing_FromDefaults(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content", "docs")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "file.txt"), []byte("hi"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	dl := true
+	defaults := storage.SiteConfig{DirectoryListing: &dl}
+	h := NewHandler(store, "files", nil, defaults)
+
+	req := httptest.NewRequest("GET", "/docs/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (directory listing from defaults)", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "file.txt") {
+		t.Error("listing should show file.txt from defaults config")
+	}
+}
+
+func TestHandler_DirectoryListing_ParentLink(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content", "a", "b")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "file.txt"), []byte("hi"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	dl := true
+	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+
+	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/a/b/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "a/b")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "..") {
+		t.Error("nested directory should show parent link")
+	}
+}
+
+// --- Trailing Slash ---
+
+func TestCheckTrailingSlash(t *testing.T) {
+	tests := []struct {
+		path string
+		mode string
+		want string
+		ok   bool
+	}{
+		{"/about", "add", "/about/", true},
+		{"/about/", "add", "", false},            // already has slash
+		{"/style.css", "add", "", false},          // file extension
+		{"/", "add", "", false},                   // root
+		{"/about/", "remove", "/about", true},
+		{"/about", "remove", "", false},           // no trailing slash
+		{"/", "remove", "", false},                // root
+		{"/about", "", "", false},                 // disabled
+		{"/about/", "", "", false},                // disabled
+		{"/docs/api", "add", "/docs/api/", true},
+		{"/docs/api/", "remove", "/docs/api", true},
+	}
+	for _, tt := range tests {
+		got, ok := checkTrailingSlash(tt.path, tt.mode)
+		if ok != tt.ok || got != tt.want {
+			t.Errorf("checkTrailingSlash(%q, %q) = (%q, %v), want (%q, %v)",
+				tt.path, tt.mode, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+func TestHandler_TrailingSlash_Add(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("docs", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(filepath.Join(contentDir, "about"), 0755)
+	os.WriteFile(filepath.Join(contentDir, "about", "index.html"), []byte("<h1>About</h1>"), 0644)
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/about", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want 301", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/about/" {
+		t.Errorf("Location = %q, want /about/", loc)
+	}
+}
+
+func TestHandler_TrailingSlash_Add_SkipsFileExtensions(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"style.css": "body{}",
+	})
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/style.css", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "style.css")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (file extension should not be redirected)", rec.Code)
+	}
+}
+
+func TestHandler_TrailingSlash_Remove(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"about.html": "<h1>About</h1>",
+	})
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/about/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about/")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want 301", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/about" {
+		t.Errorf("Location = %q, want /about", loc)
+	}
+}
+
+func TestHandler_TrailingSlash_Remove_RootUnchanged(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Docs</h1>",
+	})
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
+
+	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (root should not be redirected)", rec.Code)
+	}
+}
+
+func TestHandler_TrailingSlash_FromDefaults(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "hi",
+	})
+
+	defaults := storage.SiteConfig{TrailingSlash: "add"}
+	h := NewHandler(store, "docs", nil, defaults)
+
+	req := httptest.NewRequest("GET", "/about", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "about")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want 301 (trailing slash from defaults)", rec.Code)
+	}
+}
+
+func TestIsCompressible(t *testing.T) {
+	tests := []struct {
+		ct   string
+		want bool
+	}{
+		{"text/html", true},
+		{"text/css", true},
+		{"text/plain", true},
+		{"text/html; charset=utf-8", true},
+		{"application/javascript", true},
+		{"application/json", true},
+		{"application/xml", true},
+		{"image/svg+xml", true},
+		{"application/wasm", true},
+		{"image/png", false},
+		{"image/jpeg", false},
+		{"application/octet-stream", false},
+		{"font/woff2", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := isCompressible(tt.ct); got != tt.want {
+			t.Errorf("isCompressible(%q) = %v, want %v", tt.ct, got, tt.want)
+		}
 	}
 }

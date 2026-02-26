@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Index of {{.Path}}</title>
+    <style>
+        :root {
+            color-scheme: light dark
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            background: light-dark(#fffcf0, #1c1b1a);
+            color: light-dark(#100f0f, #cecdc3);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        main {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: light-dark(#6f6e69, #878580);
+        }
+
+        h1 span {
+            color: light-dark(#100f0f, #cecdc3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .875rem;
+        }
+
+        th {
+            text-align: left;
+            padding: .5rem .75rem;
+            font-size: .75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: light-dark(#878580, #6f6e69);
+            border-bottom: 2px solid light-dark(#e6e4d9, #343331);
+        }
+
+        th:last-child {
+            text-align: right;
+        }
+
+        td {
+            padding: .5rem .75rem;
+            border-bottom: 1px solid light-dark(#e6e4d9, #343331);
+        }
+
+        td:last-child {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            color: light-dark(#878580, #6f6e69);
+        }
+
+        a {
+            color: light-dark(#205ea6, #4385be);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .dir a::after {
+            content: "/";
+            color: light-dark(#878580, #6f6e69);
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Index of <span>{{.Path}}</span></h1>
+    <table>
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Size</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{if .Parent}}
+            <tr>
+                <td><a href="{{.Parent}}">..</a></td>
+                <td></td>
+            </tr>
+        {{end}}
+        {{range .Entries}}
+            <tr>
+                <td {{if .IsDir}}class="dir"{{end}}><a href="{{.Href}}">{{.Name}}</a></td>
+                <td>{{.Size}}</td>
+            </tr>
+        {{end}}
+        </tbody>
+    </table>
+</main>
+</body>
+</html>

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -21,7 +22,11 @@ var default404HTML []byte
 //go:embed templates/placeholder.gohtml
 var placeholderTmplStr string
 
+//go:embed templates/dirlist.gohtml
+var dirlistTmplStr string
+
 var placeholderTmpl = template.Must(template.New("placeholder").Parse(placeholderTmplStr))
+var dirlistTmpl = template.Must(template.New("dirlist").Parse(dirlistTmplStr))
 
 type Handler struct {
 	store     *storage.Store
@@ -94,6 +99,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Trailing slash normalization (before file resolution).
+	if target, ok := checkTrailingSlash(r.URL.Path, cfg.TrailingSlash); ok {
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+		return
+	}
+
 	indexPage := cfg.IndexPage
 	if indexPage == "" {
 		indexPage = "index.html"
@@ -133,11 +144,39 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the path is a directory, try to serve its index file or a listing.
+	if info, err := os.Stat(resolved); err == nil && info.IsDir() {
+		dirIndexPath := filepath.Join(fullPath, indexPage)
+		resolvedIndex, err := filepath.EvalSymlinks(dirIndexPath)
+		if err == nil && (strings.HasPrefix(resolvedIndex, resolvedRoot+string(os.PathSeparator)) || resolvedIndex == resolvedRoot) {
+			indexFilePath := filepath.Join(filePath, indexPage)
+			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
+			h.applyHeaders(w, indexFilePath, cfg)
+			w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexFilePath))
+			h.serveFileCompressed(w, r, dirIndexPath)
+			return
+		}
+		// No index file — try directory listing
+		if cfg.DirectoryListing != nil && *cfg.DirectoryListing {
+			h.serveDirectoryListing(w, resolved, r.URL.Path)
+			return
+		}
+		// No index, no listing — SPA fallback or 404
+		if cfg.SPA != nil && *cfg.SPA {
+			h.serveSPAFallback(w, r, root, resolvedRoot, deploymentID, indexPage, cfg)
+			return
+		}
+		h.serve404(w, root, resolvedRoot, cfg)
+		return
+	}
+
+	// Set default Cache-Control before user headers so [headers] config can override.
+	w.Header().Set("Cache-Control", defaultCacheControl(filePath))
+	h.applyHeaders(w, filePath, cfg)
 	// Deployments are immutable, so deploymentID:filePath is a stable ETag.
 	// http.ServeFile checks If-None-Match and returns 304 when it matches.
-	h.applyHeaders(w, filePath, cfg)
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, filePath))
-	http.ServeFile(w, r, fullPath)
+	h.serveFileCompressed(w, r, fullPath)
 }
 
 func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, root, resolvedRoot, deploymentID, indexPage string, cfg storage.SiteConfig) {
@@ -151,9 +190,10 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, root,
 		h.serveDefault404(w)
 		return
 	}
+	w.Header().Set("Cache-Control", defaultCacheControl(indexPage))
 	h.applyHeaders(w, indexPage, cfg)
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexPage))
-	http.ServeFile(w, r, indexPath)
+	h.serveFileCompressed(w, r, indexPath)
 }
 
 func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storage.SiteConfig) {
@@ -163,6 +203,78 @@ func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storag
 				w.Header().Set(name, value)
 			}
 		}
+	}
+}
+
+// defaultCacheControl returns a Cache-Control header value based on the
+// file path. HTML is always revalidated (ETags provide fast 304s). Assets
+// with content hashes in their filenames are cached immutably. Everything
+// else gets a moderate 1-hour cache.
+func defaultCacheControl(filePath string) string {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".html", ".htm":
+		return "public, no-cache"
+	default:
+		if hasContentHash(filePath) {
+			return "public, max-age=31536000, immutable"
+		}
+		return "public, max-age=3600"
+	}
+}
+
+// hasContentHash reports whether the filename contains a content hash,
+// indicating it can be cached immutably. It looks for segments of 8+
+// alphanumeric characters (containing both letters and digits) after
+// the first segment of the basename. Matches patterns like
+// "main.a1b2c3d4.js" or "index-BdH3bPq2.css".
+func hasContentHash(name string) bool {
+	base := filepath.Base(name)
+	ext := filepath.Ext(base)
+	if ext == "" {
+		return false
+	}
+	stem := base[:len(base)-len(ext)]
+	start := 0
+	for i := 0; i <= len(stem); i++ {
+		if i == len(stem) || stem[i] == '.' || stem[i] == '-' {
+			if start > 0 { // skip the first segment (the actual name)
+				seg := stem[start:i]
+				if len(seg) >= 8 && isMixedAlphanumeric(seg) {
+					return true
+				}
+			}
+			start = i + 1
+		}
+	}
+	return false
+}
+
+func isMixedAlphanumeric(s string) bool {
+	var hasLetter, hasDigit bool
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+			hasLetter = true
+		case c >= '0' && c <= '9':
+			hasDigit = true
+		default:
+			return false
+		}
+	}
+	return hasLetter && hasDigit
+}
+
+// serveFileCompressed serves a file with gzip compression when the client
+// supports it and the content type is compressible.
+func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
+	if acceptsGzip(r) {
+		cw := &compressWriter{ResponseWriter: w}
+		defer cw.Close()
+		http.ServeFile(cw, r, path)
+	} else {
+		http.ServeFile(w, r, path)
 	}
 }
 
@@ -243,6 +355,105 @@ func (h *Handler) checkRedirects(reqPath string, cfg storage.SiteConfig) (string
 		}
 	}
 	return "", 0, false
+}
+
+type dirlistEntry struct {
+	Name  string
+	Href  string
+	IsDir bool
+	Size  string
+}
+
+func (h *Handler) serveDirectoryListing(w http.ResponseWriter, dirPath, reqPath string) {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Sort: directories first, then files, alphabetical within each group.
+	sort.Slice(entries, func(i, j int) bool {
+		di, dj := entries[i].IsDir(), entries[j].IsDir()
+		if di != dj {
+			return di
+		}
+		return entries[i].Name() < entries[j].Name()
+	})
+
+	if !strings.HasSuffix(reqPath, "/") {
+		reqPath += "/"
+	}
+
+	var items []dirlistEntry
+	for _, e := range entries {
+		name := e.Name()
+		href := reqPath + name
+		size := ""
+		if !e.IsDir() {
+			if info, err := e.Info(); err == nil {
+				size = formatBytes(info.Size())
+			}
+		}
+		items = append(items, dirlistEntry{
+			Name:  name,
+			Href:  href,
+			IsDir: e.IsDir(),
+			Size:  size,
+		})
+	}
+
+	parent := ""
+	if reqPath != "/" {
+		parent = filepath.Dir(strings.TrimRight(reqPath, "/"))
+		if parent != "/" {
+			parent += "/"
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = dirlistTmpl.Execute(w, struct {
+		Path    string
+		Parent  string
+		Entries []dirlistEntry
+	}{reqPath, parent, items})
+}
+
+func formatBytes(b int64) string {
+	const (
+		kB = 1024
+		mB = 1024 * kB
+		gB = 1024 * mB
+	)
+	switch {
+	case b >= gB:
+		return fmt.Sprintf("%.1f GB", float64(b)/float64(gB))
+	case b >= mB:
+		return fmt.Sprintf("%.1f MB", float64(b)/float64(mB))
+	case b >= kB:
+		return fmt.Sprintf("%.1f KB", float64(b)/float64(kB))
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
+}
+
+// checkTrailingSlash returns a redirect target if the request path needs
+// trailing-slash normalization. mode is "add", "remove", or "" (disabled).
+// Paths with file extensions and the root "/" are never redirected.
+func checkTrailingSlash(reqPath, mode string) (string, bool) {
+	if mode == "" || reqPath == "/" {
+		return "", false
+	}
+	if mode == "add" {
+		if !strings.HasSuffix(reqPath, "/") && filepath.Ext(reqPath) == "" {
+			return reqPath + "/", true
+		}
+	}
+	if mode == "remove" {
+		if strings.HasSuffix(reqPath, "/") {
+			return strings.TrimRight(reqPath, "/"), true
+		}
+	}
+	return "", false
 }
 
 func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg storage.SiteConfig) {

@@ -140,6 +140,20 @@
                             <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
                         {{end}}
                     </div>
+                    <div class="flex items-center justify-between px-5 py-3">
+                        <span class="text-sm text-muted">Directory listing</span>
+                        {{if deref .Config.DirectoryListing}}
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                        {{else}}
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                        {{end}}
+                    </div>
+                    {{if .Config.TrailingSlash}}
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Trailing slash</span>
+                            <span class="text-sm font-mono">{{.Config.TrailingSlash}}</span>
+                        </div>
+                    {{end}}
                     {{if .Config.IndexPage}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Index page</span>

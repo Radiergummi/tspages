@@ -12,12 +12,14 @@ import (
 
 // SiteConfig holds per-deployment configuration parsed from tspages.toml.
 type SiteConfig struct {
-	SPA          *bool                        `toml:"spa"`
-	Analytics    *bool                        `toml:"analytics"`
-	IndexPage    string                       `toml:"index_page"`
-	NotFoundPage string                       `toml:"not_found_page"`
-	Headers      map[string]map[string]string `toml:"headers"`
-	Redirects    []RedirectRule               `toml:"redirects"`
+	SPA              *bool                        `toml:"spa"`
+	Analytics        *bool                        `toml:"analytics"`
+	DirectoryListing *bool                        `toml:"directory_listing"`
+	IndexPage        string                       `toml:"index_page"`
+	NotFoundPage     string                       `toml:"not_found_page"`
+	TrailingSlash    string                       `toml:"trailing_slash"`
+	Headers          map[string]map[string]string `toml:"headers"`
+	Redirects        []RedirectRule               `toml:"redirects"`
 }
 
 // RedirectRule defines a single redirect from one path pattern to another.
@@ -35,6 +37,9 @@ func (c SiteConfig) Validate() error {
 	}
 	if err := validateConfigPath(c.NotFoundPage, "not_found_page"); err != nil {
 		return err
+	}
+	if c.TrailingSlash != "" && c.TrailingSlash != "add" && c.TrailingSlash != "remove" {
+		return fmt.Errorf("trailing_slash: must be \"add\" or \"remove\", got %q", c.TrailingSlash)
 	}
 	for pattern, hdrs := range c.Headers {
 		if !strings.HasPrefix(pattern, "/") {
@@ -225,11 +230,17 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 	if c.Analytics != nil {
 		merged.Analytics = c.Analytics
 	}
+	if c.DirectoryListing != nil {
+		merged.DirectoryListing = c.DirectoryListing
+	}
 	if c.IndexPage != "" {
 		merged.IndexPage = c.IndexPage
 	}
 	if c.NotFoundPage != "" {
 		merged.NotFoundPage = c.NotFoundPage
+	}
+	if c.TrailingSlash != "" {
+		merged.TrailingSlash = c.TrailingSlash
 	}
 
 	// Deep-copy headers to avoid mutating the defaults map.

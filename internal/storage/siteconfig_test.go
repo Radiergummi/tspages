@@ -526,3 +526,73 @@ func TestSiteConfig_Merge_RedirectsInheritDefaults(t *testing.T) {
 		t.Errorf("nil deployment redirects should inherit defaults, got %+v", merged.Redirects)
 	}
 }
+
+func TestParseSiteConfig_DirectoryListing(t *testing.T) {
+	cfg, err := ParseSiteConfig([]byte(`directory_listing = true`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.DirectoryListing == nil || *cfg.DirectoryListing != true {
+		t.Error("directory_listing should be true")
+	}
+}
+
+func TestSiteConfig_Merge_DirectoryListing(t *testing.T) {
+	defaults := SiteConfig{DirectoryListing: boolPtr(true)}
+	deploy := SiteConfig{}
+	merged := deploy.Merge(defaults)
+	if merged.DirectoryListing == nil || *merged.DirectoryListing != true {
+		t.Error("should inherit directory_listing from defaults")
+	}
+
+	deploy2 := SiteConfig{DirectoryListing: boolPtr(false)}
+	merged2 := deploy2.Merge(defaults)
+	if merged2.DirectoryListing == nil || *merged2.DirectoryListing != false {
+		t.Error("deployment should override directory_listing")
+	}
+}
+
+func TestParseSiteConfig_TrailingSlash(t *testing.T) {
+	cfg, err := ParseSiteConfig([]byte(`trailing_slash = "add"`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.TrailingSlash != "add" {
+		t.Errorf("trailing_slash = %q, want add", cfg.TrailingSlash)
+	}
+}
+
+func TestValidateSiteConfig_TrailingSlash(t *testing.T) {
+	tests := []struct {
+		value   string
+		wantErr bool
+	}{
+		{"", false},
+		{"add", false},
+		{"remove", false},
+		{"strip", true},
+		{"yes", true},
+	}
+	for _, tt := range tests {
+		cfg := SiteConfig{TrailingSlash: tt.value}
+		err := cfg.Validate()
+		if (err != nil) != tt.wantErr {
+			t.Errorf("TrailingSlash=%q: error=%v, wantErr=%v", tt.value, err, tt.wantErr)
+		}
+	}
+}
+
+func TestSiteConfig_Merge_TrailingSlash(t *testing.T) {
+	defaults := SiteConfig{TrailingSlash: "add"}
+	deploy := SiteConfig{}
+	merged := deploy.Merge(defaults)
+	if merged.TrailingSlash != "add" {
+		t.Errorf("should inherit trailing_slash, got %q", merged.TrailingSlash)
+	}
+
+	deploy2 := SiteConfig{TrailingSlash: "remove"}
+	merged2 := deploy2.Merge(defaults)
+	if merged2.TrailingSlash != "remove" {
+		t.Errorf("deployment should override trailing_slash, got %q", merged2.TrailingSlash)
+	}
+}
