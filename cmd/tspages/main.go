@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -16,8 +17,10 @@ import (
 	"tspages/internal/admin"
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
+	"tspages/internal/cli"
 	"tspages/internal/deploy"
 	"tspages/internal/httplog"
+	"tspages/internal/metrics"
 	"tspages/internal/multihost"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
@@ -25,10 +28,32 @@ import (
 	"tailscale.com/tsnet"
 )
 
+var version = "dev"
+
 func main() {
+	// Subcommand dispatch — must happen before flag.Parse().
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "deploy":
+			if err := cli.Deploy(os.Args[2:]); err != nil {
+				log.Fatal(err)
+			}
+			return
+		case "version":
+			fmt.Println(version)
+			return
+		}
+	}
+
 	configPath := flag.String("config", "tspages.toml", "path to config file")
 	dev := flag.Bool("dev", false, "enable Vite dev mode with HMR on localhost:8080")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -104,7 +129,19 @@ func main() {
 	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
 	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
 	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
+	mux.Handle("GET /help", withAuth(h.Help))
+	mux.Handle("GET /help/{page...}", withAuth(h.Help))
 	mux.Handle("GET /assets/dist/{file...}", admin.AssetHandler())
+	mux.Handle("GET /api", withAuth(h.API))
+	mux.Handle("GET /openapi.yaml", admin.OpenAPIHandler())
+	mux.Handle("GET /openapi", admin.SwaggerUIHandler())
+	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		metrics.Handler().ServeHTTP(w, r)
+	})))
 
 	var devWSProxy http.Handler
 	if *dev {

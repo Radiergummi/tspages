@@ -13,6 +13,7 @@ import (
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/httplog"
+	"tspages/internal/metrics"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
@@ -105,6 +106,7 @@ func (m *Manager) EnsureServer(site string) error {
 		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
 	m.servers[site] = ss
+	metrics.SetActiveSites(len(m.servers))
 	return nil
 }
 
@@ -128,11 +130,13 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	logged := httplog.Wrap(handler, slog.String("site", site))
 	recorded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, status: 200}
+		start := time.Now()
 		logged.ServeHTTP(sw, r)
+		metrics.ObserveRequest(site, sw.status, time.Since(start))
 		if m.recorder != nil && handler.AnalyticsEnabled() {
 			ri := auth.RequestInfoFromContext(r.Context())
 			m.recorder.Record(analytics.Event{
-				Timestamp:     time.Now(),
+				Timestamp:     start,
 				Site:          site,
 				Path:          r.URL.Path,
 				Status:        sw.status,
@@ -177,6 +181,7 @@ func (m *Manager) StopServer(site string) error {
 		return nil
 	}
 	delete(m.servers, site)
+	metrics.SetActiveSites(len(m.servers))
 	m.mu.Unlock()
 
 	log.Printf("stopping site %q", site)
