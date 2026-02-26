@@ -230,6 +230,125 @@ func TestHandler_ParsesSiteConfig(t *testing.T) {
 	}
 }
 
+func TestHandler_ParsesRedirectsFile(t *testing.T) {
+	store := storage.New(t.TempDir())
+	mgr := newMockManager()
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+
+	body := makeZip(t, map[string]string{
+		"index.html": "<h1>Hi</h1>",
+		"_redirects": "/old /new 301\n/blog/:slug /posts/:slug\n",
+	})
+	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/zip")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp DeployResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+
+	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if len(cfg.Redirects) != 2 {
+		t.Fatalf("redirects = %d, want 2", len(cfg.Redirects))
+	}
+	if cfg.Redirects[0].From != "/old" || cfg.Redirects[0].To != "/new" || cfg.Redirects[0].Status != 301 {
+		t.Errorf("redirect 0 = %+v", cfg.Redirects[0])
+	}
+
+	// _redirects should NOT be in content dir
+	if _, err := os.Stat(filepath.Join(store.ContentDir("docs", resp.DeploymentID), "_redirects")); !os.IsNotExist(err) {
+		t.Error("_redirects should be removed from content dir")
+	}
+}
+
+func TestHandler_ParsesHeadersFile(t *testing.T) {
+	store := storage.New(t.TempDir())
+	mgr := newMockManager()
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+
+	body := makeZip(t, map[string]string{
+		"index.html": "<h1>Hi</h1>",
+		"_headers":   "/*\n  X-Frame-Options: DENY\n",
+	})
+	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/zip")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp DeployResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+
+	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if cfg.Headers == nil || cfg.Headers["/*"]["X-Frame-Options"] != "DENY" {
+		t.Errorf("headers = %+v", cfg.Headers)
+	}
+
+	// _headers should NOT be in content dir
+	if _, err := os.Stat(filepath.Join(store.ContentDir("docs", resp.DeploymentID), "_headers")); !os.IsNotExist(err) {
+		t.Error("_headers should be removed from content dir")
+	}
+}
+
+func TestHandler_TomlOverridesNetlifyFiles(t *testing.T) {
+	store := storage.New(t.TempDir())
+	mgr := newMockManager()
+	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix)
+
+	body := makeZip(t, map[string]string{
+		"index.html":   "<h1>Hi</h1>",
+		"_redirects":   "/old /new 301\n",
+		"_headers":     "/*\n  X-Frame-Options: DENY\n",
+		"tspages.toml": "[[redirects]]\nfrom = \"/old\"\nto = \"/replaced\"\nstatus = 302\n",
+	})
+	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/zip")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp DeployResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+
+	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	// toml redirects should completely replace _redirects
+	if len(cfg.Redirects) != 1 || cfg.Redirects[0].To != "/replaced" {
+		t.Errorf("toml should override _redirects, got %+v", cfg.Redirects)
+	}
+	// _headers should still apply since toml had no headers
+	if cfg.Headers == nil || cfg.Headers["/*"]["X-Frame-Options"] != "DENY" {
+		t.Errorf("_headers should still apply, got %+v", cfg.Headers)
+	}
+}
+
 func TestHandler_InvalidSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()

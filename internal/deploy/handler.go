@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"tspages/internal/auth"
+	"tspages/internal/metrics"
 	"tspages/internal/storage"
 )
 
@@ -102,18 +103,57 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract and process per-deployment config (tspages.toml).
+	// Build site config from _redirects, _headers, and tspages.toml.
+	// tspages.toml values take priority over _redirects/_headers.
+	var siteCfg storage.SiteConfig
+	hasConfig := false
+
+	// Parse _redirects file (lower priority).
+	redirectsPath := filepath.Join(contentDir, "_redirects")
+	if data, err := os.ReadFile(redirectsPath); err == nil {
+		rules, err := storage.ParseRedirectsFile(data)
+		if err != nil {
+			os.RemoveAll(deployDir)
+			http.Error(w, fmt.Sprintf("invalid _redirects: %v", err), http.StatusBadRequest)
+			return
+		}
+		siteCfg.Redirects = rules
+		os.Remove(redirectsPath)
+		hasConfig = hasConfig || len(rules) > 0
+	}
+
+	// Parse _headers file (lower priority).
+	headersPath := filepath.Join(contentDir, "_headers")
+	if data, err := os.ReadFile(headersPath); err == nil {
+		hdrs, err := storage.ParseHeadersFile(data)
+		if err != nil {
+			os.RemoveAll(deployDir)
+			http.Error(w, fmt.Sprintf("invalid _headers: %v", err), http.StatusBadRequest)
+			return
+		}
+		siteCfg.Headers = hdrs
+		os.Remove(headersPath)
+		hasConfig = hasConfig || len(hdrs) > 0
+	}
+
+	// Parse tspages.toml (higher priority — merges over _redirects/_headers).
 	configPath := filepath.Join(contentDir, "tspages.toml")
 	if configData, err := os.ReadFile(configPath); err == nil {
-		siteCfg, err := storage.ParseSiteConfig(configData)
+		tomlCfg, err := storage.ParseSiteConfig(configData)
 		if err != nil {
 			os.RemoveAll(deployDir)
 			http.Error(w, fmt.Sprintf("invalid tspages.toml: %v", err), http.StatusBadRequest)
 			return
 		}
+		siteCfg = tomlCfg.Merge(siteCfg)
+		os.Remove(configPath)
+		hasConfig = true
+	}
+
+	if hasConfig {
 		if err := siteCfg.Validate(); err != nil {
 			os.RemoveAll(deployDir)
-			http.Error(w, fmt.Sprintf("invalid tspages.toml: %v", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusBadRequest)
 			return
 		}
 		if err := h.store.WriteSiteConfig(site, id, siteCfg); err != nil {
@@ -121,7 +161,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "writing site config", http.StatusInternalServerError)
 			return
 		}
-		os.Remove(configPath) // Remove from content so it's not served
 	}
 
 	identity := auth.IdentityFromContext(r.Context())
@@ -165,6 +204,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Printf("cleaned %d old deployment(s) for %q", n, site)
 		}
 	}
+
+	metrics.CountDeploy(site, int64(len(body)))
 
 	resp := DeployResponse{
 		DeploymentID: id,
