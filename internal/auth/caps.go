@@ -153,6 +153,17 @@ func CanCreateSite(caps []Cap, name string) bool {
 	return false
 }
 
+// CanScrapeMetrics reports whether caps grant access to the metrics endpoint.
+// This is a global (non-site-scoped) capability; the Sites field is ignored.
+func CanScrapeMetrics(caps []Cap) bool {
+	for _, c := range caps {
+		if c.Access == "admin" || c.Access == "metrics" {
+			return true
+		}
+	}
+	return false
+}
+
 // IsAdmin reports whether any cap grants admin access.
 func IsAdmin(caps []Cap) bool {
 	for _, c := range caps {

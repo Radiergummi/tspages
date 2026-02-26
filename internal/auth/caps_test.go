@@ -111,6 +111,31 @@ func TestCanCreateSite(t *testing.T) {
 	}
 }
 
+func TestCanScrapeMetrics(t *testing.T) {
+	tests := []struct {
+		name string
+		caps []Cap
+		want bool
+	}{
+		{"metrics grant", []Cap{{Access: "metrics"}}, true},
+		{"admin implies metrics", []Cap{{Access: "admin"}}, true},
+		{"scoped admin implies metrics", []Cap{{Access: "admin", Sites: []string{"docs"}}}, true},
+		{"metrics ignores sites", []Cap{{Access: "metrics", Sites: []string{"docs"}}}, true},
+		{"deploy does not imply metrics", []Cap{{Access: "deploy"}}, false},
+		{"view does not imply metrics", []Cap{{Access: "view"}}, false},
+		{"empty caps", []Cap{}, false},
+		{"nil caps", nil, false},
+		{"multi cap merge", []Cap{{Access: "view"}, {Access: "metrics"}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CanScrapeMetrics(tt.caps); got != tt.want {
+				t.Errorf("CanScrapeMetrics() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsAdmin(t *testing.T) {
 	tests := []struct {
 		name string
