@@ -166,6 +166,12 @@
                             <span class="text-sm font-mono">{{.Config.NotFoundPage}}</span>
                         </div>
                     {{end}}
+                    {{if .Config.WebhookURL}}
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Webhook</span>
+                            <span class="text-sm font-mono truncate max-w-[300px]" title="{{.Config.WebhookURL}}">{{.Config.WebhookURL}}</span>
+                        </div>
+                    {{end}}
                     {{if .Config.Headers}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Custom headers</span>
