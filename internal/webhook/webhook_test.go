@@ -28,6 +28,19 @@ func testDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// testNotifier creates a Notifier with a plain HTTP client (no private-IP
+// restriction) so that tests using httptest servers on localhost work.
+func testNotifier(t *testing.T) (*Notifier, *sql.DB) {
+	t.Helper()
+	db := testDB(t)
+	n, err := NewNotifier(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.client = &http.Client{Timeout: 10 * time.Second}
+	return n, db
+}
+
 func TestNotifier_FiresWebhook(t *testing.T) {
 	var called atomic.Int32
 	var gotBody []byte
@@ -41,10 +54,7 @@ func TestNotifier_FiresWebhook(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
 	n.Fire("deploy.success", "mysite", cfg, map[string]any{"id": "abc123"})
@@ -90,10 +100,7 @@ func TestNotifier_RespectsEventFilter(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 
 	cfg := storage.SiteConfig{
 		WebhookURL:    srv.URL,
@@ -117,10 +124,7 @@ func TestNotifier_AllEventsWhenEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
 	n.Fire("site.deleted", "mysite", cfg, nil)
@@ -133,10 +137,7 @@ func TestNotifier_AllEventsWhenEmpty(t *testing.T) {
 }
 
 func TestNotifier_NoURL_Noop(t *testing.T) {
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 
 	// Should not panic.
 	n.Fire("deploy.success", "mysite", storage.SiteConfig{}, nil)
@@ -151,10 +152,7 @@ func TestNotifier_SignsWithSecret(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 
 	// Use a valid base64 secret.
 	cfg := storage.SiteConfig{
@@ -184,10 +182,7 @@ func TestNotifier_NoSignatureWithoutSecret(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
 	n.Fire("deploy.success", "mysite", cfg, nil)
@@ -212,10 +207,7 @@ func TestNotifier_RetriesOnFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n, err := NewNotifier(testDB(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, _ := testNotifier(t)
 	n.retryDelays = []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond}
 
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
@@ -234,11 +226,7 @@ func TestNotifier_LogsDeliveries(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	db := testDB(t)
-	n, err := NewNotifier(db)
-	if err != nil {
-		t.Fatal(err)
-	}
+	n, db := testNotifier(t)
 
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
 	n.Fire("deploy.success", "mysite", cfg, map[string]any{"v": 1})
@@ -246,8 +234,7 @@ func TestNotifier_LogsDeliveries(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	var count int
-	err = db.QueryRow(`SELECT COUNT(*) FROM webhook_deliveries`).Scan(&count)
-	if err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM webhook_deliveries`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count < 1 {
@@ -256,8 +243,7 @@ func TestNotifier_LogsDeliveries(t *testing.T) {
 
 	var event, site, url string
 	var status int
-	err = db.QueryRow(`SELECT event, site, url, status FROM webhook_deliveries LIMIT 1`).Scan(&event, &site, &url, &status)
-	if err != nil {
+	if err := db.QueryRow(`SELECT event, site, url, status FROM webhook_deliveries LIMIT 1`).Scan(&event, &site, &url, &status); err != nil {
 		t.Fatal(err)
 	}
 	if event != "deploy.success" {
@@ -271,5 +257,34 @@ func TestNotifier_LogsDeliveries(t *testing.T) {
 	}
 	if status != 200 {
 		t.Errorf("status = %d, want 200", status)
+	}
+}
+
+func TestNotifier_RejectsPrivateIP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	db := testDB(t)
+	n, err := NewNotifier(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use the safe client (default from NewNotifier) — no override.
+	n.retryDelays = nil // no retries for speed
+
+	cfg := storage.SiteConfig{WebhookURL: srv.URL}
+	n.Fire("deploy.success", "mysite", cfg, nil)
+
+	time.Sleep(500 * time.Millisecond)
+
+	var errStr string
+	err = db.QueryRow(`SELECT error FROM webhook_deliveries LIMIT 1`).Scan(&errStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errStr, "private address") {
+		t.Errorf("expected error containing 'private address', got %q", errStr)
 	}
 }

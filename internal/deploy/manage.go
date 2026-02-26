@@ -35,6 +35,16 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read config before deletion so the webhook fires to the right destination.
+	var resolvedCfg storage.SiteConfig
+	if h.notifier != nil {
+		if cfg, err := h.store.ReadCurrentSiteConfig(site); err == nil {
+			resolvedCfg = cfg.Merge(h.defaults)
+		} else {
+			resolvedCfg = h.defaults
+		}
+	}
+
 	if err := h.manager.StopServer(site); err != nil {
 		http.Error(w, fmt.Sprintf("stopping server: %v", err), http.StatusInternalServerError)
 		return
@@ -48,7 +58,6 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 
 	if h.notifier != nil {
-		resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
 		identity := auth.IdentityFromContext(r.Context())
 		h.notifier.Fire("site.deleted", site, resolvedCfg, map[string]any{
 			"site":       site,

@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"bytes"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -8,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
+	"syscall"
 	"time"
 
 	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
@@ -22,6 +25,7 @@ type Notifier struct {
 	db          *sql.DB
 	client      *http.Client
 	retryDelays []time.Duration
+	sem         chan struct{}
 }
 
 // NewNotifier creates a Notifier and runs the delivery log migration.
@@ -30,11 +34,10 @@ func NewNotifier(db *sql.DB) (*Notifier, error) {
 		return nil, fmt.Errorf("webhook migration: %w", err)
 	}
 	return &Notifier{
-		db: db,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		db:          db,
+		client:      newSafeClient(),
 		retryDelays: []time.Duration{5 * time.Second, 30 * time.Second, 2 * time.Minute},
+		sem:         make(chan struct{}, 20),
 	}, nil
 }
 
@@ -74,7 +77,15 @@ func (n *Notifier) Fire(event string, site string, cfg storage.SiteConfig, data 
 			return
 		}
 	}
-	go n.deliver(event, site, cfg, data)
+	select {
+	case n.sem <- struct{}{}:
+		go func() {
+			defer func() { <-n.sem }()
+			n.deliver(event, site, cfg, data)
+		}()
+	default:
+		log.Printf("webhook: dropping %s event for %s (too many pending deliveries)", event, site)
+	}
 }
 
 func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[string]any) {
@@ -112,7 +123,7 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 }
 
 func (n *Notifier) send(url, secret, msgID string, ts time.Time, payload []byte) (int, error) {
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(payload)))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		return 0, err
 	}
@@ -136,7 +147,7 @@ func (n *Notifier) send(url, secret, msgID string, ts time.Time, payload []byte)
 	if err != nil {
 		return 0, err
 	}
-	io.Copy(io.Discard, resp.Body)
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	resp.Body.Close()
 	return resp.StatusCode, nil
 }
@@ -158,4 +169,51 @@ func randomHex(n int) string {
 		panic(err)
 	}
 	return hex.EncodeToString(b)
+}
+
+func newSafeClient() *http.Client {
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return nil
+			}
+			if isPrivateIP(ip) {
+				return fmt.Errorf("webhook: refusing to connect to private address %s", ip)
+			}
+			return nil
+		},
+	}
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: dialer.DialContext,
+		},
+	}
+}
+
+func isPrivateIP(ip net.IP) bool {
+	privateRanges := []string{
+		"127.0.0.0/8",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"100.64.0.0/10",
+		"169.254.0.0/16",
+		"::1/128",
+		"fe80::/10",
+		"fc00::/7",
+	}
+	for _, cidr := range privateRanges {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }

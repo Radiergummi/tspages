@@ -103,13 +103,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = Extract(req, contentDir, maxBytes)
 	if err != nil {
 		os.RemoveAll(deployDir)
-		if h.notifier != nil {
-			resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
-			h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
-				"site":  site,
-				"error": err.Error(),
-			})
-		}
+		h.fireDeployFailed(site, err)
 		http.Error(w, fmt.Sprintf("extracting upload: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -125,6 +119,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rules, err := storage.ParseRedirectsFile(data)
 		if err != nil {
 			os.RemoveAll(deployDir)
+			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid _redirects: %v", err), http.StatusBadRequest)
 			return
 		}
@@ -141,6 +136,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		hdrs, err := storage.ParseHeadersFile(data)
 		if err != nil {
 			os.RemoveAll(deployDir)
+			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid _headers: %v", err), http.StatusBadRequest)
 			return
 		}
@@ -157,6 +153,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		tomlCfg, err := storage.ParseSiteConfig(configData)
 		if err != nil {
 			os.RemoveAll(deployDir)
+			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid tspages.toml: %v", err), http.StatusBadRequest)
 			return
 		}
@@ -170,6 +167,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if hasConfig {
 		if err := siteCfg.Validate(); err != nil {
 			os.RemoveAll(deployDir)
+			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusBadRequest)
 			return
 		}
@@ -241,6 +239,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"size_bytes":    int64(len(body)),
 		})
 	}
+}
+
+func (h *Handler) fireDeployFailed(site string, err error) {
+	if h.notifier == nil {
+		return
+	}
+	resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
+	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
+		"site":  site,
+		"error": err.Error(),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
