@@ -404,6 +404,11 @@ func TestParseRedirectsFile(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "extra fields rejected",
+			input:   "/old /new 301 force\n",
+			wantErr: true,
+		},
+		{
 			name:  "empty input",
 			input: "",
 			want:  nil,

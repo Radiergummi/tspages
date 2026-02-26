@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -136,10 +137,13 @@ func ParseRedirectsFile(data []byte) ([]RedirectRule, error) {
 		if len(fields) < 2 {
 			return nil, fmt.Errorf("_redirects line %d: need at least <from> <to>", i+1)
 		}
+		if len(fields) > 3 {
+			return nil, fmt.Errorf("_redirects line %d: too many fields (expected: /from /to [status])", i+1)
+		}
 		rule := RedirectRule{From: fields[0], To: fields[1]}
-		if len(fields) >= 3 {
-			var status int
-			if _, err := fmt.Sscanf(fields[2], "%d", &status); err != nil {
+		if len(fields) == 3 {
+			status, err := strconv.Atoi(fields[2])
+			if err != nil {
 				return nil, fmt.Errorf("_redirects line %d: invalid status %q", i+1, fields[2])
 			}
 			if status != 301 && status != 302 {
