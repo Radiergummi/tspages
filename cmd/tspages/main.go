@@ -101,9 +101,13 @@ func main() {
 	deleteDeploymentHandler := deploy.NewDeleteDeploymentHandler(store)
 	cleanupDeploymentsHandler := deploy.NewCleanupDeploymentsHandler(store)
 	activateHandler := deploy.NewActivateHandler(store, mgr)
-	h := admin.NewHandlers(store, recorder, &dnsSuffix, mgr, cfg.Defaults)
+	h := admin.NewHandlers(store, recorder, &dnsSuffix, mgr, mgr, cfg.Defaults)
+	healthHandler := admin.NewHealthHandler(store, recorder)
 
 	mux := http.NewServeMux()
+	// Health checks
+	mux.Handle("GET /healthz", healthHandler)
+	mux.Handle("GET /sites/{site}/healthz", withAuth(h.SiteHealth))
 	// Deploy API (JSON only)
 	mux.Handle("POST /deploy/{site}", withAuth(deployHandler))
 	mux.Handle("POST /deploy/{site}/{filename}", withAuth(deployHandler))
@@ -178,8 +182,24 @@ func main() {
 			devWSProxy.ServeHTTP(w, r)
 			return
 		}
-		http.Redirect(w, r, "/sites", http.StatusFound)
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/sites", http.StatusFound)
+			return
+		}
+		admin.RenderError(w, r, http.StatusNotFound, "")
 	})
+
+	// Local health check listener (plain HTTP, localhost only).
+	if addr := cfg.Server.HealthAddr; addr != "" {
+		healthMux := http.NewServeMux()
+		healthMux.Handle("GET /healthz", healthHandler)
+		go func() {
+			log.Printf("health check listening on http://%s/healthz", addr)
+			if err := http.ListenAndServe(addr, healthMux); err != nil {
+				log.Fatalf("health listener: %v", err)
+			}
+		}()
+	}
 
 	ln, err := srv.ListenTLS("tcp", ":443")
 	if err != nil {

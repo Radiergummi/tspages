@@ -157,6 +157,11 @@ func (r *Recorder) flush(events []Event) {
 	}
 }
 
+// Ping checks whether the analytics database is reachable.
+func (r *Recorder) Ping() error {
+	return r.db.Ping()
+}
+
 // Close drains the event channel and shuts down the writer.
 func (r *Recorder) Close() error {
 	r.closed.Store(true)

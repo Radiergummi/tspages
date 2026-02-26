@@ -1,7 +1,12 @@
 {{define "title"}} - {{.Site.Name}}{{end}}
 {{define "head-extra"}}
     <link rel="alternate" type="application/json" title="{{.Site.Name}} (JSON)" href="/sites/{{.Site.Name}}.json">
-    <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}} deployments" href="/sites/{{.Site.Name}}/feed.atom">
+    <link
+            rel="alternate"
+            type="application/atom+xml"
+            title="{{.Site.Name}} deployments"
+            href="/sites/{{.Site.Name}}/feed.atom"
+    >
 {{end}}
 {{define "main-attrs"}}data-site="{{.Site.Name}}"{{end}}
 
@@ -164,11 +169,32 @@
         {{end}}
 
         <section>
-            <header class="flex items-center justify-between mb-4">
-                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-2">
+            <header class="flex items-center mb-4 gap-4">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-2 me-auto">
                     Deployments
                     <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">{{len .Deployments}}</span>
                 </h2>
+
+                <a
+                        href="{{.Site.Name}}/feed.atom"
+                        class="text-muted hover:text-black dark:hover:text-base-200 inline-flex items-center gap-1 text-sm no-underline"
+                >
+                    <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                    >
+                        <path d="M4 11a9 9 0 0 1 9 9" />
+                        <path d="M4 4a16 16 0 0 1 16 16" />
+                        <circle cx="5" cy="19" r="1" />
+                    </svg>
+                </a>
 
                 {{if and .CanDeploy .HasInactive}}
                     <button

@@ -1,0 +1,23 @@
+{{define "title"}} - {{.StatusText}}{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col items-center justify-center py-24 text-center">
+        <p class="text-6xl font-bold tabular-nums text-base-200 dark:text-base-800">
+            {{.Code}}
+        </p>
+        <h1 class="text-xl font-semibold mt-4">
+            {{.StatusText}}
+        </h1>
+        {{if .Message}}
+            <p class="text-sm text-muted mt-2 max-w-md">
+                {{.Message}}
+            </p>
+        {{end}}
+        <a
+                class="btn btn-outline inline-block no-underline mt-8"
+                href="/sites"
+        >
+            Back to sites
+        </a>
+    </article>
+{{end}}

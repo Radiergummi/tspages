@@ -27,6 +27,7 @@ type ServerConfig struct {
 	MaxSites       int    `toml:"max_sites"`
 	MaxDeployments int    `toml:"max_deployments"`
 	LogLevel       string `toml:"log_level"`
+	HealthAddr     string `toml:"health_addr"`
 }
 
 func Load(path string) (*Config, error) {
@@ -66,6 +67,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Tailscale.Capability == "" {
 		cfg.Tailscale.Capability = "tspages.mazetti.me/cap/pages"
+	}
+	if cfg.Server.HealthAddr == "" {
+		cfg.Server.HealthAddr = os.Getenv("TSPAGES_HEALTH_ADDR")
 	}
 	return &cfg, nil
 }

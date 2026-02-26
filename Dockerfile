@@ -29,5 +29,9 @@ FROM alpine:3.23
 RUN apk add --no-cache ca-certificates
 COPY --from=build /tspages /usr/local/bin/tspages
 
+ENV TSPAGES_HEALTH_ADDR=":9091"
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+  CMD wget -qO- http://localhost:9091/healthz || exit 1
+
 VOLUME ["/data", "/state"]
 ENTRYPOINT ["tspages"]

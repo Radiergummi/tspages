@@ -7,6 +7,27 @@
     <article class="flex flex-col gap-8">
         <header class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold tracking-tight">Deployments</h1>
+
+            <a
+                    href="feed.atom"
+                    class="text-muted hover:text-black dark:hover:text-base-200 inline-flex items-center gap-1 text-sm no-underline"
+            >
+                <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                >
+                    <path d="M4 11a9 9 0 0 1 9 9" />
+                    <path d="M4 4a16 16 0 0 1 16 16" />
+                    <circle cx="5" cy="19" r="1" />
+                </svg>
+            </a>
         </header>
 
         {{if .Deployments}}
@@ -44,14 +65,16 @@
                                     href="/sites/{{.Site}}/deployments/{{.ID}}"
                             >{{.ID}}</a></td>
                         <td class="px-4 py-3 text-sm border-b border-default text-muted">
-                            {{if .CreatedBy}}<span class="flex items-center gap-2">{{avatarHTML .CreatedBy .CreatedByAvatar}} {{.CreatedBy}}</span>{{else}}&mdash;{{end}}</td>
+                            {{if .CreatedBy}}
+                                <span class="flex items-center gap-2">{{avatarHTML .CreatedBy .CreatedByAvatar}} {{.CreatedBy}}</span>{{else}}&mdash;{{end}}
+                        </td>
                         <td class="px-4 py-3 text-sm border-b border-default"><span
                                     class="text-muted"
                                     title="{{abstime .CreatedAt}}"
                             >{{reltime .CreatedAt}}</span></td>
                         <td class="px-4 py-3 text-sm border-b border-default font-mono tabular-nums text-right text-muted">{{bytes .SizeBytes}}</td>
                         <td class="px-4 py-3 text-sm border-b border-default">{{if .Active}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">active</span>{{end}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">active</span>{{end}}
                         </td>
                     </tr>
                 {{end}}

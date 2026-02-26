@@ -221,6 +221,21 @@ func (w *statusWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+// IsRunning reports whether a tsnet server is running for the given site.
+func (m *Manager) IsRunning(site string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.servers[site]
+	return ok
+}
+
+// RunningCount returns the number of currently running site servers.
+func (m *Manager) RunningCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.servers)
+}
+
 // Close shuts down all site servers.
 func (m *Manager) Close() {
 	m.mu.Lock()

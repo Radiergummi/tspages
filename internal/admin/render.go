@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"tspages/internal/auth"
 )
 
 //go:embed templates/*.gohtml
@@ -494,6 +496,7 @@ var (
 	analyticsTmpl   = newTmpl("templates/layout.gohtml", "templates/analytics.gohtml")
 	helpTmpl        = newTmpl("templates/layout.gohtml", "templates/help.gohtml")
 	apiTmpl         = newTmpl("templates/layout.gohtml", "templates/api.gohtml")
+	errorTmpl       = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
 )
 
 // wantsJSON returns true if the request prefers JSON output,
@@ -555,6 +558,53 @@ func renderPage(w http.ResponseWriter, t *tmpl, nav string, data any) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
+}
+
+// RenderError sends an error response. For JSON requests it returns
+// {"error": msg}; for HTML requests it renders a styled error page
+// within the admin layout. The status code is set on the response.
+func RenderError(w http.ResponseWriter, r *http.Request, code int, msg string) {
+	if wantsJSON(r) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(code)
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
+			log.Printf("warning: encoding JSON error response: %v", err)
+		}
+		return
+	}
+
+	identity := auth.IdentityFromContext(r.Context())
+	data := struct {
+		User       UserInfo
+		Code       int
+		StatusText string
+		Message    string
+	}{userInfo(identity), code, http.StatusText(code), msg}
+
+	tpl := errorTmpl.cached
+	if devModeFlag.Load() {
+		paths := make([]string, len(errorTmpl.files))
+		for i, f := range errorTmpl.files {
+			paths[i] = filepath.Join(devTmplDir, filepath.Base(f))
+		}
+		if parsed, err := template.New("").Funcs(funcs).ParseFiles(paths...); err == nil {
+			tpl = parsed
+		}
+	}
+	tpl, err := tpl.Clone()
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
+	tpl.Funcs(template.FuncMap{"nav": func() string { return "" }})
+	var buf bytes.Buffer
+	if err := tpl.ExecuteTemplate(&buf, "layout", data); err != nil {
+		http.Error(w, msg, code)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(code)
 	_, _ = buf.WriteTo(w)
 }
 

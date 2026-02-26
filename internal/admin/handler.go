@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"encoding/json"
 	"errors"
 	"html/template"
 	"log"
@@ -79,6 +80,11 @@ type SiteEnsurer interface {
 	EnsureServer(site string) error
 }
 
+// SiteHealthChecker is the subset of multihost.Manager needed for health checks.
+type SiteHealthChecker interface {
+	IsRunning(site string) bool
+}
+
 // Handlers groups all admin HTTP handlers.
 type Handlers struct {
 	Sites          *SitesHandler
@@ -93,9 +99,10 @@ type Handlers struct {
 	API            *APIHandler
 	Feed           *FeedHandler
 	SiteFeed       *SiteFeedHandler
+	SiteHealth     *SiteHealthHandler
 }
 
-func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, defaults storage.SiteConfig) *Handlers {
+func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig) *Handlers {
 	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
 	return &Handlers{
 		Sites:          &SitesHandler{d},
@@ -110,6 +117,7 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		API:            &APIHandler{},
 		Feed:           &FeedHandler{d},
 		SiteFeed:       &SiteFeedHandler{d},
+		SiteHealth:     &SiteHealthHandler{handlerDeps: d, checker: checker},
 	}
 }
 
@@ -124,7 +132,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sites, err := h.store.ListSites()
 	if err != nil {
-		http.Error(w, "listing sites", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "listing sites")
 		return
 	}
 
@@ -188,22 +196,22 @@ type CreateSiteHandler struct {
 func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	if !storage.ValidSiteNameForSuffix(name, *h.dnsSuffix) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.CanCreateSite(caps, name) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	if err := h.store.CreateSite(name); err != nil {
 		if errors.Is(err, storage.ErrSiteExists) {
-			http.Error(w, "site already exists", http.StatusConflict)
+			RenderError(w, r, http.StatusConflict, "site already exists")
 			return
 		}
-		http.Error(w, "creating site", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "creating site")
 		return
 	}
 
@@ -226,7 +234,7 @@ type SiteHandler struct{ handlerDeps }
 func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := trimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
@@ -235,13 +243,13 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	admin := auth.IsAdmin(caps)
 
 	if !admin && !auth.CanView(caps, siteName) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	found, err := h.store.GetSite(siteName)
 	if err != nil {
-		http.Error(w, "site not found", http.StatusNotFound)
+		RenderError(w, r, http.StatusNotFound, "site not found")
 		return
 	}
 
@@ -276,7 +284,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	deployments, err := h.store.ListDeployments(siteName)
 	if err != nil {
-		http.Error(w, "listing deployments", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "listing deployments")
 		return
 	}
 	if deployments == nil {
@@ -328,7 +336,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := trimSuffix(r.PathValue("site"))
 	depID := trimSuffix(r.PathValue("id"))
 	if !storage.ValidSiteName(siteName) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
@@ -337,13 +345,13 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	admin := auth.IsAdmin(caps)
 
 	if !admin && !auth.CanView(caps, siteName) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	deployments, err := h.store.ListDeployments(siteName)
 	if err != nil {
-		http.Error(w, "listing deployments", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "listing deployments")
 		return
 	}
 
@@ -365,7 +373,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if dep == nil {
-		http.Error(w, "deployment not found", http.StatusNotFound)
+		RenderError(w, r, http.StatusNotFound, "deployment not found")
 		return
 	}
 
@@ -455,7 +463,7 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sites, err := h.store.ListSites()
 	if err != nil {
-		http.Error(w, "listing sites", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "listing sites")
 		return
 	}
 
@@ -636,11 +644,11 @@ type AnalyticsHandler struct{ handlerDeps }
 func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := trimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 	if h.recorder == nil {
-		http.Error(w, "analytics not configured", http.StatusServiceUnavailable)
+		RenderError(w, r, http.StatusServiceUnavailable, "analytics not configured")
 		return
 	}
 
@@ -649,12 +657,12 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	admin := auth.IsAdmin(caps)
 
 	if !admin && !auth.CanView(caps, siteName) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	if !h.analyticsEnabled(siteName) {
-		http.Error(w, "analytics disabled for this site", http.StatusNotFound)
+		RenderError(w, r, http.StatusNotFound, "analytics disabled for this site")
 		return
 	}
 
@@ -703,7 +711,7 @@ type AllAnalyticsHandler struct{ handlerDeps }
 
 func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.recorder == nil {
-		http.Error(w, "analytics not configured", http.StatusServiceUnavailable)
+		RenderError(w, r, http.StatusServiceUnavailable, "analytics not configured")
 		return
 	}
 
@@ -713,7 +721,7 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	sites, err := h.store.ListSites()
 	if err != nil {
-		http.Error(w, "listing sites", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "listing sites")
 		return
 	}
 	var viewable []string
@@ -768,21 +776,21 @@ type PurgeAnalyticsHandler struct{ handlerDeps }
 func (h *PurgeAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := trimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 	if h.recorder == nil {
-		http.Error(w, "analytics not configured", http.StatusServiceUnavailable)
+		RenderError(w, r, http.StatusServiceUnavailable, "analytics not configured")
 		return
 	}
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 	deleted, err := h.recorder.PurgeSite(siteName)
 	if err != nil {
-		http.Error(w, "purging analytics", http.StatusInternalServerError)
+		RenderError(w, r, http.StatusInternalServerError, "purging analytics")
 		return
 	}
 	if wantsJSON(r) {
@@ -838,13 +846,13 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if current == nil {
-		http.NotFound(w, r)
+		RenderError(w, r, http.StatusNotFound, "")
 		return
 	}
 
 	content, err := RenderDoc(slug)
 	if err != nil {
-		http.NotFound(w, r)
+		RenderError(w, r, http.StatusNotFound, "")
 		return
 	}
 
@@ -865,6 +873,105 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, apiTmpl, "api", struct {
 		User UserInfo
 	}{userInfo(identity)})
+}
+
+// --- GET /healthz ---
+
+// HealthHandler returns platform health. It is unauthenticated.
+type HealthHandler struct {
+	store    *storage.Store
+	recorder *analytics.Recorder
+}
+
+func NewHealthHandler(store *storage.Store, recorder *analytics.Recorder) *HealthHandler {
+	return &HealthHandler{store: store, recorder: recorder}
+}
+
+func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	type checkResult struct {
+		Storage   string `json:"storage"`
+		Analytics string `json:"analytics"`
+	}
+
+	status := "ok"
+	checks := checkResult{
+		Storage:   "ok",
+		Analytics: "disabled",
+	}
+
+	if _, err := h.store.ListSites(); err != nil {
+		checks.Storage = "error"
+		status = "degraded"
+	}
+
+	if h.recorder != nil {
+		checks.Analytics = "ok"
+		if err := h.recorder.Ping(); err != nil {
+			checks.Analytics = "error"
+			status = "degraded"
+		}
+	}
+
+	code := http.StatusOK
+	if status != "ok" {
+		code = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": status,
+		"checks": checks,
+	})
+}
+
+// --- GET /sites/{site}/healthz ---
+
+// SiteHealthHandler returns health for a single site. It requires auth.
+type SiteHealthHandler struct {
+	handlerDeps
+	checker SiteHealthChecker
+}
+
+func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	siteName := trimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.IsAdmin(caps) && !auth.CanView(caps, siteName) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	site, err := h.store.GetSite(siteName)
+	if err != nil {
+		RenderError(w, r, http.StatusNotFound, "site not found")
+		return
+	}
+
+	running := h.checker.IsRunning(siteName)
+
+	status := "ok"
+	if !running {
+		status = "error"
+	}
+
+	code := http.StatusOK
+	if status != "ok" {
+		code = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":            status,
+		"site":              siteName,
+		"server":            map[bool]string{true: "running", false: "stopped"}[running],
+		"active_deployment": site.ActiveDeploymentID,
+	})
 }
 
 // diffFiles compares two file lists and returns added, removed, and changed paths.

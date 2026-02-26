@@ -24,6 +24,8 @@ func (m *mockEnsurer) EnsureServer(site string) error {
 	return nil
 }
 
+func (m *mockEnsurer) IsRunning(site string) bool { return true }
+
 func reqWithAuth(method, path string, caps []auth.Cap, id auth.Identity) *http.Request {
 	r := httptest.NewRequest(method, path, nil)
 	ctx := auth.ContextWithCaps(r.Context(), caps)
@@ -101,7 +103,7 @@ func setupHandlers(t *testing.T) (*Handlers, *storage.Store) {
 	store := setupStore(t)
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	return NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{}), store
+	return NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}), store
 }
 
 var (
@@ -315,7 +317,7 @@ func TestSiteHandler_HidesAnalyticsWhenDisabled(t *testing.T) {
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 	h := hs.Site
 	req := reqWithAuth("GET", "/sites/docs", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -455,7 +457,7 @@ func TestDeploymentHandler_FileListing(t *testing.T) {
 	store.ActivateDeployment("docs", "aaa11111")
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 	h := hs.Deployment
 
 	req := reqWithAuth("GET", "/sites/docs/deployments/aaa11111", adminCaps, adminID)
@@ -529,7 +531,7 @@ func TestDeploymentHandler_DiffAgainstPrevious(t *testing.T) {
 	store.ActivateDeployment("docs", "bbb22222")
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 	h := hs.Deployment
 
 	req := reqWithAuth("GET", "/sites/docs/deployments/bbb22222", adminCaps, adminID)
@@ -824,7 +826,7 @@ func TestCreateSiteHandler_CallsEnsureServer(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	mock := &mockEnsurer{}
-	hs := NewHandlers(store, nil, &dnsSuffix, mock, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, mock, mock, storage.SiteConfig{})
 	h := hs.CreateSite
 
 	req := formReqWithAuth("/sites", "name=newsite5", adminCaps, adminID)
@@ -909,7 +911,7 @@ func TestAnalyticsHandler_Disabled(t *testing.T) {
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/sites/docs/analytics", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -929,7 +931,7 @@ func TestAnalyticsHandler_DisabledViaDefaults(t *testing.T) {
 	analytics := false
 	defaults := storage.SiteConfig{Analytics: &analytics}
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, defaults)
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, defaults)
 
 	req := reqWithAuth("GET", "/sites/docs/analytics", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -976,7 +978,7 @@ func TestAllAnalyticsHandler_AdminJSON(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 	req.Header.Set("Accept", "application/json")
@@ -1006,7 +1008,7 @@ func TestAllAnalyticsHandler_AdminHTML(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 
@@ -1032,7 +1034,7 @@ func TestAllAnalyticsHandler_FilteredByAccess(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 
 	// viewerCaps only grants view on "docs"
 	req := reqWithAuth("GET", "/analytics?range=all", viewerCaps, viewerID)
@@ -1069,7 +1071,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 	store.WriteSiteConfig("demo", "bbb22222", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 	req.Header.Set("Accept", "application/json")
@@ -1100,7 +1102,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 func TestAllAnalyticsHandler_NoRecorder(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
+	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/analytics", adminCaps, adminID)
 
@@ -1186,6 +1188,150 @@ func TestJSONResponses_LinkHeaders(t *testing.T) {
 		})
 	}
 }
+
+// --- HealthHandler ---
+
+func TestHealthHandler_OK(t *testing.T) {
+	store := setupStore(t)
+	recorder := setupRecorder(t)
+	h := NewHealthHandler(store, recorder)
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["status"] != "ok" {
+		t.Errorf("status = %v, want ok", resp["status"])
+	}
+	checks := resp["checks"].(map[string]any)
+	if checks["storage"] != "ok" {
+		t.Errorf("storage = %v, want ok", checks["storage"])
+	}
+	if checks["analytics"] != "ok" {
+		t.Errorf("analytics = %v, want ok", checks["analytics"])
+	}
+}
+
+func TestHealthHandler_NoAnalytics(t *testing.T) {
+	store := setupStore(t)
+	h := NewHealthHandler(store, nil)
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	checks := resp["checks"].(map[string]any)
+	if checks["analytics"] != "disabled" {
+		t.Errorf("analytics = %v, want disabled", checks["analytics"])
+	}
+}
+
+// --- SiteHealthHandler ---
+
+func TestSiteHealthHandler_Running(t *testing.T) {
+	store := setupStore(t)
+	dnsSuffix := "test.ts.net"
+	checker := &mockChecker{running: map[string]bool{"docs": true}}
+	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
+
+	req := reqWithAuth("GET", "/sites/docs/healthz", adminCaps, adminID)
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["status"] != "ok" {
+		t.Errorf("status = %v, want ok", resp["status"])
+	}
+	if resp["server"] != "running" {
+		t.Errorf("server = %v, want running", resp["server"])
+	}
+	if resp["active_deployment"] != "aaa11111" {
+		t.Errorf("active_deployment = %v, want aaa11111", resp["active_deployment"])
+	}
+}
+
+func TestSiteHealthHandler_Stopped(t *testing.T) {
+	store := setupStore(t)
+	dnsSuffix := "test.ts.net"
+	checker := &mockChecker{running: map[string]bool{}}
+	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
+
+	req := reqWithAuth("GET", "/sites/docs/healthz", adminCaps, adminID)
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["status"] != "error" {
+		t.Errorf("status = %v, want error", resp["status"])
+	}
+	if resp["server"] != "stopped" {
+		t.Errorf("server = %v, want stopped", resp["server"])
+	}
+}
+
+func TestSiteHealthHandler_Forbidden(t *testing.T) {
+	store := setupStore(t)
+	dnsSuffix := "test.ts.net"
+	checker := &mockChecker{}
+	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
+
+	// viewerCaps only has view access to "docs", not "demo"
+	req := reqWithAuth("GET", "/sites/demo/healthz", viewerCaps, viewerID)
+	req.SetPathValue("site", "demo")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestSiteHealthHandler_NotFound(t *testing.T) {
+	store := setupStore(t)
+	dnsSuffix := "test.ts.net"
+	checker := &mockChecker{}
+	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
+
+	req := reqWithAuth("GET", "/sites/nonexistent/healthz", adminCaps, adminID)
+	req.SetPathValue("site", "nonexistent")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// mockChecker implements SiteHealthChecker for testing.
+type mockChecker struct {
+	running map[string]bool
+}
+
+func (m *mockChecker) IsRunning(site string) bool { return m.running[site] }
 
 func TestSubtractISO8601(t *testing.T) {
 	now := time.Date(2025, 3, 15, 12, 0, 0, 0, time.UTC)
