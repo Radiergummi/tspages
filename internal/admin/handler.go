@@ -158,6 +158,10 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := SitesResponse{Admin: admin, User: userInfo(identity), DNSSuffix: *h.dnsSuffix, Sites: out}
 
 	if wantsJSON(r) {
+		setAlternateLinks(w, [][2]string{
+			{"/sites", "text/html"},
+			{"/feed.atom", "application/atom+xml"},
+		})
 		writeJSON(w, resp)
 		return
 	}
@@ -285,6 +289,10 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := SiteDetailResponse{Site: ss, Deployments: deployments}
 
 	if wantsJSON(r) {
+		setAlternateLinks(w, [][2]string{
+			{"/sites/" + siteName, "text/html"},
+			{"/sites/" + siteName + "/feed.atom", "application/atom+xml"},
+		})
 		writeJSON(w, resp)
 		return
 	}
@@ -362,6 +370,9 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if wantsJSON(r) {
+		setAlternateLinks(w, [][2]string{
+			{"/sites/" + siteName + "/deployments/" + depID, "text/html"},
+		})
 		writeJSON(w, dep)
 		return
 	}
@@ -493,6 +504,10 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if wantsJSON(r) {
+		setAlternateLinks(w, [][2]string{
+			{"/deployments", "text/html"},
+			{"/feed.atom", "application/atom+xml"},
+		})
 		writeJSON(w, resp)
 		return
 	}
@@ -658,6 +673,9 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	countOK, count4xx, count5xx := statusTotals(statusCodes)
 
 	if wantsJSON(r) {
+		setAlternateLinks(w, [][2]string{
+			{"/sites/" + siteName + "/analytics", "text/html"},
+		})
 		writeJSON(w, map[string]any{
 			"site": siteName, "range": rangeParam,
 			"total": total, "unique_visitors": visitors, "unique_pages": pages,
@@ -719,6 +737,9 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	countOK, count4xx, count5xx := statusTotals(statusCodes)
 
 	if wantsJSON(r) {
+		setAlternateLinks(w, [][2]string{
+			{"/analytics", "text/html"},
+		})
 		writeJSON(w, map[string]any{
 			"range": rangeParam,
 			"total": total, "unique_visitors": visitors,

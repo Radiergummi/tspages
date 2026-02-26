@@ -519,6 +519,16 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
+// setAlternateLinks sets RFC 8288 Link headers for alternate representations.
+// Each pair is [href, media-type].
+func setAlternateLinks(w http.ResponseWriter, alternates [][2]string) {
+	var parts []string
+	for _, a := range alternates {
+		parts = append(parts, fmt.Sprintf(`<%s>; rel="alternate"; type="%s"`, a[0], a[1]))
+	}
+	w.Header().Set("Link", strings.Join(parts, ", "))
+}
+
 func renderPage(w http.ResponseWriter, t *tmpl, nav string, data any) {
 	tpl := t.cached
 	if devModeFlag.Load() {

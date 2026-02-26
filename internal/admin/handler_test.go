@@ -1149,6 +1149,44 @@ func TestPurgeAnalyticsHandler_Forbidden(t *testing.T) {
 	}
 }
 
+func TestJSONResponses_LinkHeaders(t *testing.T) {
+	hs, _ := setupHandlers(t)
+
+	tests := []struct {
+		name    string
+		handler http.Handler
+		path    string
+		pathVal map[string]string
+		wantRel []string // substrings expected in Link header
+	}{
+		{"sites", hs.Sites, "/sites", nil, []string{`rel="alternate"`, "/sites", "/feed.atom"}},
+		{"site", hs.Site, "/sites/docs", map[string]string{"site": "docs"}, []string{"/sites/docs", "/sites/docs/feed.atom"}},
+		{"deployment", hs.Deployment, "/sites/docs/deployments/aaa11111", map[string]string{"site": "docs", "id": "aaa11111"}, []string{"/sites/docs/deployments/aaa11111"}},
+		{"deployments", hs.Deployments, "/deployments", nil, []string{"/deployments", "/feed.atom"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := reqWithAuth("GET", tt.path, adminCaps, adminID)
+			req.Header.Set("Accept", "application/json")
+			for k, v := range tt.pathVal {
+				req.SetPathValue(k, v)
+			}
+			rec := httptest.NewRecorder()
+			tt.handler.ServeHTTP(rec, req)
+
+			link := rec.Header().Get("Link")
+			if link == "" {
+				t.Fatal("missing Link header")
+			}
+			for _, want := range tt.wantRel {
+				if !strings.Contains(link, want) {
+					t.Errorf("Link header %q missing %q", link, want)
+				}
+			}
+		})
+	}
+}
+
 func TestSubtractISO8601(t *testing.T) {
 	now := time.Date(2025, 3, 15, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
