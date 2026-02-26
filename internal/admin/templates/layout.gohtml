@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="{{asset "main.css"}}">
     {{viteclient}}
 </head>
-<body class="bg-paper dark:bg-base-950 text-black dark:text-base-200 antialiased">
+
+<body class="bg-base-50 dark:bg-black text-black dark:text-base-200 antialiased">
+
+<!-- region Noise overlay -->
 <svg
         class="pointer-events-none fixed inset-0 z-99 h-screen mix-blend-overlay"
         xmlns="http://www.w3.org/2000/svg"
@@ -34,37 +37,85 @@
     </defs>
     <rect width="100%" height="100%" filter="url(#noise-filter)"></rect>
 </svg>
+<!-- endregion -->
 
-<header class="flex items-center px-8 h-13 bg-surface border-b border-default sticky top-0 z-10">
-    <a class="flex items-center gap-2.5 mr-8 shrink-0 no-underline" href="/sites">
-        <span class="text-lg font-semibold text-black dark:text-base-200 tracking-tight">
-            tspages
-        </span>
-    </a>
-    <nav class="flex items-stretch h-full">
-        <a
-                class="flex items-center px-4 text-sm border-b-2 no-underline transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200 aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                href="/sites"
-                {{if eq (nav) "sites"}}aria-current="page"{{end}}>Sites</a>
-        <a
-                class="flex items-center px-4 text-sm border-b-2 no-underline transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200 aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                href="/deployments"
-                {{if eq (nav) "deployments"}}aria-current="page"{{end}}>Deployments</a>
-        <a
-                class="flex items-center px-4 text-sm border-b-2 no-underline transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200 aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                href="/analytics"
-                {{if eq (nav) "analytics"}}aria-current="page"{{end}}>Analytics</a>
-    </nav>
-    <div class="flex-1"></div>
-    <div class="flex items-center gap-2">
-        {{avatarHTML .User.Name .User.ProfilePicURL}}
-        <span class="text-sm text-muted">{{.User.Name}}</span>
+<div class="grid grid-rows-[auto_1fr] h-screen overflow-hidden">
+    <header class="grid grid-cols-[auto_1fr_auto] items-center px-8 h-13 bg-base-50 dark:bg-black">
+
+        <!-- region Logo -->
+        <a class="flex items-center gap-2.5 mr-8 shrink-0 no-underline" href="/sites">
+            <span class="text-lg font-semibold text-black dark:text-base-200 tracking-tight">
+                tspages
+            </span>
+        </a>
+        <!-- endregion -->
+
+        <!-- region Navigation -->
+        <nav class="flex items-stretch h-full">
+            <a
+                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                    href="/sites"
+                    {{if eq (nav) "sites"}}aria-current="page"{{end}}>
+                Sites
+            </a>
+            <a
+                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                    href="/deployments"
+                    {{if eq (nav) "deployments"}}aria-current="page"{{end}}>
+                Deployments
+            </a>
+            <a
+                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                    href="/analytics"
+                    {{if eq (nav) "analytics"}}aria-current="page"{{end}}>
+                Analytics
+            </a>
+            <a
+                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                    href="/help"
+                    {{if eq (nav) "help"}}aria-current="page"{{end}}>
+                Help
+            </a>
+            <a
+                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
+                    href="/api"
+                    {{if eq (nav) "api"}}aria-current="page"{{end}}>
+                API
+            </a>
+        </nav>
+        <!-- endregion -->
+
+        <!-- region Current User -->
+        <div class="flex items-center gap-2">
+            {{avatarHTML .User.Name .User.ProfilePicURL}}
+
+            <span class="text-sm text-muted">
+                {{.User.Name}}
+            </span>
+        </div>
+        <!-- endregion -->
+    </header>
+
+    <!-- region Main content area -->
+    <div class="px-2 pb-2 h-full overflow-hidden">
+        <main class="overflow-y-auto h-full bg-paper dark:bg-base-950 rounded-lg border border-default">
+            <div class="max-w-4xl mx-auto p-8 pb-48 data-wide:max-w-full data-wide:px-0" {{template "main-attrs" .}}>
+                {{template "content" .}}
+            </div>
+        </main>
     </div>
-</header>
-
-<main class="max-w-4xl mx-auto p-8 pb-48" {{template "main-attrs" .}}>
-    {{template "content" .}}
-</main>
+    <!-- endregion -->
+</div>
 
 {{template "script" .}}
 </body>

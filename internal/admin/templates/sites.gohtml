@@ -103,11 +103,26 @@
                         <td class="px-4 py-3 text-sm border-b border-default text-right">
                             {{with siteurl .Name $.DNSSuffix}}
                                 <a
-                                        class="btn btn-outline inline-block no-underline"
+                                        class="btn btn-outline inline-flex items-center gap-2 no-underline"
                                         href="{{.}}"
                                         target="_blank"
                                 >
-                                    Visit
+                                    <span>Visit</span>
+                                    <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                    >
+                                        <path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6" />
+                                        <path d="m21 3-9 9" />
+                                        <path d="M15 3h6v6" />
+                                    </svg>
                                 </a>
                             {{end}}
                         </td>
@@ -130,9 +145,23 @@
             >
                 <div class="bg-surface border border-default rounded-lg w-full max-w-lg shadow-2xl">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-default">
-                        <h3 class="text-base font-semibold">New site</h3>
+                        <h3 class="text-base font-semibold inline-flex items-center">New
+                            site {{helpicon "getting-started" "Getting started"}}</h3>
                         <button class="modal-close text-xl text-muted hover:text-black dark:hover:text-base-200 bg-transparent border-0 cursor-pointer p-0 leading-none">
-                            &times;
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                            >
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                            </svg>
                         </button>
                     </div>
                     <div class="p-5">

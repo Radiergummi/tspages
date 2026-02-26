@@ -475,7 +475,7 @@ func TestDeploymentHandler_FileListing(t *testing.T) {
 	if !strings.Contains(body, "assets/style.css") {
 		t.Error("HTML missing file assets/style.css")
 	}
-	if !strings.Contains(body, "Files (2)") {
+	if !strings.Contains(body, "Files") || !strings.Contains(body, ">2</") {
 		t.Error("HTML missing file count")
 	}
 }

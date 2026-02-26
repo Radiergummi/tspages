@@ -14,8 +14,8 @@
         {{end}}
 
         <header class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold tracking-tight">
-                Analytics
+            <h1 class="text-2xl font-semibold tracking-tight inline-flex items-center">
+                Analytics {{helpicon "analytics" "About analytics"}}
             </h1>
             <div class="flex items-center gap-2">
                 <nav class="flex gap-1">
@@ -62,7 +62,7 @@
         </header>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <section class="col-span-1 sm:col-span-3 bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+            <section class="col-span-1 sm:col-span-3 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                 <header class="flex items-end justify-end gap-10 px-5 h-14">
                     <div class="flex flex-col">
                         <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
@@ -109,7 +109,7 @@
             </section>
 
             {{if .TopVisitors}}
-                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-y-auto m-0 max-h-62 overscroll-none">
+                <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-y-auto m-0 max-h-62 overscroll-none">
                     <header class="sticky top-0 z-10 flex items-center justify-between px-5 h-14 bg-linear-to-b from-base-50 from-80% to-transparent dark:from-base-900">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                             Top visitors
@@ -147,7 +147,7 @@
             {{end}}
 
             {{if .StatusTimeSeries}}
-                <section class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                <section class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                     <header class="flex justify-end items-end gap-10 h-14 px-5">
                         <div class="flex flex-col">
                             <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
@@ -185,7 +185,7 @@
             {{end}}
 
             {{if .TopPages}}
-                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-y-auto m-0 max-h-62 overscroll-none">
+                <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-y-auto m-0 max-h-62 overscroll-none">
                     <header class="sticky top-0 z-10 flex items-center justify-between px-5 h-14 bg-linear-to-b from-base-50 from-80% to-transparent dark:from-base-900">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                             Top pages
@@ -213,7 +213,7 @@
             {{end}}
 
             {{if .Sites}}
-                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                     <header class="flex items-center justify-between px-5 h-14">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                             Sites
@@ -225,7 +225,7 @@
                 </section>
 
                 {{if .OS}}
-                    <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                         <header class="flex items-center justify-between px-5 h-14">
                             <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                                 Operating systems
@@ -237,13 +237,13 @@
                     </section>
                 {{end}}
 
-                <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                     <header class="flex items-center justify-between px-5 h-14">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                             Sites
                         </h2>
                     </header>
-                    <table class="w-full border-collapse dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden">
+                    <table class="w-full border-collapse dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden">
                         <tbody class="[&>tr:last-child>td]:border-b-0">
 
                         {{range .Sites}}
@@ -268,7 +268,7 @@
 
             {{if and .SiteName (or .OS .Nodes)}}
                 {{if .OS}}
-                    <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                         <header class="flex items-center justify-between px-5 h-14">
                             <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                                 Operating systems
@@ -281,7 +281,7 @@
                 {{end}}
 
                 {{if .Nodes}}
-                    <section class="bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                         <header class="flex items-center justify-between px-5 h-14">
                             <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                                 Devices
@@ -296,7 +296,7 @@
 
             {{if not .SiteName}}
                 {{if .Nodes}}
-                    <section class=" col-span-2 bg-surface dark:ring-1 dark:ring-base-500 rounded-md overflow-hidden m-0">
+                    <section class=" col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                         <header class="flex items-center justify-between px-5 h-14">
                             <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                                 Devices
