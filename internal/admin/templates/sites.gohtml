@@ -1,4 +1,7 @@
 {{define "title"}} - sites{{end}}
+{{define "head-extra"}}
+    <link rel="alternate" type="application/json" title="Sites (JSON)" href="/sites.json">
+{{end}}
 {{define "content"}}
     <article class="flex flex-col gap-8">
         <header class="flex items-center justify-between">

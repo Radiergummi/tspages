@@ -1,4 +1,8 @@
 {{define "title"}} - {{.Site.Name}}{{end}}
+{{define "head-extra"}}
+    <link rel="alternate" type="application/json" title="{{.Site.Name}} (JSON)" href="/sites/{{.Site.Name}}.json">
+    <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}} deployments" href="/sites/{{.Site.Name}}/feed.atom">
+{{end}}
 {{define "main-attrs"}}data-site="{{.Site.Name}}"{{end}}
 
 {{define "content"}}

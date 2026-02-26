@@ -1,4 +1,7 @@
 {{define "title"}} - {{if .SiteName}}{{.SiteName}} analytics{{else}}Analytics{{end}}{{end}}
+{{define "head-extra"}}
+    <link rel="alternate" type="application/json" title="Analytics (JSON)" href="{{if .SiteName}}/sites/{{.SiteName}}/analytics.json{{else}}/analytics.json{{end}}">
+{{end}}
 
 {{define "content"}}
     <article class="flex flex-col gap-8">

@@ -49,6 +49,12 @@ type atomXMLContent struct {
 	Body string `xml:",chardata"`
 }
 
+// deploymentWithSite pairs a deployment with its site name for sorting.
+type deploymentWithSite struct {
+	storage.DeploymentInfo
+	Site string
+}
+
 // --- GET /feed.atom ---
 
 type FeedHandler struct{ handlerDeps }
@@ -62,7 +68,7 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var entries []atomXMLEntry
+	var all []deploymentWithSite
 	for _, s := range sites {
 		if !auth.CanView(caps, s.Name) {
 			continue
@@ -72,20 +78,25 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, d := range deps {
-			entries = append(entries, deploymentToEntry(s.Name, d, *h.dnsSuffix, r.Host))
+			all = append(all, deploymentWithSite{DeploymentInfo: d, Site: s.Name})
 		}
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Updated > entries[j].Updated
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].CreatedAt.After(all[j].CreatedAt)
 	})
-	if len(entries) > feedMaxEntries {
-		entries = entries[:feedMaxEntries]
+	if len(all) > feedMaxEntries {
+		all = all[:feedMaxEntries]
+	}
+
+	entries := make([]atomXMLEntry, len(all))
+	for i, d := range all {
+		entries[i] = deploymentToEntry(d.Site, d.DeploymentInfo, *h.dnsSuffix, r.Host)
 	}
 
 	var updated string
-	if len(entries) > 0 {
-		updated = entries[0].Updated
+	if len(all) > 0 {
+		updated = all[0].CreatedAt.UTC().Format(time.RFC3339)
 	} else {
 		updated = time.Now().UTC().Format(time.RFC3339)
 	}
@@ -128,21 +139,21 @@ func (h *SiteFeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries := make([]atomXMLEntry, 0, len(deps))
-	for _, d := range deps {
-		entries = append(entries, deploymentToEntry(siteName, d, *h.dnsSuffix, r.Host))
+	sort.Slice(deps, func(i, j int) bool {
+		return deps[i].CreatedAt.After(deps[j].CreatedAt)
+	})
+	if len(deps) > feedMaxEntries {
+		deps = deps[:feedMaxEntries]
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Updated > entries[j].Updated
-	})
-	if len(entries) > feedMaxEntries {
-		entries = entries[:feedMaxEntries]
+	entries := make([]atomXMLEntry, len(deps))
+	for i, d := range deps {
+		entries[i] = deploymentToEntry(siteName, d, *h.dnsSuffix, r.Host)
 	}
 
 	var updated string
-	if len(entries) > 0 {
-		updated = entries[0].Updated
+	if len(deps) > 0 {
+		updated = deps[0].CreatedAt.UTC().Format(time.RFC3339)
 	} else {
 		updated = time.Now().UTC().Format(time.RFC3339)
 	}
@@ -182,16 +193,6 @@ func deploymentToEntry(site string, d storage.DeploymentInfo, dnsSuffix, host st
 			Body: fmt.Sprintf("Deployed to %s.%s by %s (%s)", site, dnsSuffix, author, formatBytes(d.SizeBytes)),
 		},
 	}
-}
-
-func formatBytes(n int64) string {
-	if n < 1024 {
-		return fmt.Sprintf("%d B", n)
-	}
-	if n < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(n)/1024)
-	}
-	return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
 }
 
 func writeFeed(w http.ResponseWriter, feed atomXMLFeed) {
