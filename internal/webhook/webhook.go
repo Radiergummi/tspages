@@ -116,6 +116,11 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 			return
 		}
 
+		// Don't retry on 406 — the receiver is explicitly rejecting the payload.
+		if sendErr == nil && status == http.StatusNotAcceptable {
+			return
+		}
+
 		if attempt < maxAttempts {
 			time.Sleep(n.retryDelays[attempt-1])
 		}

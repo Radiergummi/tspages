@@ -220,6 +220,28 @@ func TestNotifier_RetriesOnFailure(t *testing.T) {
 	}
 }
 
+func TestNotifier_NoRetryOn406(t *testing.T) {
+	var calls atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(406)
+	}))
+	defer srv.Close()
+
+	n, _ := testNotifier(t)
+	n.retryDelays = []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond}
+
+	cfg := storage.SiteConfig{WebhookURL: srv.URL}
+	n.Fire("deploy.success", "mysite", cfg, nil)
+
+	time.Sleep(500 * time.Millisecond)
+
+	if calls.Load() != 1 {
+		t.Fatalf("expected 1 call (no retries on 406), got %d", calls.Load())
+	}
+}
+
 func TestNotifier_LogsDeliveries(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
