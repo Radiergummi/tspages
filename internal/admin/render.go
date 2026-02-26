@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
+	"sync/atomic"
 	"io/fs"
 	"net"
 	"net/http"
@@ -31,7 +33,7 @@ func OpenAPIHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/openapi+yaml")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write(openapiSpec)
+		_, _ = w.Write(openapiSpec)
 	})
 }
 
@@ -188,22 +190,23 @@ func SwaggerUIHandler() http.Handler {
 </html>`
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, page)
+		_, _ = io.WriteString(w, page)
 	})
 }
 
 // --- dev mode ---
 
 var (
-	devMode    bool
-	devTmplDir string
+	devModeFlag atomic.Bool
+	devTmplDir  string // set once before server starts, read-only after
 )
 
 // EnableDevMode activates development mode: templates are re-parsed from
 // disk on every request and asset URLs point to the Vite dev server.
+// Must be called before the HTTP server starts.
 func EnableDevMode(tmplDir string) {
-	devMode = true
 	devTmplDir = tmplDir
+	devModeFlag.Store(true)
 }
 
 // DevAssetProxy returns a reverse proxy that forwards requests to the
@@ -333,13 +336,13 @@ func newTmpl(files ...string) *tmpl {
 var funcs = template.FuncMap{
 	"nav": func() string { return "" }, // placeholder; overridden per-render
 	"asset": func(key string) string {
-		if devMode {
+		if devModeFlag.Load() {
 			return "/web/admin/src/" + key
 		}
 		return viteManifest.resolve(key)
 	},
 	"viteclient": func() template.HTML {
-		if devMode {
+		if devModeFlag.Load() {
 			return `<script type="module" src="/@vite/client"></script>`
 		}
 		return ""
@@ -408,13 +411,7 @@ var funcs = template.FuncMap{
 		if n == 0 {
 			return "\u2014"
 		}
-		if n < 1024 {
-			return fmt.Sprintf("%d B", n)
-		}
-		if n < 1024*1024 {
-			return fmt.Sprintf("%.1f KB", float64(n)/1024)
-		}
-		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
+		return formatBytes(n)
 	},
 	"pct": func(count, max int64) int {
 		if max == 0 {
@@ -517,12 +514,14 @@ func trimSuffix(s string) string {
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("warning: encoding JSON response: %v", err)
+	}
 }
 
 func renderPage(w http.ResponseWriter, t *tmpl, nav string, data any) {
 	tpl := t.cached
-	if devMode {
+	if devModeFlag.Load() {
 		paths := make([]string, len(t.files))
 		for i, f := range t.files {
 			paths[i] = filepath.Join(devTmplDir, filepath.Base(f))
@@ -547,4 +546,14 @@ func renderPage(w http.ResponseWriter, t *tmpl, nav string, data any) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = buf.WriteTo(w)
+}
+
+func formatBytes(n int64) string {
+	if n < 1024 {
+		return fmt.Sprintf("%d B", n)
+	}
+	if n < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	}
+	return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
 }

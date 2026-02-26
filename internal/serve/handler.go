@@ -256,7 +256,7 @@ func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg
 			if content, err := os.ReadFile(resolved); err == nil {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusNotFound)
-				w.Write(content)
+				_, _ = w.Write(content)
 				return
 			}
 		}
@@ -267,7 +267,7 @@ func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg
 func (h *Handler) serveDefault404(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
-	w.Write(default404HTML)
+	_, _ = w.Write(default404HTML)
 }
 
 func (h *Handler) servePlaceholder(w http.ResponseWriter) {
@@ -276,7 +276,7 @@ func (h *Handler) servePlaceholder(w http.ResponseWriter) {
 		controlPlane = fmt.Sprintf("https://pages.%s", *h.dnsSuffix)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	placeholderTmpl.Execute(w, struct {
+	_ = placeholderTmpl.Execute(w, struct {
 		Site         string
 		ControlPlane string
 	}{h.site, controlPlane})

@@ -1,7 +1,6 @@
 package deploy
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -77,8 +76,7 @@ func (h *ListDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		deployments = []storage.DeploymentInfo{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(deployments)
+	writeJSON(w, deployments)
 }
 
 // DeleteDeploymentHandler handles DELETE /deploy/{site}/{id}.
@@ -147,8 +145,7 @@ func (h *CleanupDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"deleted": deleted})
+	writeJSON(w, map[string]int{"deleted": deleted})
 }
 
 // ActivateHandler handles POST /deploy/{site}/{id}/activate.
@@ -203,6 +200,5 @@ func (h *ActivateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(storage.DeploymentInfo{ID: id, Active: true})
+	writeJSON(w, storage.DeploymentInfo{ID: id, Active: true})
 }

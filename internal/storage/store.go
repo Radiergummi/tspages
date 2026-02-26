@@ -36,7 +36,7 @@ func New(dataDir string) *Store {
 
 func NewDeploymentID() string {
 	b := make([]byte, 4)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 

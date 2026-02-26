@@ -2,8 +2,8 @@ package deploy
 
 import (
 	"archive/tar"
-	"errors"
 	"archive/zip"
+	"errors"
 	"bytes"
 	"compress/gzip"
 	_ "embed"
@@ -195,7 +195,9 @@ func extractTar(r io.Reader, destDir string, maxBytes int64) (int64, error) {
 			// deployment directory or be used for write-through attacks.
 			return totalWritten, fmt.Errorf("unsupported tar entry type (symlink/hardlink): %q", hdr.Name)
 		case tar.TypeDir:
-			os.MkdirAll(dest, 0755)
+			if err := os.MkdirAll(dest, 0755); err != nil {
+				return totalWritten, err
+			}
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 				return totalWritten, err
@@ -281,7 +283,9 @@ func ExtractZip(r io.ReaderAt, size int64, destDir string, maxBytes int64) (int6
 		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(dest, 0755)
+			if err := os.MkdirAll(dest, 0755); err != nil {
+				return totalWritten, err
+			}
 			continue
 		}
 

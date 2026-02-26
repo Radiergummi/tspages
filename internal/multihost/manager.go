@@ -98,11 +98,15 @@ func (m *Manager) EnsureServer(site string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.servers[site]; ok {
-		ss.Close()
+		if err := ss.Close(); err != nil {
+			log.Printf("warning: closing duplicate site %q: %v", site, err)
+		}
 		return nil
 	}
 	if len(m.servers) >= m.maxSites {
-		ss.Close()
+		if err := ss.Close(); err != nil {
+			log.Printf("warning: closing site %q (limit reached): %v", site, err)
+		}
 		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
 	m.servers[site] = ss
@@ -224,7 +228,9 @@ func (m *Manager) Close() {
 
 	for name, ss := range m.servers {
 		log.Printf("stopping site %q", name)
-		ss.Close()
+		if err := ss.Close(); err != nil {
+			log.Printf("warning: closing site %q: %v", name, err)
+		}
 	}
 	m.servers = nil
 }

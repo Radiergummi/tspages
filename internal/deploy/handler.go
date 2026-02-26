@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -73,7 +74,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			break
 		}
-		if err != storage.ErrDeploymentExists {
+		if !errors.Is(err, storage.ErrDeploymentExists) {
 			http.Error(w, "creating deployment", http.StatusInternalServerError)
 			return
 		}
@@ -118,7 +119,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		siteCfg.Redirects = rules
-		os.Remove(redirectsPath)
+		if err := os.Remove(redirectsPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("warning: removing _redirects: %v", err)
+		}
 		hasConfig = hasConfig || len(rules) > 0
 	}
 
@@ -132,7 +135,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		siteCfg.Headers = hdrs
-		os.Remove(headersPath)
+		if err := os.Remove(headersPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("warning: removing _headers: %v", err)
+		}
 		hasConfig = hasConfig || len(hdrs) > 0
 	}
 
@@ -146,7 +151,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		siteCfg = tomlCfg.Merge(siteCfg)
-		os.Remove(configPath)
+		if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("warning: removing tspages.toml: %v", err)
+		}
 		hasConfig = true
 	}
 
@@ -212,6 +219,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Site:         site,
 		URL:          fmt.Sprintf("https://%s.%s/", site, *h.dnsSuffix),
 	}
+	writeJSON(w, resp)
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("warning: encoding JSON response: %v", err)
+	}
 }

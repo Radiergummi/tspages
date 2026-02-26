@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,7 @@ func TestCreateSite_AlreadyExists(t *testing.T) {
 	if err := s.CreateSite("docs"); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	if err := s.CreateSite("docs"); err != ErrSiteExists {
+	if err := s.CreateSite("docs"); !errors.Is(err, ErrSiteExists) {
 		t.Fatalf("got %v, want ErrSiteExists", err)
 	}
 }
@@ -253,7 +254,7 @@ func TestDeleteDeployment_Active(t *testing.T) {
 	s.ActivateDeployment("docs", "aaa11111")
 
 	err := s.DeleteDeployment("docs", "aaa11111")
-	if err != ErrActiveDeployment {
+	if !errors.Is(err, ErrActiveDeployment) {
 		t.Fatalf("got %v, want ErrActiveDeployment", err)
 	}
 }
@@ -264,7 +265,7 @@ func TestDeleteDeployment_NotFound(t *testing.T) {
 	s.MarkComplete("docs", "aaa11111")
 
 	err := s.DeleteDeployment("docs", "nonexistent")
-	if err != ErrDeploymentNotFound {
+	if !errors.Is(err, ErrDeploymentNotFound) {
 		t.Fatalf("got %v, want ErrDeploymentNotFound", err)
 	}
 }
