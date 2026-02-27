@@ -1,27 +1,27 @@
-name: 'Deploy to tspages'
-description: 'Deploy a directory or file to a tspages static site on your Tailscale network'
+name: "Deploy to tspages"
+description: "Deploy a directory or file to a tspages static site on your Tailscale network"
 
 inputs:
   site:
-    description: 'Site name to deploy to'
+    description: "Site name to deploy to"
     required: true
   path:
-    description: 'Directory or file to deploy'
+    description: "Directory or file to deploy"
     required: true
   server:
-    description: 'Control plane URL (e.g. https://pages.mynet.ts.net)'
+    description: "Control plane URL (e.g. https://pages.mynet.ts.net)"
     required: true
   activate:
-    description: 'Activate the deployment after upload'
+    description: "Activate the deployment after upload"
     required: false
-    default: 'true'
+    default: "true"
 
 outputs:
   deployment-id:
-    description: 'The deployment ID'
+    description: "The deployment ID"
     value: ${{ steps.deploy.outputs.deployment-id }}
   url:
-    description: 'The site URL'
+    description: "The site URL"
     value: ${{ steps.deploy.outputs.url }}
 
 runs:

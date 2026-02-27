@@ -36,13 +36,13 @@ not_found_page = "404.html"
 
 ## Environment variables
 
-| Variable             | Overrides                | Notes                           |
-|----------------------|--------------------------|---------------------------------|
-| `TS_AUTHKEY`         | `tailscale.auth_key`     | Reusable, tagged auth key       |
-| `TSPAGES_CAPABILITY` | `tailscale.capability`   | Capability name for grants      |
-| `TSPAGES_LOG_LEVEL`  | `server.log_level`       | Config file takes precedence    |
-| `TSPAGES_HEALTH_ADDR`| `server.health_addr`     | Local health check listener     |
-| `TSPAGES_SERVER`     | --                       | Used by the CLI deploy command  |
+| Variable              | Overrides              | Notes                          |
+| --------------------- | ---------------------- | ------------------------------ |
+| `TS_AUTHKEY`          | `tailscale.auth_key`   | Reusable, tagged auth key      |
+| `TSPAGES_CAPABILITY`  | `tailscale.capability` | Capability name for grants     |
+| `TSPAGES_LOG_LEVEL`   | `server.log_level`     | Config file takes precedence   |
+| `TSPAGES_HEALTH_ADDR` | `server.health_addr`   | Local health check listener    |
+| `TSPAGES_SERVER`      | --                     | Used by the CLI deploy command |
 
 ## Docker
 
@@ -85,15 +85,15 @@ Open http://localhost:8080 in your browser. The `-dev` flag:
 - Re-parses Go templates from disk on every request (refresh to see changes)
 - Provides a localhost listener with mock admin auth (no Tailscale required to browse the UI)
 
-The tsnet control plane still starts normally alongside the dev server. Production builds use `npx vite build`, which
-outputs to `internal/admin/assets/dist/` (embedded at compile time).
+The tsnet control plane still starts normally alongside the dev server. Production builds use
+`npx vite build`, which outputs to `internal/admin/assets/dist/` (embedded at compile time).
 
 ## Security notes
 
-- **Archive extraction** rejects path traversal (zip-slip and tar equivalents), symlinks, hardlinks, and enforces size
-  limits on both compressed and decompressed content
+- **Archive extraction** rejects path traversal (zip-slip and tar equivalents), symlinks, hardlinks,
+  and enforces size limits on both compressed and decompressed content
 - **Site names** must be valid DNS labels (lowercase alphanumeric and hyphens, max 63 characters)
-- **Auth** uses the local Tailscale daemon's WhoIs -- identity is verified by Tailscale, not forgeable by the remote
-  peer
+- **Auth** uses the local Tailscale daemon's WhoIs -- identity is verified by Tailscale, not
+  forgeable by the remote peer
 - **Deployments** are atomic: files are fully written before the `current` symlink is swapped
 - **State directory** (`state_dir`) should be `0700` -- it contains the node key and certificates

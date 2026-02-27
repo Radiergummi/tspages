@@ -10,8 +10,8 @@ tspages deploy <path> <site> [flags]
 
 ## Server discovery
 
-The command finds the control plane automatically by querying the local Tailscale daemon for the tailnet's DNS suffix
-and constructing `https://pages.<suffix>`. Override with:
+The command finds the control plane automatically by querying the local Tailscale daemon for the
+tailnet's DNS suffix and constructing `https://pages.<suffix>`. Override with:
 
 - `--server URL` flag
 - `TSPAGES_SERVER` environment variable
@@ -19,7 +19,7 @@ and constructing `https://pages.<suffix>`. Override with:
 ## Flags
 
 | Flag            | Description                             |
-|-----------------|-----------------------------------------|
+| --------------- | --------------------------------------- |
 | `--server`      | Control plane URL (overrides discovery) |
 | `--no-activate` | Upload without switching live traffic   |
 

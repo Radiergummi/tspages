@@ -8,7 +8,7 @@ name: Deploy to tspages
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   deploy:
@@ -36,7 +36,8 @@ jobs:
             https://pages.your-tailnet.ts.net/deploy/docs
 ```
 
-The runner joins the tailnet as `tag:ci`. The tailnet policy grants deploy access -- no secrets in the `curl` command.
+The runner joins the tailnet as `tag:ci`. The tailnet policy grants deploy access -- no secrets in
+the `curl` command.
 
 ## Grant for CI
 
@@ -48,9 +49,7 @@ Add a grant in your tailnet policy so the CI runner can deploy:
   "dst": ["tag:pages"],
   "ip": ["443"],
   "app": {
-    "tspages.mazetti.me/cap/pages": [
-      { "access": "deploy", "sites": ["docs"] }
-    ]
+    "tspages.mazetti.me/cap/pages": [{ "access": "deploy", "sites": ["docs"] }]
   }
 }
 ```

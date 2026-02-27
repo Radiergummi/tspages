@@ -56,12 +56,14 @@ var (
 
 // RenderDoc returns the HTML for a documentation page, caching the result.
 func RenderDoc(slug string) (template.HTML, error) {
-	docCacheMu.RLock()
-	if html, ok := docCache[slug]; ok {
-		docCacheMu.RUnlock()
-		return html, nil
+	if !devModeFlag.Load() {
+		docCacheMu.Lock()
+		if html, ok := docCache[slug]; ok {
+			docCacheMu.Unlock()
+			return html, nil
+		}
+		defer docCacheMu.Unlock()
 	}
-	docCacheMu.RUnlock()
 
 	data, err := docsFS.ReadFile("docs/" + slug + ".md")
 	if err != nil {
@@ -87,9 +89,9 @@ func RenderDoc(slug string) (template.HTML, error) {
 
 	result := template.HTML(html)
 
-	docCacheMu.Lock()
-	docCache[slug] = result
-	docCacheMu.Unlock()
+	if !devModeFlag.Load() {
+		docCache[slug] = result
+	}
 
 	return result, nil
 }

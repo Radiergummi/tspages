@@ -1,11 +1,11 @@
 # Analytics
 
-tspages records per-request analytics for all sites (enabled by default). Data is stored in a local SQLite database at
-`{data_dir}/analytics.db`.
+tspages records per-request analytics for all sites (enabled by default). Data is stored in a local
+SQLite database at `{data_dir}/analytics.db`.
 
-Each event captures: timestamp, site, path, HTTP status, user identity (login name, display name), node info (name, IP,
-OS, tags), and device type. Recording is async and non-blocking -- events are dropped rather than queued if the system
-is under heavy load.
+Each event captures: timestamp, site, path, HTTP status, user identity (login name, display name),
+node info (name, IP, OS, tags), and device type. Recording is async and non-blocking -- events are
+dropped rather than queued if the system is under heavy load.
 
 ## Viewing analytics
 
@@ -14,7 +14,8 @@ Admins can view analytics via the dashboard:
 - **Cross-site**: `GET /analytics` -- overview of all sites
 - **Per-site**: `GET /sites/{site}/analytics`
 
-Both views support a `?range=` parameter with ISO 8601 durations: `PT24H` (default), `P7D`, `P30D`, `P1Y`, or `all`.
+Both views support a `?range=` parameter with ISO 8601 durations: `PT24H` (default), `P7D`, `P30D`,
+`P1Y`, or `all`.
 
 ## Disabling analytics
 

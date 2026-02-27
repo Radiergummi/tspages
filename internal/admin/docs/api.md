@@ -1,8 +1,8 @@
 # API Reference
 
-All API endpoints are on the control plane hostname (e.g., `pages.your-tailnet.ts.net`). Sites are served on their own
-hostnames. Every endpoint that returns HTML also supports JSON via `Accept: application/json` or a `.json` URL suffix
-(e.g., `/sites.json`).
+All API endpoints are on the control plane hostname (e.g., `pages.your-tailnet.ts.net`). Sites are
+served on their own hostnames. Every endpoint that returns HTML also supports JSON via
+`Accept: application/json` or a `.json` URL suffix (e.g., `/sites.json`).
 
 ## Deploy a site
 
@@ -12,9 +12,9 @@ PUT  /deploy/{site}
 PUT  /deploy/{site}/{filename}
 ```
 
-Upload your site's build output. The format is auto-detected (see [Upload Formats](upload-formats)). The `{filename}`
-variant is useful for format detection when uploading single files (e.g., `PUT /deploy/notes/README.md` triggers
-Markdown rendering).
+Upload your site's build output. The format is auto-detected (see [Upload Formats](upload-formats)).
+The `{filename}` variant is useful for format detection when uploading single files (e.g.,
+`PUT /deploy/notes/README.md` triggers Markdown rendering).
 
 Query parameters:
 
@@ -30,11 +30,11 @@ Response:
 }
 ```
 
-Requires `deploy` capability for the target site. If the site doesn't exist yet, it is created automatically (requires
-`admin`).
+Requires `deploy` capability for the target site. If the site doesn't exist yet, it is created
+automatically (requires `admin`).
 
-Old deployments are auto-cleaned after each deploy, keeping the most recent `max_deployments` (default 10). The active
-deployment is never removed.
+Old deployments are auto-cleaned after each deploy, keeping the most recent `max_deployments`
+(default 10). The active deployment is never removed.
 
 ## List deployments
 
@@ -62,7 +62,8 @@ Requires `deploy` capability for the site.
 DELETE /deploy/{site}/{id}
 ```
 
-Removes a deployment's files. Cannot delete the currently active deployment -- activate a different one first.
+Removes a deployment's files. Cannot delete the currently active deployment -- activate a different
+one first.
 
 Requires `deploy` capability for the site.
 
@@ -83,8 +84,8 @@ POST /sites
 Content-Type: application/x-www-form-urlencoded
 ```
 
-Creates an empty site directory. Body: `name=my-site`. Returns a redirect to `/sites/{name}` (or JSON with
-`Accept: application/json`).
+Creates an empty site directory. Body: `name=my-site`. Returns a redirect to `/sites/{name}` (or
+JSON with `Accept: application/json`).
 
 Requires `admin` access for the site name.
 
@@ -110,9 +111,9 @@ GET /analytics                       # cross-site analytics (admins)
 GET /sites/{site}/analytics          # per-site analytics
 ```
 
-The sites list is accessible to any authenticated user; admins see all sites, others see only sites they have `view` or
-`deploy` access to. Deployment detail pages show a diff against the previous deployment (added, removed, and changed
-files).
+The sites list is accessible to any authenticated user; admins see all sites, others see only sites
+they have `view` or `deploy` access to. Deployment detail pages show a diff against the previous
+deployment (added, removed, and changed files).
 
 ## Browse sites
 
@@ -123,7 +124,8 @@ https://docs.your-tailnet.ts.net/
 https://demo.your-tailnet.ts.net/style.css
 ```
 
-Directory paths serve `index.html` automatically (configurable via `index_page`). Responses include ETags based on the
-deployment ID, so unchanged content returns `304 Not Modified` on repeat requests.
+Directory paths serve `index.html` automatically (configurable via `index_page`). Responses include
+ETags based on the deployment ID, so unchanged content returns `304 Not Modified` on repeat
+requests.
 
 Requires `view` capability for the site.

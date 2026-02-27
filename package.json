@@ -8,6 +8,12 @@
     "fmt": "oxfmt --write ./web/admin/src/**/*.{ts,css}",
     "lint": "oxlint ./web/admin/src/**/*.{ts,css}"
   },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "chartjs-chart-treemap": "^3.1.0",
+    "fflate": "^0.8.2",
+    "tailwindcss": "^4.2.1"
+  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^25.3.0",
@@ -15,11 +21,5 @@
     "oxlint": "^1.50.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
-  },
-  "dependencies": {
-    "chart.js": "^4.5.1",
-    "chartjs-chart-treemap": "^3.1.0",
-    "fflate": "^0.8.2",
-    "tailwindcss": "^4.2.1"
   }
 }

@@ -1,15 +1,15 @@
 [tailscale]
-hostname     = "pages"                        # default: "pages"
-state_dir    = "/var/lib/tspages"             # default: "./state"
-auth_key     = ""                             # leave empty to use TS_AUTHKEY env var
-capability   = "your-company.com/cap/pages"   # required
+hostname = "pages" # default: "pages"
+state_dir = "/var/lib/tspages" # default: "./state"
+auth_key = "" # leave empty to use TS_AUTHKEY env var
+capability = "your-company.com/cap/pages" # required
 
 [server]
-data_dir      = "/data"    # default: "./data"
-max_upload_mb = 500        # default: 500
-max_sites       = 100      # default: 100
-max_deployments = 10       # default: 10, per site; old deployments auto-cleaned on deploy
-log_level       = "warn"   # default: "warn", or TSPAGES_LOG_LEVEL env var
+data_dir = "/data" # default: "./data"
+max_upload_mb = 500 # default: 500
+max_sites = 100 # default: 100
+max_deployments = 10 # default: 10, per site; old deployments auto-cleaned on deploy
+log_level = "warn" # default: "warn", or TSPAGES_LOG_LEVEL env var
 
 # Per-site defaults. Deployments can override these via their own tspages.toml.
 # [defaults]
