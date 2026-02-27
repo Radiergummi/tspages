@@ -200,8 +200,9 @@ func SwaggerUIHandler() http.Handler {
 // --- dev mode ---
 
 var (
-	devModeFlag atomic.Bool
-	devTmplDir  string // set once before server starts, read-only after
+	devModeFlag    atomic.Bool
+	devTmplDir     string // set once before server starts, read-only after
+	hideFooterFlag bool   // set once before server starts, read-only after
 )
 
 // EnableDevMode activates development mode: templates are re-parsed from
@@ -211,6 +212,10 @@ func EnableDevMode(tmplDir string) {
 	devTmplDir = tmplDir
 	devModeFlag.Store(true)
 }
+
+// SetHideFooter controls whether the admin footer is hidden.
+// Must be called before the HTTP server starts.
+func SetHideFooter(v bool) { hideFooterFlag = v }
 
 // DevAssetProxy returns a reverse proxy that forwards requests to the
 // Vite dev server at localhost:5173.
@@ -337,7 +342,8 @@ func newTmpl(files ...string) *tmpl {
 }
 
 var funcs = template.FuncMap{
-	"nav": func() string { return "" }, // placeholder; overridden per-render
+	"nav":        func() string { return "" }, // placeholder; overridden per-render
+	"hideFooter": func() bool { return hideFooterFlag },
 	"asset": func(key string) string {
 		if devModeFlag.Load() {
 			return "/web/admin/src/" + key
@@ -480,7 +486,7 @@ var funcs = template.FuncMap{
 	},
 	"helpicon": func(slug, title string) template.HTML {
 		return template.HTML(fmt.Sprintf(
-			`<a href="/help/%s" class="inline-block align-middle ml-1 text-base-300 dark:text-base-700 hover:text-blue-500 transition" title="%s" aria-label="%s">`+
+			`<a href="/help/%s" class="inline-block align-middle text-base-300 dark:text-base-700 hover:text-blue-500 transition" title="%s" aria-label="%s">`+
 				`<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`+
 				`<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>`+
 				`</svg></a>`,

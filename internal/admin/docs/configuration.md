@@ -19,6 +19,7 @@ max_sites = 100            # max concurrent site servers (default: 100)
 max_deployments = 10       # max deployments kept per site (default: 10)
 log_level = "warn"         # "debug", "info", "warn", "error" (default: "warn")
 health_addr = ":9091"      # local health check listener (default: off; see Telemetry)
+hide_footer = false        # hide the admin UI footer (default: false)
 
 # Server-wide defaults for per-site config. Deployments can override these
 # via their own tspages.toml included in the archive.

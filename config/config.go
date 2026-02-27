@@ -28,6 +28,7 @@ type ServerConfig struct {
 	MaxDeployments int    `toml:"max_deployments"`
 	LogLevel       string `toml:"log_level"`
 	HealthAddr     string `toml:"health_addr"`
+	HideFooter     bool   `toml:"hide_footer"`
 }
 
 func Load(path string) (*Config, error) {

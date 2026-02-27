@@ -81,6 +81,8 @@ func main() {
 		log.Fatalf("creating webhook notifier: %v", err)
 	}
 
+	admin.SetHideFooter(cfg.Server.HideFooter)
+
 	var dnsSuffix string
 	mgr := multihost.New(store, cfg.Tailscale.StateDir, cfg.Tailscale.AuthKey, cfg.Tailscale.Capability, cfg.Server.MaxSites, recorder, &dnsSuffix, cfg.Defaults)
 	defer mgr.Close()
