@@ -5,6 +5,7 @@
 
 {{define "content"}}
     <article class="flex flex-col gap-8">
+        <!-- region Breadcrumbs -->
         {{if .Site}}
             <nav>
                 <a
@@ -30,47 +31,75 @@
                 </a>
             </nav>
         {{end}}
+        <!-- endregion -->
 
         <header class="flex items-center justify-between">
+            <!-- region Page title -->
             <h1 class="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight">
-                Webhooks
+                <span>Webhooks</span>
 
                 {{if .Site}}
                     <span class="text-muted font-normal">
                         {{.Site}}
                     </span>
                 {{end}}
+
+                {{helpicon "webhooks" "About webhooks"}}
             </h1>
+            <!-- endregion -->
+
+            <!-- region Time range filter -->
             <nav aria-label="Time range" class="flex gap-1">
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "PT24H"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
                         href="{{.BasePath}}?range=PT24H{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                        {{if eq .Range "PT24H"}}aria-current="step"{{end}}
                 >
                     24H
                 </a>
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P7D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+
                         href="{{.BasePath}}?range=P7D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                        {{if eq .Range "P7D"}}aria-current="step"{{end}}
                 >
                     7D
                 </a>
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P30D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+
                         href="{{.BasePath}}?range=P30D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                        {{if eq .Range "P30D"}}aria-current="step"{{end}}
                 >
                     30D
                 </a>
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "all"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+
                         href="{{.BasePath}}?range=all{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
+                        {{if eq .Range "all"}}aria-current="step"{{end}}
                 >
                     ALL
                 </a>
             </nav>
+            <!-- endregion -->
         </header>
 
         {{if .Total}}
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <!-- region Delivery chart -->
                 <section class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                     <header class="flex items-end justify-end gap-10 px-5 h-14">
                         <div class="flex flex-col">
@@ -112,7 +141,9 @@
                         </div>
                     {{end}}
                 </section>
+                <!-- endregion -->
 
+                <!-- region Events chart -->
                 {{if .Events}}
                     <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                         <header class="flex items-center justify-between px-5 h-14">
@@ -125,8 +156,10 @@
                         </div>
                     </section>
                 {{end}}
+                <!-- endregion -->
             </div>
 
+            <!-- region Latency chart -->
             {{if .Latency}}
                 <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                     <header class="flex items-end justify-between px-5 h-14">
@@ -135,7 +168,9 @@
                                 Duration
                             </span>
                             <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
-                                {{fmtms .LatencyStats.Min}}<span class="text-muted mx-1">&mdash;</span>{{fmtms .LatencyStats.Max}}
+                                {{fmtms .LatencyStats.Min}}
+                                <span class="text-muted mx-1">&mdash;</span>
+                                {{fmtms .LatencyStats.Max}}
                             </code>
                         </div>
                         <div class="flex gap-10">
@@ -169,6 +204,7 @@
                     </div>
                 </section>
             {{end}}
+            <!-- endregion -->
         {{end}}
 
         <div class="flex justify-end flex-wrap gap-3" role="search" aria-label="Filter webhook deliveries">
@@ -240,87 +276,96 @@
 
         {{if .Deliveries}}
             <!-- region Deliveries table -->
-            <table class="w-full border-collapse rounded-md overflow-hidden">
-                <thead>
-                <tr>
-                    <th
-                            scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
-                    >
-                        Event
-                    </th>
-
-                    {{if .Global}}
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse rounded-md overflow-hidden">
+                    <thead>
+                    <tr>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                         >
-                            Site
+                            Event
                         </th>
-                    {{end}}
 
-                    <th
-                            scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
-                    >
-                        Status
-                    </th>
-                    <th
-                            scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
-                    >
-                        Attempts
-                    </th>
-                    <th
-                            scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
-                    >
-                        Time
-                    </th>
-                </tr>
-                </thead>
-
-                <tbody class="[&>tr:last-child>td]:border-b-0">
-
-                {{range .Deliveries}}
-                    <tr
-                            class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
-                            onclick="window.location='/webhooks/{{.WebhookID}}'"
-                    >
-                        <td class="px-4 py-3 text-xs border-b border-default">
-                            <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
-                                {{.Event}}
-                            </span>
-                        </td>
-
-                        {{if $.Global}}
-                            <td class="px-4 py-3 text-xs border-b border-default">
-                                {{.Site}}
-                            </td>
+                        {{if .Global}}
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                            >
+                                Site
+                            </th>
                         {{end}}
 
-                        <td class="px-4 py-3 text-xs border-b border-default">
-                            {{if .Succeeded}}
-                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">ok</span>
-                            {{else}}
-                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">failed</span>
-                            {{end}}
-                        </td>
-                        <td class="px-4 py-3 text-xs border-b border-default text-muted">
-                            {{.Attempts}}
-                        </td>
-                        <td class="px-4 py-3 text-xs border-b border-default text-muted">
-                            <time
-                                    datetime="{{.FirstAttempt}}"
-                                    title="{{.FirstAttempt}}"
-                            >
-                                {{reltime .FirstAttempt}}
-                            </time>
-                        </td>
+                        <th
+                                scope="col"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
+                            Status
+                        </th>
+                        <th
+                                scope="col"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
+                            Attempts
+                        </th>
+                        <th
+                                scope="col"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
+                            Time
+                        </th>
                     </tr>
-                {{end}}
-                </tbody>
-            </table>
+                    </thead>
+
+                    <tbody class="[&>tr:last-child>td]:border-b-0">
+
+                    {{range .Deliveries}}
+                        <tr
+                                class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
+                                onclick="window.location='/webhooks/{{.WebhookID}}'"
+                        >
+                            <td class="px-4 py-3 text-xs border-b border-default">
+                                <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                                    {{.Event}}
+                                </span>
+                            </td>
+
+                            {{if $.Global}}
+                                <td class="px-4 py-3 text-xs border-b border-default">
+                                    {{.Site}}
+                                </td>
+                            {{end}}
+
+                            <td class="px-4 py-3 text-xs border-b border-default">
+                                {{if .Succeeded}}
+                                    <span
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                        rounded-full bg-green-500/10 text-green-600 dark:text-green-400"
+                                    >
+                                        ok
+                                    </span>
+                                {{else}}
+                                    <span
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                        rounded-full bg-red-500/10 text-red-600 dark:text-red-400"
+                                    >
+                                        failed
+                                    </span>
+                                {{end}}
+                            </td>
+                            <td class="px-4 py-3 text-xs border-b border-default text-muted text-end tabular-nums">
+                                {{.Attempts}}
+                            </td>
+                            <td class="px-4 py-3 text-xs border-b border-default text-muted text-end">
+                                <time datetime="{{abstime .FirstAttempt}}" title="{{abstime .FirstAttempt}}">
+                                    {{reltime .FirstAttempt}}
+                                </time>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
             <!-- endregion -->
 
             <!-- region Pagination -->

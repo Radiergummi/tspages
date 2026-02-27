@@ -1,4 +1,4 @@
-import {doughnut, formatLabel, initCharts, lineChart, pluck, reloadOnThemeChange, stackedBar} from "../lib/charts";
+import {doughnut, formatLabel, initCharts, lineChart, pluck, reloadOnThemeChange, stackedBar, treemap} from "../lib/charts";
 
 interface TimeBucket {
     time: string;
@@ -73,6 +73,7 @@ async function main(): Promise<void> {
             pluck(sites, "site"),
             pluck(sites, "count"),
             theme,
+            {center: "count"},
         );
     }
 
@@ -82,14 +83,16 @@ async function main(): Promise<void> {
             pluck(os, "os"),
             pluck(os, "count"),
             theme,
+            {center: "count"},
         );
     }
 
     if (nodes?.length) {
-        doughnut(
+        treemap(
             document.getElementById("nodes-chart") as HTMLCanvasElement | null,
-            pluck(nodes, "node_name"),
-            pluck(nodes, "count"),
+            nodes,
+            "count",
+            "node_name",
             theme,
         );
     }

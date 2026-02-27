@@ -15,6 +15,7 @@ import {
     type TooltipItem,
     type TooltipModel,
 } from "chart.js";
+import {TreemapController, TreemapElement} from "chartjs-chart-treemap";
 
 // region Theme
 
@@ -33,9 +34,11 @@ export function initCharts(): Theme {
         LineController,
         BarController,
         DoughnutController,
+        TreemapController,
         LineElement,
         BarElement,
         ArcElement,
+        TreemapElement,
         PointElement,
         Filler,
         LinearScale,
@@ -72,6 +75,30 @@ export function initCharts(): Theme {
     Chart.defaults.font.size = 11;
 
     Chart.register({
+        id: "crosshair",
+        beforeDatasetsDraw(chart) {
+            if ("type" in chart.config && chart.config.type === "doughnut") return;
+            const tooltip = chart.tooltip;
+            if (!tooltip?.opacity || !tooltip.dataPoints?.length) return;
+            const {ctx, chartArea} = chart;
+            const el = tooltip.dataPoints[0].element;
+            ctx.save();
+            if ("width" in el && typeof el.width === "number") {
+                ctx.fillStyle = gridColor;
+                ctx.fillRect(el.x - el.width / 2, chartArea.top, el.width, chartArea.bottom - chartArea.top);
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(el.x, chartArea.top);
+                ctx.lineTo(el.x, chartArea.bottom);
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = gridColor;
+                ctx.stroke();
+            }
+            ctx.restore();
+        },
+    });
+
+    Chart.register({
         id: "doughnutCenter",
         afterDraw(chart) {
             if ("type" in chart.config && chart.config.type !== "doughnut") {
@@ -86,14 +113,15 @@ export function initCharts(): Theme {
                            chartArea.top + chartArea.bottom
                        ) / 2;
             const rawData = chart.data.datasets[0].data as number[];
-            const total = rawData.reduce((a, b) => a + b, 0);
+            const mode = chart.canvas.dataset.center;
+            const value = mode === "count" ? rawData.filter(v => v > 0).length : rawData.reduce((a, b) => a + b, 0);
 
             ctx.save();
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.font = "600 1.25rem " + Chart.defaults.font.family;
+            ctx.font = `600 1.25rem ${Chart.defaults.font.family}`;
             ctx.fillStyle = mainText;
-            ctx.fillText(formatNumber(total), cx, cy);
+            ctx.fillText(formatNumber(value), cx, cy);
             ctx.restore();
         },
     });
@@ -117,96 +145,137 @@ export function tooltipDefaults(options?: TooltipOptions) {
     };
 }
 
-function getOrCreateTooltip(chart: Chart): HTMLDivElement {
+function renderTooltip(chart: Chart): HTMLDivElement {
     const parent = chart.canvas.parentElement!;
-    let el = parent.querySelector<HTMLDivElement>(":scope > .ct");
-    if (!el) {
-        el = document.createElement("div");
-        el.className = "ct absolute pointer-events-none transition-opacity z-10 bg-paper dark:bg-base-950 border border-base-100 dark:border-base-900 rounded-md px-3 py-2.5 font-mono text-xs leading-snug";
+    let node = parent.querySelector<HTMLDivElement>(":scope > .ct");
+
+    if (!node) {
+        node = document.createElement("div");
+        node.className =
+            "ct absolute pointer-events-none transition-opacity z-10 bg-paper/80 dark:bg-black/80 ring-1 ring-base-100 dark:ring-base-500/25 backdrop-blur-sm backdrop-saturate-200 rounded-md px-3 py-2.5 font-mono text-xs leading-snug";
         parent.classList.add("relative");
-        parent.appendChild(el);
+        parent.appendChild(node);
     }
-    return el;
+
+    return node;
 }
 
 function resolveColor(chart: Chart, item: TooltipItem<any>): string {
-    const bg = item.dataset.backgroundColor;
-    if (Array.isArray(bg)) return bg[item.dataIndex] as string;
-    if ("type" in chart.config && chart.config.type === "line") return item.dataset.borderColor as string;
-    return bg as string;
+    const backgroundColor = item.dataset.backgroundColor;
+
+    if (Array.isArray(backgroundColor)) {
+        return backgroundColor[item.dataIndex] as string;
+    }
+
+    if ("type" in chart.config && chart.config.type === "line") {
+        return item.dataset.borderColor as string;
+    }
+
+    return backgroundColor as string;
 }
 
-function makeRow(barColor: string | null, label: string, value: string, rowClass?: string, labelClass?: string): HTMLDivElement {
-    const row = document.createElement("div");
-    row.className = "flex items-center gap-2 whitespace-nowrap" + (rowClass ? " " + rowClass : "");
+function renderTooltipRow(
+    barColor: string | null,
+    label: string,
+    value: string,
+    rowClass?: string,
+    labelClass?: string,
+): HTMLDivElement {
+    const rowNode = document.createElement("div");
+    rowNode.className = `flex items-center gap-2 whitespace-nowrap ${rowClass}`;
 
-    const bar = document.createElement("span");
-    bar.className = barColor ? "w-1 shrink-0 h-3.5 rounded-sm" : "w-1 shrink-0";
-    if (barColor) bar.style.background = barColor;
-    row.appendChild(bar);
+    const barNode = document.createElement("span");
+    barNode.className = barColor ? "w-1 shrink-0 h-3 rounded-sm" : "w-1 shrink-0";
 
-    const lbl = document.createElement("span");
-    lbl.className = "text-muted" + (labelClass ? " " + labelClass : "");
-    lbl.textContent = label;
-    row.appendChild(lbl);
+    if (barColor) {
+        barNode.style.background = barColor;
+    }
 
-    const val = document.createElement("span");
-    val.className = "font-semibold ml-auto pl-4 text-black dark:text-base-200";
-    val.textContent = value;
-    row.appendChild(val);
+    rowNode.appendChild(barNode);
 
-    return row;
+    const labelNode = document.createElement("span");
+    labelNode.className = `text-muted ${labelClass}`.trimEnd();
+    labelNode.textContent = label;
+    rowNode.appendChild(labelNode);
+
+    const valueNode = document.createElement("span");
+    valueNode.className = "font-semibold ms-auto ps-4 text-black dark:text-base-200";
+    valueNode.textContent = value;
+    rowNode.appendChild(valueNode);
+
+    return rowNode;
 }
 
 function externalTooltip(options?: TooltipOptions) {
-    return ({chart, tooltip}: {chart: Chart; tooltip: TooltipModel<any>}) => {
-        const el = getOrCreateTooltip(chart);
+    return ({chart, tooltip}: { chart: Chart; tooltip: TooltipModel<any> }) => {
+        const node = renderTooltip(chart);
+
         if (tooltip.opacity === 0) {
-            el.style.opacity = "0";
+            node.style.opacity = "0";
+
             return;
         }
 
         const items = tooltip.dataPoints;
+
         if (!items?.length) {
-            el.style.opacity = "0";
+            node.style.opacity = "0";
+
             return;
         }
 
-        const fmt = options?.formatValue ?? String;
-        el.replaceChildren();
+        const format = options?.formatValue ?? String;
+        node.replaceChildren();
 
         if (tooltip.title?.length) {
             const title = document.createElement("div");
             title.className = "font-semibold mb-1.5 whitespace-nowrap text-black dark:text-base-200";
             title.textContent = tooltip.title.join(" ");
-            el.appendChild(title);
+            node.appendChild(title);
         }
 
         let total = 0;
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
+
+        for (const item of items) {
             const color = resolveColor(chart, item);
             const label = item.dataset.label || item.label || "";
-            const value = (item.parsed?.y ?? item.raw) as number;
+            const value = (
+                item.parsed?.y ?? item.raw
+            ) as number;
             total += value;
-            el.appendChild(makeRow(color, label, fmt(value)));
+            node.appendChild(renderTooltipRow(color, label, format(value)));
         }
 
         if (options?.total !== false && items.length > 1) {
-            el.appendChild(makeRow(null, "TOTAL", fmt(total),
-                "mt-1 pt-1 border-t border-base-100 dark:border-base-900", "font-semibold"));
+            node.appendChild(renderTooltipRow(
+                null,
+                "TOTAL",
+                format(total),
+                "mt-1 pt-1",
+                "font-semibold",
+            ));
         }
 
-        el.style.opacity = "1";
+        node.style.opacity = "1";
 
         const {offsetLeft: cx, offsetTop: cy} = chart.canvas;
-        let x = cx + tooltip.caretX - el.offsetWidth / 2;
-        const maxX = chart.canvas.parentElement!.clientWidth - el.offsetWidth;
-        x = Math.max(0, Math.min(x, maxX));
-        const y = Math.max(0, cy + tooltip.caretY - el.offsetHeight - 12);
+        const {chartArea} = chart;
+        const gap = 12;
+        const pw = chart.canvas.parentElement!.clientWidth;
+        const ph = cy + chart.canvas.clientHeight;
+        const isDoughnut = "type" in chart.config && chart.config.type === "doughnut";
+        const anchorX = isDoughnut
+            ? (tooltip.caretX < (chartArea.left + chartArea.right) / 2 ? chartArea.left : chartArea.right)
+            : tooltip.caretX;
+        const caretX = cx + anchorX;
+        const rightX = caretX + gap;
+        const leftX = caretX - node.offsetWidth - gap;
+        const x = rightX + node.offsetWidth <= pw ? rightX : Math.max(0, leftX);
+        const midY = cy + (chartArea.top + chartArea.bottom) / 2;
+        const y = Math.max(0, Math.min(midY - node.offsetHeight / 2, ph - node.offsetHeight));
 
-        el.style.left = x + "px";
-        el.style.top = y + "px";
+        node.style.left = `${x}px`;
+        node.style.top = `${y}px`;
     };
 }
 
@@ -281,9 +350,14 @@ export function doughnut(
     labels: string[],
     data: number[],
     theme: Theme,
+    options?: { center?: "total" | "count" },
 ): Chart | undefined {
     if (!node) {
         return;
+    }
+
+    if (options?.center) {
+        node.dataset.center = options.center;
     }
 
     return new Chart(node, {
@@ -361,7 +435,7 @@ export function lineChart(
                     label,
                     data,
                     borderColor: color,
-                    backgroundColor: fill ? color + "18" : undefined,
+                    backgroundColor: fill ? `${color}18` : undefined,
                     borderWidth: borderWidth ?? 1.5,
                     borderDash,
                     fill: fill ?? false,
@@ -404,6 +478,90 @@ export function lineChart(
     });
 }
 
+export function treemap<T extends Record<string, unknown>>(
+    node: HTMLCanvasElement | null,
+    tree: T[],
+    key: keyof T & string,
+    label: keyof T & string,
+    theme: Theme,
+): Chart | undefined {
+    if (!node || !tree.length) {
+        return;
+    }
+
+    return new Chart(node, {
+        type: "treemap",
+        data: {
+            datasets: [
+                {
+                    tree,
+                    key,
+                    groups: [label],
+                    spacing: 2,
+                    borderWidth: 0,
+                    borderRadius: 4,
+                    backgroundColor(ctx: any) {
+                        return theme.palette[ctx.dataIndex % theme.palette.length];
+                    },
+                    labels: {display: false},
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {display: false},
+                tooltip: {
+                    ...tooltipDefaults(),
+                    callbacks: {
+                        title: () => "",
+                        label: (item: TooltipItem<"treemap">) => {
+                            const raw = item.raw as {g?: string; v?: number};
+                            return `${raw.g ?? ""}: ${raw.v ?? 0}`;
+                        },
+                    },
+                },
+            },
+        },
+        plugins: [{
+            id: "treemapLabels",
+            afterDatasetsDraw(chart: Chart) {
+                const meta = chart.getDatasetMeta(0);
+                const ctx = chart.ctx;
+                const pad = 6;
+                const font = Chart.defaults.font.family;
+                ctx.save();
+                for (const el of meta.data) {
+                    const {x, y, width: w, height: h} = el as any;
+                    const raw = (el as any).$context?.raw as {g?: string; v?: number} | undefined;
+                    if (!raw?.g || w < 16 || h < 16) continue;
+                    const vertical = h > w;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(x, y, w, h);
+                    ctx.clip();
+                    if (vertical) {
+                        ctx.translate(x + pad + 5, y + h - pad);
+                        ctx.rotate(-Math.PI / 2);
+                    } else {
+                        ctx.translate(x + pad, y + pad + 11);
+                    }
+                    ctx.textBaseline = "middle";
+                    ctx.font = "bold 11px " + font;
+                    ctx.fillStyle = "white";
+                    ctx.fillText(raw.g, 0, 0);
+                    ctx.font = "10px " + font;
+                    ctx.fillStyle = "rgba(255,255,255,0.6)";
+                    ctx.fillText(formatNumber(raw.v ?? 0), 0, 14);
+                    ctx.restore();
+                }
+                ctx.restore();
+            },
+        }],
+    });
+}
+
 // endregion
 
 // region Utilities
@@ -412,17 +570,13 @@ export function formatNumber(number: number): string {
     if (number >= 1_000_000) {
         const v = number / 1_000_000;
 
-        return (
-                   v === Math.floor(v) ? v.toFixed(0) : v.toFixed(1)
-               ) + "M";
+        return `${v === Math.floor(v) ? v.toFixed(0) : v.toFixed(1)}M`;
     }
 
     if (number >= 1_000) {
         const v = number / 1_000;
 
-        return (
-                   v === Math.floor(v) ? v.toFixed(0) : v.toFixed(1)
-               ) + "k";
+        return `${v === Math.floor(v) ? v.toFixed(0) : v.toFixed(1)}k`;
     }
 
     return String(number);

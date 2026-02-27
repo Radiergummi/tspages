@@ -13,41 +13,74 @@
         {{if .SiteName}}
             <nav>
                 <a
-                        class="inline-block text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                        class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200"
                         href="/sites/{{.SiteName}}"
                 >
-                    &larr; {{.SiteName}}
+                    <svg
+                            aria-hidden="true"
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                    >
+                        <path d="M9 14 4 9l5-5" />
+                        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+                    </svg>
+
+                    <span>{{.SiteName}}</span>
                 </a>
             </nav>
         {{end}}
 
         <header class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold tracking-tight inline-flex items-center">
-                Analytics {{helpicon "analytics" "About analytics"}}
+            <h1 class="text-2xl font-semibold tracking-tight inline-flex gap-2 items-baseline">
+                <span>Analytics</span>
+                {{helpicon "analytics" "About analytics"}}
             </h1>
             <div class="flex items-center gap-2">
                 <nav aria-label="Time range" class="flex gap-1">
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "PT24H"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
                             href="?range=PT24H"
+                            {{if eq .Range "PT24H"}}aria-current="step"{{end}}
                     >
                         24H
                     </a>
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P7D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
                             href="?range=P7D"
+                            {{if eq .Range "P7D"}}aria-current="step"{{end}}
                     >
                         7D
                     </a>
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "P30D"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
                             href="?range=P30D"
+                            {{if eq .Range "P30D"}}aria-current="step"{{end}}
                     >
                         30D
                     </a>
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900{{if eq .Range "all"}} text-white bg-blue-500{{else}} text-muted{{end}}"
+                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
+                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
+                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
                             href="?range=all"
+                            {{if eq .Range "all"}}aria-current="step"{{end}}
                     >
                         ALL
                     </a>
@@ -123,34 +156,36 @@
                             Top visitors
                         </h2>
                     </header>
-                    <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
-                        <tbody class="[&>tr:last-child>td]:border-b-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
+                            <tbody class="[&>tr:last-child>td]:border-b-0">
 
-                        {{range .TopVisitors}}
-                            <tr>
-                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 flex items-center gap-2.5">
-                                    {{if .ProfilePicURL}}
-                                        <img
-                                                class="w-6 h-6 rounded-full shrink-0 object-cover"
-                                                src="{{.ProfilePicURL}}" alt=""
-                                        >
-                                    {{else}}
-                                        <span
-                                                class="w-6 h-6 rounded-full shrink-0 flex items-center justify-center bg-blue-500/10 text-blue-500 text-xs font-semibold uppercase"
-                                        >
-                                            {{initial .UserName .UserLogin}}
-                                        </span>
-                                    {{end}}
+                            {{range .TopVisitors}}
+                                <tr>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 flex items-center gap-2.5">
+                                        {{if .ProfilePicURL}}
+                                            <img
+                                                    class="w-6 h-6 rounded-full shrink-0 object-cover"
+                                                    src="{{.ProfilePicURL}}" alt=""
+                                            >
+                                        {{else}}
+                                            <span
+                                                    class="w-6 h-6 rounded-full shrink-0 flex items-center justify-center bg-blue-500/10 text-blue-500 text-xs font-semibold uppercase"
+                                            >
+                                                {{initial .UserName .UserLogin}}
+                                            </span>
+                                        {{end}}
 
-                                    {{if .UserName}}{{.UserName}}{{else}}{{.UserLogin}}{{end}}
-                                </td>
-                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
-                                    {{.Count}}
-                                </td>
-                            </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
+                                        {{if .UserName}}{{.UserName}}{{else}}{{.UserLogin}}{{end}}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-end">
+                                        {{.Count}}
+                                    </td>
+                                </tr>
+                            {{end}}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
             {{end}}
 
@@ -205,7 +240,7 @@
                         </h2>
                     </header>
 
-                    <div class="z-0 relative">
+                    <div class="z-0 relative overflow-x-auto">
                         <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
                             <tbody class="[&>tr:last-child>td]:border-b-0">
 
@@ -214,7 +249,7 @@
                                     <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono">
                                         {{.Path}}
                                     </td>
-                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-end">
                                         {{.Count}}
                                     </td>
                                 </tr>
@@ -253,29 +288,31 @@
                 <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                     <header class="flex items-center justify-between px-5 h-14">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
-                            Sites
+                            Top Sites
                         </h2>
                     </header>
-                    <table class="w-full border-collapse dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden">
-                        <tbody class="[&>tr:last-child>td]:border-b-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
+                            <tbody class="[&>tr:last-child>td]:border-b-0">
 
-                        {{range .Sites}}
-                            <tr>
-                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800">
-                                    <a
-                                            class="text-blue-500 no-underline hover:underline"
-                                            href="/sites/{{.Site}}/analytics"
-                                    >
-                                        {{.Site}}
-                                    </a>
-                                </td>
-                                <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
-                                    {{.Count}}
-                                </td>
-                            </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
+                            {{range .Sites}}
+                                <tr>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800">
+                                        <a
+                                                class="text-blue-500 no-underline hover:underline"
+                                                href="/sites/{{.Site}}/analytics"
+                                        >
+                                            {{.Site}}
+                                        </a>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-end">
+                                        {{.Count}}
+                                    </td>
+                                </tr>
+                            {{end}}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
             {{end}}
 
@@ -309,30 +346,15 @@
 
             {{if not .SiteName}}
                 {{if .Nodes}}
-                    <section class=" col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                    <section class="col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
                         <header class="flex items-center justify-between px-5 h-14">
                             <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
                                 Devices
                             </h2>
                         </header>
-                        <table class="w-full border-collapse border border-base-100 dark:border-base-800 rounded-md overflow-hidden">
-                            <tbody class="[&>tr:last-child>td]:border-b-0">
-
-                            {{range .Nodes}}
-                                <tr>
-                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono">
-                                        {{.NodeName}}
-                                    </td>
-                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800">
-                                        {{.OS}}
-                                    </td>
-                                    <td class="px-4 py-3 text-sm border-b border-base-100 dark:border-base-800 font-mono tabular-nums text-right">
-                                        {{.Count}}
-                                    </td>
-                                </tr>
-                            {{end}}
-                            </tbody>
-                        </table>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas id="nodes-chart" aria-label="Requests by device" role="img"></canvas>
+                        </div>
                     </section>
                 {{end}}
             {{end}}

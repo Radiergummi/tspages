@@ -21,12 +21,13 @@
         </header>
 
         {{if .Sites}}
+            <div class="overflow-x-auto">
             <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
                 <thead>
                 <tr>
                     <th
                             scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                            class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                     >
                         Name
                     </th>
@@ -34,33 +35,33 @@
                     {{if .Admin}}
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                         >
                             Deployed by
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                         >
                             Last deployed
                         </th>
                         <th
                                 scope="col"
-                                class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                         >
                             Requests
                         </th>
                     {{else}}
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                         >
                             URL
                         </th>
                     {{end}}
                     <th
                             scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                            class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                     ></th>
                 </tr>
                 </thead>
@@ -92,7 +93,7 @@
                                     {{reltime .LastDeployedAt}}
                                 </span>
                             </td>
-                            <td class="relative overflow-hidden px-4 py-3 text-sm border-b border-default font-mono tabular-nums text-right">
+                            <td class="relative overflow-hidden px-4 py-3 text-sm border-b border-default font-mono tabular-nums text-end">
                                 <span class="relative z-1">{{fmtnum .Requests}}</span>
                                 {{if .Sparkline}}
                                     <div class="absolute bottom-2 left-0 w-full">
@@ -122,7 +123,7 @@
                             </td>
                         {{end}}
 
-                        <td class="px-4 py-3 text-sm border-b border-default text-right">
+                        <td class="px-4 py-3 text-sm border-b border-default text-end">
                             {{with siteurl .Name $.DNSSuffix}}
                                 <a
                                         class="btn btn-outline inline-flex items-center gap-2 no-underline"
@@ -153,6 +154,7 @@
                 {{end}}
                 </tbody>
             </table>
+            </div>
         {{else}}
             <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md">
                 No sites yet. Deploy with
@@ -171,8 +173,10 @@
             >
                 <div class="bg-surface border border-default rounded-lg w-full max-w-lg shadow-2xl">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-default">
-                        <h3 id="new-site-modal-title" class="text-base font-semibold inline-flex items-center">New
-                            site {{helpicon "getting-started" "Getting started"}}</h3>
+                        <h3 id="new-site-modal-title" class="text-base font-semibold inline-flex items-center gap-1">
+                            <span>New site</span>
+                            {{helpicon "getting-started" "Getting started"}}
+                        </h3>
                         <button
                                 aria-label="Close"
                                 class="modal-close text-xl text-muted hover:text-black dark:hover:text-base-200 bg-transparent border-0 cursor-pointer p-0 leading-none"

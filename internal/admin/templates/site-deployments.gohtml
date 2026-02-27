@@ -12,7 +12,7 @@
     <article class="flex flex-col gap-8">
         <nav>
             <a
-                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200"
                     href="/sites/{{.Site}}"
             >
                 <svg
@@ -65,36 +65,37 @@
         </header>
 
         {{if .Deployments}}
+            <div class="overflow-x-auto">
             <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
                 <thead>
                 <tr>
                     <th
                             scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                            class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                     >
                         ID
                     </th>
                     <th
                             scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                            class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                     >
                         Deployed by
                     </th>
                     <th
                             scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                            class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                     >
                         Deployed
                     </th>
                     <th
                             scope="col"
-                            class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                            class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                     >
                         Size
                     </th>
                     <th
                             scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                            class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                     >
                         Status
                     </th>
@@ -102,7 +103,7 @@
                     {{if .Admin}}
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                         ></th>
                     {{end}}
                 </tr>
@@ -131,7 +132,7 @@
                                 {{reltime .CreatedAt}}
                             </span>
                         </td>
-                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono tabular-nums text-right text-muted">
+                        <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono tabular-nums text-end text-muted">
                             {{bytes .SizeBytes}}
                         </td>
                         <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
@@ -142,7 +143,7 @@
                             {{end}}
                         </td>
                         {{if $.Admin}}
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-right">{{if not .Active}}
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">{{if not .Active}}
                                     <button
                                             class="btn btn-primary"
                                             data-action="activate"
@@ -157,6 +158,7 @@
                 {{end}}
                 </tbody>
             </table>
+            </div>
 
             {{if and .CanDeploy .HasInactive}}
                 <div class="flex justify-end">

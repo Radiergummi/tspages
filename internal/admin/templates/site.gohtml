@@ -14,7 +14,7 @@
     <article class="flex flex-col gap-8">
         <nav>
             <a
-                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200"
                     href="/sites"
             >
                 <svg
@@ -122,60 +122,98 @@
 
         {{if .Site.ActiveDeploymentID}}
             <section>
-                <h2 class="inline-flex items-center text-sm font-semibold uppercase tracking-wide text-muted mb-4">
-                    Configuration {{helpicon "per-site-config" "How to configure"}}
+                <h2 class="inline-flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-muted mb-4">
+                    <span>Configuration</span>
+                    {{helpicon "per-site-config" "How to configure"}}
                 </h2>
                 <div class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
                     <div class="flex items-center justify-between px-5 py-3">
                         <span class="text-sm text-muted">SPA routing</span>
                         {{if deref .Config.SPARouting}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                                on
+                            </span>
                         {{else}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                                off
+                            </span>
                         {{end}}
                     </div>
+
+                    {{if deref .Config.HTMLExtensions}}
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Clean URLs</span>
+                            <span
+                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                    rounded-full bg-base-500/10 text-muted"
+                            >
+                                off
+                            </span>
+                        </div>
+                    {{end}}
+
                     <div class="flex items-center justify-between px-5 py-3">
-                        <span class="text-sm text-muted">Clean URLs</span>
-                        {{if deref .Config.HTMLExtensions}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
-                        {{else}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
-                        {{end}}
-                    </div>
-                    <div class="flex items-center justify-between px-5 py-3">
-                        <span class="text-sm text-muted">Analytics</span>
+                        <span class="text-sm text-muted">
+                            Analytics
+                        </span>
+
                         {{if .AnalyticsEnabled}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            <span
+                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                    rounded-full bg-blue-500/10 text-blue-500"
+                            >
+                                on
+                            </span>
                         {{else}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            <span
+                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                    rounded-full bg-base-500/10 text-muted"
+                            >
+                                off
+                            </span>
                         {{end}}
                     </div>
+
                     <div class="flex items-center justify-between px-5 py-3">
                         <span class="text-sm text-muted">Directory listing</span>
                         {{if deref .Config.DirectoryListing}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            <span
+                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                    rounded-full bg-blue-500/10 text-blue-500"
+                            >
+                                on
+                            </span>
                         {{else}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            <span
+                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                    rounded-full bg-base-500/10 text-muted"
+                            >
+                                off
+                            </span>
                         {{end}}
                     </div>
+
                     {{if .Config.TrailingSlash}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Trailing slash</span>
                             <span class="text-sm font-mono">{{.Config.TrailingSlash}}</span>
                         </div>
                     {{end}}
+
                     {{if .Config.IndexPage}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Index page</span>
                             <span class="text-sm font-mono">{{.Config.IndexPage}}</span>
                         </div>
                     {{end}}
+
                     {{if .Config.NotFoundPage}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">404 page</span>
                             <span class="text-sm font-mono">{{.Config.NotFoundPage}}</span>
                         </div>
                     {{end}}
+
                     {{if .Config.WebhookURL}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Webhook</span>
@@ -185,12 +223,14 @@
                             >{{.Config.WebhookURL}}</span>
                         </div>
                     {{end}}
+
                     {{if .Config.Headers}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Custom headers</span>
                             <span class="text-sm font-mono">{{len .Config.Headers}} {{if eq (len .Config.Headers) 1}}rule{{else}}rules{{end}}</span>
                         </div>
                     {{end}}
+
                     {{if .Config.Redirects}}
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Redirects</span>
@@ -245,37 +285,43 @@
             </header>
 
             {{if .Deployments}}
+                <div class="overflow-x-auto">
                 <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
                     <thead>
                     <tr>
                     <tr>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             ID
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             Deployed by
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             Deployed
                         </th>
                         <th
                                 scope="col"
-                                class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             Size
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             Status
                         </th>
@@ -283,11 +329,13 @@
                         {{if .Admin}}
                             <th
                                     scope="col"
-                                    class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b-2 border-paper dark:border-base-950"
                             ></th>
                         {{end}}
                     </tr>
                     </thead>
+
                     <tbody class="[&>tr:last-child>td]:border-b-0">
                     {{range first 5 .Deployments}}
                         <tr>
@@ -307,23 +355,30 @@
                                     </span>
                                 {{else}}&mdash;{{end}}
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
                                 <span class="text-muted" title="{{abstime .CreatedAt}}">
                                     {{reltime .CreatedAt}}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono tabular-nums text-right text-muted">
+                            <td
+                                    class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 tabular-nums
+                                    slashed-zero text-end text-muted whitespace-nowrap"
+                            >
                                 {{bytes .SizeBytes}}
                             </td>
                             <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
                                 {{if .Active}}
-                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                                    <span
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2
+                                            py-0.5 rounded-full bg-blue-500/10 text-blue-500"
+                                    >
                                         active
                                     </span>
                                 {{end}}
                             </td>
                             {{if $.Admin}}
-                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-right">{{if not .Active}}
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
+                                    {{if not .Active}}
                                         <button
                                                 class="btn btn-primary"
                                                 data-action="activate"
@@ -338,6 +393,7 @@
                     {{end}}
                     </tbody>
                 </table>
+                </div>
 
                 {{if and .CanDeploy .HasInactive}}
                     <div class="flex justify-end mt-4">
@@ -361,8 +417,9 @@
         {{if .RecentDeliveries}}
             <section>
                 <header class="flex items-center mb-4 gap-4">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-2 me-auto">
-                        Recent Webhook Deliveries
+                    <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-1 me-auto">
+                        <span>Recent Webhook Deliveries</span>
+                        {{helpicon "webhooks" "Details about recent webhook deliveries, including status and retry attempts."}}
                     </h2>
 
                     <a href="/sites/{{.Site.Name}}/webhooks" class="text-sm text-blue-500 no-underline hover:underline">
@@ -370,28 +427,37 @@
                     </a>
                 </header>
 
+                <div class="overflow-x-auto">
                 <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
                     <thead>
                     <tr>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
-                        >Event
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                        >
+                            Event
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
-                        >Status
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                        >
+                            Status
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
-                        >Attempts
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                        >
+                            Attempts
                         </th>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
-                        >Time
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                        >
+                            Time
                         </th>
                     </tr>
                     </thead>
@@ -414,10 +480,13 @@
                                     <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">failed</span>
                                 {{end}}
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
+                            <td
+                                    class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted
+                                    tabular-nums slashed-zero text-end"
+                            >
                                 {{.Attempts}}
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted text-end">
                                 <time datetime="{{.FirstAttempt}}" title="{{.FirstAttempt}}">
                                     {{reltime .FirstAttempt}}
                                 </time>
@@ -426,6 +495,7 @@
                     {{end}}
                     </tbody>
                 </table>
+                </div>
             </section>
         {{end}}
         <!-- endregion -->
@@ -440,8 +510,9 @@
             >
                 <div class="bg-surface border border-default rounded-lg w-full max-w-lg shadow-2xl">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-default">
-                        <h3 id="deploy-modal-title" class="text-base font-semibold inline-flex items-center">
-                            Deploy to {{.Site.Name}} {{helpicon "upload-formats" "Supported upload formats"}}
+                        <h3 id="deploy-modal-title" class="text-base font-semibold inline-flex items-center gap-1">
+                            <span>Deploy to {{.Site.Name}}</span>
+                            {{helpicon "upload-formats" "Supported upload formats"}}
                         </h3>
                         <button
                                 aria-label="Close"

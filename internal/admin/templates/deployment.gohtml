@@ -6,7 +6,7 @@
     <article class="flex flex-col gap-8">
         <nav>
             <a
-                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200"
                     href="/sites/{{.SiteName}}"
             >
                 <svg
@@ -31,7 +31,7 @@
 
         <header class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold tracking-tight">
-                Deployment
+                <span>Deployment</span>
                 <code>{{.Deployment.ID}}</code>
             </h1>
             <div class="flex gap-2">
@@ -43,7 +43,7 @@
                 {{if .CanDeploy}}
                     <button
                             class="btn btn-danger"
-                            {{if .Deployment.Active}}disabled title="Cannot delete the active deployment" {{end}}
+                            {{if .Deployment.Active}}disabled title="Cannot delete the active deployment"{{end}}
                             data-action="delete"
                     >
                         Delete
@@ -54,35 +54,68 @@
 
         <section class="grid gap-4 grid-cols-12">
             <dl class="col-span-3 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Site</dt>
-                <dd class="font-mono text-base"><a
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Site
+                </dt>
+                <dd class="font-mono text-base">
+                    <a
                             class="text-blue-500 no-underline hover:underline"
                             href="/sites/{{.SiteName}}"
-                    >{{.SiteName}}</a></dd>
+                    >
+                        {{.SiteName}}
+                    </a>
+                </dd>
             </dl>
             <dl class="col-span-2 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Status</dt>
-                <dd class="font-mono text-base">{{if .Deployment.Active}}
-                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">active</span>{{else}}
-                        <span class="text-muted">inactive</span>{{end}}
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Status
+                </dt>
+                <dd class="font-mono text-base">
+                    {{if .Deployment.Active}}
+                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                            active
+                        </span>
+                    {{else}}
+                        <span class="text-muted">inactive</span>
+                    {{end}}
                 </dd>
             </dl>
             <dl class="col-span-7 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Deployed by</dt>
-                <dd class="text-base">{{if .Deployment.CreatedBy}}
-                        <span class="flex items-center gap-2">{{avatarHTML .Deployment.CreatedBy .Deployment.CreatedByAvatar}} {{.Deployment.CreatedBy}}</span>{{else}}&mdash;{{end}}
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Deployed by
+                </dt>
+                <dd class="text-base">
+                    {{if .Deployment.CreatedBy}}
+                        <span class="flex items-center gap-2">
+                            {{avatarHTML .Deployment.CreatedBy .Deployment.CreatedByAvatar}} {{.Deployment.CreatedBy}}
+                        </span>
+                    {{else}}
+                        &mdash;
+                    {{end}}
                 </dd>
             </dl>
             <dl class="col-span-6 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Deployed</dt>
-                <dd class="font-mono text-base">
-                    <span title="{{abstime .Deployment.CreatedAt}}">{{reltime .Deployment.CreatedAt}}</span>{{with abstime
-                    .Deployment.CreatedAt}} <span class="text-muted">({{.}})</span>{{end}}
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Deployed
+                </dt>
+                <dd
+                        class="tabular-nums slashed-zero
+                 text-base"
+                >
+                    <datetime time="{{abstime .Deployment.CreatedAt}}" title="{{abstime .Deployment.CreatedAt}}">
+                        {{reltime .Deployment.CreatedAt}}
+                    </datetime>
+                    {{with abstime .Deployment.CreatedAt}} <span class="text-muted">({{.}})</span>
+                    {{end}}
                 </dd>
             </dl>
             <dl class="col-span-2 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Size</dt>
-                <dd class="font-mono text-base">{{bytes .Deployment.SizeBytes}}</dd>
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Size
+                </dt>
+                <dd class="tabular-nums slashed-zero text-base">
+                    {{bytes .Deployment.SizeBytes}}
+                </dd>
             </dl>
         </section>
 
@@ -95,18 +128,21 @@
             </header>
 
             {{if .Files}}
+                <div class="overflow-x-auto">
                 <table class="w-full border-collapse bg-surface rounded-md overflow-hidden">
                     <thead>
                     <tr>
                         <th
                                 scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             Path
                         </th>
                         <th
                                 scope="col"
-                                class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
                         >
                             Size
                         </th>
@@ -115,12 +151,17 @@
                     <tbody class="[&>tr:last-child>td]:border-b-0">
                     {{range .Files}}
                         <tr>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono">{{.Path}}</td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono tabular-nums text-right text-muted">{{bytes .Size}}</td>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono">
+                                {{.Path}}
+                            </td>
+                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 tabular-nums slashed-zero text-end text-muted">
+                                {{bytes .Size}}
+                            </td>
                         </tr>
                     {{end}}
                     </tbody>
                 </table>
+                </div>
                 {{if gt .FileCount (len .Files)}}
                     <p class="text-muted text-center text-sm mt-2">showing {{len .Files}} of
                         {{.FileCount}} files
@@ -144,18 +185,19 @@
                 </header>
 
                 {{if or .Added .Removed .Changed}}
+                    <div class="overflow-x-auto">
                     <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
                         <thead>
                         <tr>
                             <th
                                     scope="col"
-                                    class="w-24 text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                    class="w-24 text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                             >
                                 Change
                             </th>
                             <th
                                     scope="col"
-                                    class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                             >
                                 Path
                             </th>
@@ -240,6 +282,7 @@
                         {{end}}
                         </tbody>
                     </table>
+                    </div>
                 {{else}}
                     <p class="text-center py-12 px-8 text-muted text-sm rounded-md">No changes</p>
                 {{end}}
