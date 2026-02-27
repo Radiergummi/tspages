@@ -14,8 +14,10 @@
 
 <a
         href="#main-content"
-        class="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:px-4 focus:py-2 focus:bg-blue-500 focus:text-white focus:rounded-md focus:m-2"
->Skip to content</a>
+        class="sr-only focus:not-sr-only focus:absolute focus:z-200 focus:px-4 focus:py-2 focus:bg-blue-500 focus:text-white focus:rounded-md focus:m-2"
+>
+    Skip to content
+</a>
 
 <!-- region Noise overlay -->
 <svg
@@ -48,7 +50,7 @@
 <!-- endregion -->
 
 <div class="grid grid-rows-[auto_1fr] h-screen overflow-hidden">
-    <header class="grid grid-cols-[auto_1fr_auto] items-center px-4 sm:px-8 h-13 bg-base-50 dark:bg-black">
+    <header class="grid grid-cols-[auto_1fr_auto] items-center px-4 sm:px-8 h-13 bg-base-50 dark:bg-black select-none">
 
         <!-- region Logo -->
         <a class="flex items-center gap-2.5 mr-4 sm:mr-8 shrink-0 no-underline" href="/sites">
@@ -61,48 +63,56 @@
         <!-- region Navigation -->
         <nav aria-label="Main" class="flex items-stretch h-full overflow-x-auto scrollbar-none">
             <a
-                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
-                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap
+                    transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/sites"
                     {{if eq (nav) "sites"}}aria-current="page"{{end}}>
                 Sites
             </a>
+            {{if .User.CanDeploy}}
+                <a
+                        class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline
+                        whitespace-nowrap transition-colors text-muted border-transparent hover:text-black
+                        dark:hover:text-base-200 aria-[current=page]:text-blue-500
+                        aria-[current=page]:border-b-blue-500"
+                        href="/deployments"
+                        {{if eq (nav) "deployments"}}aria-current="page"{{end}}>
+                    Deployments
+                </a>
+            {{end}}
+            {{if .User.CanDeploy}}
+                <a
+                        class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline
+                        whitespace-nowrap transition-colors text-muted border-transparent hover:text-black
+                        dark:hover:text-base-200 aria-[current=page]:text-blue-500
+                        aria-[current=page]:border-b-blue-500"
+                        href="/analytics"
+                        {{if eq (nav) "analytics"}}aria-current="page"{{end}}>
+                    Analytics
+                </a>
+                <a
+                        class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline
+                        whitespace-nowrap transition-colors text-muted border-transparent hover:text-black
+                        dark:hover:text-base-200 aria-[current=page]:text-blue-500
+                        aria-[current=page]:border-b-blue-500"
+                        href="/webhooks"
+                        {{if eq (nav) "webhooks"}}aria-current="page"{{end}}>
+                    Webhooks
+                </a>
+            {{end}}
+
             <a
-                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
-                    text-muted border-transparent hover:text-black dark:hover:text-base-200
-                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                    href="/deployments"
-                    {{if eq (nav) "deployments"}}aria-current="page"{{end}}>
-                Deployments
-            </a>
-            <a
-                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
-                    text-muted border-transparent hover:text-black dark:hover:text-base-200
-                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                    href="/analytics"
-                    {{if eq (nav) "analytics"}}aria-current="page"{{end}}>
-                Analytics
-            </a>
-            <a
-                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
-                    text-muted border-transparent hover:text-black dark:hover:text-base-200
-                    aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
-                    href="/webhooks"
-                    {{if eq (nav) "webhooks"}}aria-current="page"{{end}}>
-                Webhooks
-            </a>
-            <a
-                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
-                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap
+                    transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/api"
                     {{if eq (nav) "api"}}aria-current="page"{{end}}>
                 API
             </a>
             <a
-                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
-                    text-muted border-transparent hover:text-black dark:hover:text-base-200
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap
+                    transition-colors text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/help"
                     {{if eq (nav) "help"}}aria-current="page"{{end}}>
@@ -157,21 +167,29 @@
                         <a
                                 href="/api"
                                 class="text-muted hover:text-black dark:hover:text-base-200 transition-colors no-underline"
-                        >API</a>
+                        >
+                            API
+                        </a>
                         <a
                                 href="/feed.atom"
                                 class="text-muted hover:text-black dark:hover:text-base-200 transition-colors no-underline"
-                        >Feed</a>
+                        >
+                            Feed
+                        </a>
                         <a
                                 href="/help"
                                 class="text-muted hover:text-black dark:hover:text-base-200 transition-colors no-underline"
-                        >Help</a>
+                        >
+                            Help
+                        </a>
                         <a
                                 href="https://tailscale.com"
                                 target="_blank"
                                 rel="noopener"
                                 class="text-muted hover:text-black dark:hover:text-base-200 transition-colors no-underline"
-                        >Tailscale</a>
+                        >
+                            Tailscale
+                        </a>
                     </div>
                 </footer>
             {{end}}

@@ -1,34 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
     <style>
-        :root {
-            color-scheme: light dark;
-            --text: light-dark(#100f0f, #cecdc3);
-            --bg: light-dark(#fffcf0, #1c1b1a);
-        }
+      :root {
+        color-scheme: light dark;
+        --text: light-dark(#100f0f, #cecdc3);
+        --bg: light-dark(#fffcf0, #1c1b1a);
+      }
 
-        body {
-            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-            font-size: 0.875rem;
-            line-height: 1.6;
-            color: var(--text);
-            background: var(--bg);
-            max-width: 48rem;
-            margin: 0 auto;
-            padding: 2.5rem 1.5rem;
-        }
+      body {
+        font-family:
+          ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        color: var(--text);
+        background: var(--bg);
+        max-width: 48rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem;
+      }
 
-        pre {
-            margin: 0;
-            white-space: pre-wrap;
-            overflow-wrap: break-word;
-        }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+      }
     </style>
-</head>
-<body>
-<pre>{{.Body}}</pre>
-</body>
+  </head>
+  <body>
+    <pre>{{.Body}}</pre>
+  </body>
 </html>

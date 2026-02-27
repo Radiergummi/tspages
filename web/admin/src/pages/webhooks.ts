@@ -1,93 +1,101 @@
-import {doughnut, formatLabel, initCharts, lineChart, reloadOnThemeChange, stackedBar} from "../lib/charts";
+import {
+  doughnut,
+  formatLabel,
+  initCharts,
+  lineChart,
+  reloadOnThemeChange,
+  stackedBar,
+} from "../lib/charts";
 
 interface DeliveryBucket {
-    time: string;
-    succeeded: number;
-    failed: number;
+  time: string;
+  succeeded: number;
+  failed: number;
 }
 
 interface LatencyBucket {
-    time: string;
-    p50: number;
-    p95: number;
-    max: number;
+  time: string;
+  avg: number;
+  p95: number;
+  max: number;
 }
 
 interface WebhookData {
-    range: string;
-    total: number;
-    succeeded: number;
-    failed: number;
-    time_series?: DeliveryBucket[];
-    events?: { event: string; count: number }[];
-    latency?: LatencyBucket[];
+  range: string;
+  total: number;
+  succeeded: number;
+  failed: number;
+  time_series?: DeliveryBucket[];
+  events?: { event: string; count: number }[];
+  latency?: LatencyBucket[];
 }
 
 async function main(): Promise<void> {
-    const theme = initCharts();
+  const theme = initCharts();
 
-    const response = await fetch(window.location.href, {
-        headers: {Accept: "application/json"},
-    });
-    const data: WebhookData = await response.json();
+  const response = await fetch(window.location.href, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return;
+  const data: WebhookData = await response.json();
 
-    if (data.time_series?.length) {
-        stackedBar(
-            document.getElementById("deliveries-chart") as HTMLCanvasElement | null,
-            data.time_series.map(({time}) => formatLabel(time, data.range)),
-            [
-                {
-                    label: "Succeeded",
-                    data: data.time_series.map(({succeeded}) => succeeded),
-                    color: theme.cv("--color-green-500"),
-                },
-                {
-                    label: "Failed",
-                    data: data.time_series.map(({failed}) => failed),
-                    color: theme.cv("--color-red-400"),
-                },
-            ],
-            theme,
-        );
-    }
+  if (data.time_series?.length) {
+    stackedBar(
+      document.getElementById("deliveries-chart") as HTMLCanvasElement | null,
+      data.time_series.map(({ time }) => formatLabel(time, data.range)),
+      [
+        {
+          label: "Succeeded",
+          data: data.time_series.map(({ succeeded }) => succeeded),
+          color: theme.cv("--color-green-500"),
+        },
+        {
+          label: "Failed",
+          data: data.time_series.map(({ failed }) => failed),
+          color: theme.cv("--color-red-400"),
+        },
+      ],
+      theme,
+    );
+  }
 
-    if (data.events?.length) {
-        doughnut(
-            document.getElementById("events-chart") as HTMLCanvasElement | null,
-            data.events.map(({event}) => event),
-            data.events.map(({count}) => count),
-            theme,
-        );
-    }
+  if (data.events?.length) {
+    doughnut(
+      document.getElementById("events-chart") as HTMLCanvasElement | null,
+      data.events.map(({ event }) => event),
+      data.events.map(({ count }) => count),
+      theme,
+    );
+  }
 
-    if (data.latency?.length) {
-        lineChart(
-            document.getElementById("latency-chart") as HTMLCanvasElement | null,
-            data.latency.map(({time}) => formatLabel(time, data.range)),
-            [
-                {
-                    color: theme.cv("--color-blue-500"),
-                    data: data.latency.map(({p50}) => Math.round(p50)),
-                    fill: "start",
-                    label: "AVG",
-                },
-                {
-                    borderDash: [4, 3],
-                    color: theme.cv("--color-yellow-400"),
-                    data: data.latency.map(({p95}) => Math.round(p95)),
-                    label: "P95",
-                },
-                {
-                    borderDash: [2, 2],
-                    borderWidth: 1,
-                    color: theme.cv("--color-red-400"),
-                    data: data.latency.map(({max}) => Math.round(max)),
-                    label: "MAX",
-                },
-            ],
-            {formatValue: (v) => `${v}ms`, total: false},
-        );
-    }
+  if (data.latency?.length) {
+    lineChart(
+      document.getElementById("latency-chart") as HTMLCanvasElement | null,
+      data.latency.map(({ time }) => formatLabel(time, data.range)),
+      [
+        {
+          color: theme.cv("--color-blue-500"),
+          data: data.latency.map(({ avg }) => Math.round(avg)),
+          fill: "start",
+          label: "AVG",
+        },
+        {
+          borderDash: [4, 3],
+          color: theme.cv("--color-yellow-400"),
+          data: data.latency.map(({ p95 }) => Math.round(p95)),
+          label: "P95",
+        },
+        {
+          borderDash: [2, 2],
+          borderWidth: 1,
+          color: theme.cv("--color-red-400"),
+          data: data.latency.map(({ max }) => Math.round(max)),
+          label: "MAX",
+        },
+      ],
+      { formatValue: (v) => `${v}ms`, total: false },
+    );
+  }
 }
 
 document.addEventListener("DOMContentLoaded", main);

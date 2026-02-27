@@ -42,7 +42,7 @@
             </h1>
 
             <div class="flex gap-2">
-                {{if .AnalyticsEnabled}}
+                {{if and .AnalyticsEnabled .CanDeploy}}
                     <a
                             class="btn btn-outline inline-block no-underline"
                             href="/sites/{{.Site.Name}}/analytics"
@@ -274,7 +274,7 @@
                     </svg>
                 </a>
 
-                {{if gt .TotalDeployments 5}}
+                {{if and (gt .TotalDeployments 5) .CanDeploy}}
                     <a
                             href="/sites/{{.Site.Name}}/deployments"
                             class="text-sm text-blue-500 no-underline hover:underline"
@@ -286,113 +286,113 @@
 
             {{if .Deployments}}
                 <div class="overflow-x-auto">
-                <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
-                    <thead>
-                    <tr>
-                    <tr>
-                        <th
-                                scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            ID
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Deployed by
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Deployed
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Size
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Status
-                        </th>
-
-                        {{if .Admin}}
+                    <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
+                        <thead>
+                        <tr>
+                        <tr>
                             <th
                                     scope="col"
                                     class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                    border-b-2 border-paper dark:border-base-950"
-                            ></th>
-                        {{end}}
-                    </tr>
-                    </thead>
-
-                    <tbody class="[&>tr:last-child>td]:border-b-0">
-                    {{range first 5 .Deployments}}
-                        <tr>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
-                                <a
-                                        class="font-mono text-sm text-blue-500 no-underline hover:underline"
-                                        href="/sites/{{$.Site.Name}}/deployments/{{.ID}}"
-                                >
-                                    {{.ID}}
-                                </a>
-                            </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
-                                {{if .CreatedBy}}
-                                    <span class="flex items-center gap-2">
-                                        {{avatarHTML .CreatedBy .CreatedByAvatar}}
-                                        {{.CreatedBy}}
-                                    </span>
-                                {{else}}&mdash;{{end}}
-                            </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
-                                <span class="text-muted" title="{{abstime .CreatedAt}}">
-                                    {{reltime .CreatedAt}}
-                                </span>
-                            </td>
-                            <td
-                                    class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 tabular-nums
-                                    slashed-zero text-end text-muted whitespace-nowrap"
+                                border-b-2 border-paper dark:border-base-950"
                             >
-                                {{bytes .SizeBytes}}
-                            </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
-                                {{if .Active}}
-                                    <span
-                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2
-                                            py-0.5 rounded-full bg-blue-500/10 text-blue-500"
-                                    >
-                                        active
-                                    </span>
-                                {{end}}
-                            </td>
-                            {{if $.Admin}}
-                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
-                                    {{if not .Active}}
-                                        <button
-                                                class="btn btn-primary"
-                                                data-action="activate"
-                                                data-deployment-id="{{.ID}}"
-                                        >
-                                            Activate
-                                        </button>
-                                    {{end}}
-                                </td>
+                                ID
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Deployed by
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Deployed
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Size
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Status
+                            </th>
+
+                            {{if .Admin}}
+                                <th
+                                        scope="col"
+                                        class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b-2 border-paper dark:border-base-950"
+                                ></th>
                             {{end}}
                         </tr>
-                    {{end}}
-                    </tbody>
-                </table>
+                        </thead>
+
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+                        {{range first 5 .Deployments}}
+                            <tr>
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                                    <a
+                                            class="font-mono text-sm text-blue-500 no-underline hover:underline"
+                                            href="/sites/{{$.Site.Name}}/deployments/{{.ID}}"
+                                    >
+                                        {{.ID}}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
+                                    {{if .CreatedBy}}
+                                        <span class="flex items-center gap-2">
+                                            {{avatarHTML .CreatedBy .CreatedByAvatar}}
+                                            {{.CreatedBy}}
+                                        </span>
+                                    {{else}}&mdash;{{end}}
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
+                                    <span class="text-muted" title="{{abstime .CreatedAt}}">
+                                        {{reltime .CreatedAt}}
+                                    </span>
+                                </td>
+                                <td
+                                        class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 tabular-nums
+                                    slashed-zero text-end text-muted whitespace-nowrap"
+                                >
+                                    {{bytes .SizeBytes}}
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                                    {{if .Active}}
+                                        <span
+                                                class="inline-block text-xs font-semibold uppercase tracking-wide px-2
+                                            py-0.5 rounded-full bg-blue-500/10 text-blue-500"
+                                        >
+                                            active
+                                        </span>
+                                    {{end}}
+                                </td>
+                                {{if $.Admin}}
+                                    <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
+                                        {{if not .Active}}
+                                            <button
+                                                    class="btn btn-primary"
+                                                    data-action="activate"
+                                                    data-deployment-id="{{.ID}}"
+                                            >
+                                                Activate
+                                            </button>
+                                        {{end}}
+                                    </td>
+                                {{end}}
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
                 </div>
 
                 {{if and .CanDeploy .HasInactive}}
@@ -428,73 +428,73 @@
                 </header>
 
                 <div class="overflow-x-auto">
-                <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
-                    <thead>
-                    <tr>
-                        <th
-                                scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                    <table class="w-full border-collapse rounded-md overflow-hidden bg-surface">
+                        <thead>
+                        <tr>
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
                                 border-b-2 border-paper dark:border-base-950"
-                        >
-                            Event
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Status
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Attempts
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
-                                border-b-2 border-paper dark:border-base-950"
-                        >
-                            Time
-                        </th>
-                    </tr>
-                    </thead>
-
-                    <tbody class="[&>tr:last-child>td]:border-b-0">
-                    {{range .RecentDeliveries}}
-                        <tr
-                                class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
-                                onclick="window.location='/webhooks/{{.WebhookID}}'"
-                        >
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
-                                <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
-                                    {{.Event}}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
-                                {{if .Succeeded}}
-                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">ok</span>
-                                {{else}}
-                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">failed</span>
-                                {{end}}
-                            </td>
-                            <td
-                                    class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted
-                                    tabular-nums slashed-zero text-end"
                             >
-                                {{.Attempts}}
-                            </td>
-                            <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted text-end">
-                                <time datetime="{{.FirstAttempt}}" title="{{.FirstAttempt}}">
-                                    {{reltime .FirstAttempt}}
-                                </time>
-                            </td>
+                                Event
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Status
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Attempts
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b-2 border-paper dark:border-base-950"
+                            >
+                                Time
+                            </th>
                         </tr>
-                    {{end}}
-                    </tbody>
-                </table>
+                        </thead>
+
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+                        {{range .RecentDeliveries}}
+                            <tr
+                                    class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
+                                    onclick="window.location='/webhooks/{{.WebhookID}}'"
+                            >
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                                    <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                                        {{.Event}}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
+                                    {{if .Succeeded}}
+                                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">ok</span>
+                                    {{else}}
+                                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">failed</span>
+                                    {{end}}
+                                </td>
+                                <td
+                                        class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted
+                                    tabular-nums slashed-zero text-end"
+                                >
+                                    {{.Attempts}}
+                                </td>
+                                <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted text-end">
+                                    <time datetime="{{.FirstAttempt}}" title="{{.FirstAttempt}}">
+                                        {{reltime .FirstAttempt}}
+                                    </time>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
                 </div>
             </section>
         {{end}}
@@ -510,7 +510,7 @@
             >
                 <div class="bg-surface border border-default rounded-lg w-full max-w-lg shadow-2xl">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-default">
-                        <h3 id="deploy-modal-title" class="text-base font-semibold inline-flex items-center gap-1">
+                        <h3 id="deploy-modal-title" class="text-base font-semibold inline-flex items-center gap-2">
                             <span>Deploy to {{.Site.Name}}</span>
                             {{helpicon "upload-formats" "Supported upload formats"}}
                         </h3>
@@ -538,9 +538,24 @@
                     <div class="p-5">
                         <div
                                 id="modal-dropzone"
-                                class="border-2 border-dashed border-muted rounded-md p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-500/5"
+                                class="flex flex-col justify-center items-center border-2 border-dashed border-muted rounded-md p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-500/5"
                         >
-                            <div class="text-2xl mb-2 text-muted">&#8593;</div>
+                                <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="mb-2 text-muted"
+                                >
+                                    <path d="M12 3v12" />
+                                    <path d="m17 8-5-5-5 5" />
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                </svg>
                             <div>
                                 <span>
                                     Drop files here or
@@ -564,17 +579,29 @@
                         <div class="flex items-center gap-2 bg-paper dark:bg-base-950 border border-default rounded-md px-4 py-3">
                             <code
                                     id="deploy-cmd"
-                                    class="flex-1 font-mono text-sm break-all bg-surface border border-default px-1.5 py-0.5 rounded-[3px]"
-                            >
-                                curl --upload-file site.zip https://{{.Host}}/deploy/{{.Site.Name}}
-                            </code>
+                                    class="flex-1 font-mono text-sm break-all bg-surface border border-default px-1.5 py-0.5 rounded-sm select-all"
+                            >curl --upload-file site.zip https://{{.Host}}/deploy/{{.Site.Name}}</code>
                             <button
                                     class="bg-transparent border-0 text-lg text-muted hover:text-black dark:hover:text-base-200 cursor-pointer p-1 shrink-0"
                                     data-action="copy-cmd"
                                     title="Copy"
                                     aria-label="Copy command"
                             >
-                                &#x2398;
+                                <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="lucide lucide-copy-icon lucide-copy"
+                                >
+                                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                                </svg>
                             </button>
                         </div>
                     </div>

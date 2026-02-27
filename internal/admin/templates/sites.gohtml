@@ -70,12 +70,16 @@
                     <tr>
                         {{if $.Admin}}
                             <td class="px-4 py-3 text-sm border-b border-default">
-                                <a
-                                        class="font-mono text-sm text-blue-500 no-underline hover:underline"
-                                        href="/sites/{{.Name}}"
-                                >
-                                    {{.Name}}
-                                </a>
+                                {{if .CanDeploy}}
+                                    <a
+                                            class="font-mono text-sm text-blue-500 no-underline hover:underline"
+                                            href="/sites/{{.Name}}"
+                                    >
+                                        {{.Name}}
+                                    </a>
+                                {{else}}
+                                    <span class="font-mono text-sm">{{.Name}}</span>
+                                {{end}}
                             </td>
                             <td class="px-4 py-3 text-sm border-b border-default text-muted">
                                 {{if .LastDeployedBy}}
@@ -104,7 +108,18 @@
                                 {{end}}
                             </td>
                         {{else}}
-                            <td class="px-4 py-3 text-sm border-b border-default font-mono">{{.Name}}</td>
+                            <td class="px-4 py-3 text-sm border-b border-default font-mono">
+                                {{if .CanDeploy}}
+                                    <a
+                                            class="text-blue-500 no-underline hover:underline"
+                                            href="/sites/{{.Name}}"
+                                    >
+                                        {{.Name}}
+                                    </a>
+                                {{else}}
+                                    {{.Name}}
+                                {{end}}
+                            </td>
                             <td class="px-4 py-3 text-sm border-b border-default">
                                 {{with siteurl .Name $.DNSSuffix}}
                                     <a
