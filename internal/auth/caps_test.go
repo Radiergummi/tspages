@@ -140,6 +140,32 @@ func TestIsAdmin(t *testing.T) {
 	tests := []struct {
 		name string
 		caps []Cap
+		site string
+		want bool
+	}{
+		{"unscoped admin", []Cap{{Access: "admin"}}, "docs", true},
+		{"scoped admin match", []Cap{{Access: "admin", Sites: []string{"docs"}}}, "docs", true},
+		{"scoped admin no match", []Cap{{Access: "admin", Sites: []string{"other"}}}, "docs", false},
+		{"deploy", []Cap{{Access: "deploy"}}, "docs", false},
+		{"multi merge", []Cap{{Access: "view"}, {Access: "admin"}}, "docs", true},
+		{"empty", []Cap{}, "docs", false},
+		{"wildcard admin", []Cap{{Access: "admin", Sites: []string{"*"}}}, "docs", true},
+		{"glob admin", []Cap{{Access: "admin", Sites: []string{"docs-*"}}}, "docs-staging", true},
+		{"glob admin no match", []Cap{{Access: "admin", Sites: []string{"docs-*"}}}, "other", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAdmin(tt.caps, tt.site); got != tt.want {
+				t.Errorf("IsAdmin() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHasAdminCap(t *testing.T) {
+	tests := []struct {
+		name string
+		caps []Cap
 		want bool
 	}{
 		{"unscoped admin", []Cap{{Access: "admin"}}, true},
@@ -150,8 +176,8 @@ func TestIsAdmin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsAdmin(tt.caps); got != tt.want {
-				t.Errorf("IsAdmin() = %v, want %v", got, tt.want)
+			if got := HasAdminCap(tt.caps); got != tt.want {
+				t.Errorf("HasAdminCap() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -175,8 +201,11 @@ func TestParseCaps(t *testing.T) {
 	if !CanDeploy(caps, "docs") {
 		t.Error("expected deploy access to docs")
 	}
-	if !IsAdmin(caps) {
-		t.Error("expected admin")
+	if !HasAdminCap(caps) {
+		t.Error("expected admin cap")
+	}
+	if !IsAdmin(caps, "docs") {
+		t.Error("expected admin for docs")
 	}
 }
 

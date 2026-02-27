@@ -164,10 +164,33 @@ func CanScrapeMetrics(caps []Cap) bool {
 	return false
 }
 
-// IsAdmin reports whether any cap grants admin access.
-func IsAdmin(caps []Cap) bool {
+// IsAdmin reports whether any cap grants admin access to the named site.
+func IsAdmin(caps []Cap, site string) bool {
+	for _, c := range caps {
+		if c.Access == "admin" && matchesSite(c.Sites, site) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAdminCap reports whether any cap grants admin access to at least one site.
+// Use this for global pages (webhooks, analytics overview) and UI elements
+// that should appear when the user has any admin access at all.
+func HasAdminCap(caps []Cap) bool {
 	for _, c := range caps {
 		if c.Access == "admin" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasDeployCap reports whether any cap grants deploy or admin access.
+// Use this for pages that should be accessible to deployers, not just admins.
+func HasDeployCap(caps []Cap) bool {
+	for _, c := range caps {
+		if c.Access == "admin" || c.Access == "deploy" {
 			return true
 		}
 	}
