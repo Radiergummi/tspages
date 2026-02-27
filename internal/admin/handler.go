@@ -1135,6 +1135,11 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	caps := auth.CapsFromContext(r.Context())
 
+	if !auth.HasAdminCap(caps) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
 	if h.notifier == nil {
 		RenderError(w, r, http.StatusNotFound, "webhooks not configured")
 		return

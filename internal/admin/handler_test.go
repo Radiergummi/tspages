@@ -1727,6 +1727,24 @@ func TestWebhookRetryHandler_Forbidden(t *testing.T) {
 	}
 }
 
+func TestWebhookRetryHandler_ForbiddenNoAdminCap(t *testing.T) {
+	hs, _, _, db := setupHandlersWithNotifier(t)
+	webhookID := insertDelivery(t, db, "docs", 500)
+
+	h := hs.WebhookRetry
+	// View-only caps should be rejected before the DB lookup.
+	req := reqWithAuth("POST", "/webhooks/"+webhookID+"/retry", viewerCaps, viewerID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("id", webhookID)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestWebhookRetryHandler_NilNotifier(t *testing.T) {
 	hs, _ := setupHandlers(t) // nil notifier
 	h := hs.WebhookRetry
