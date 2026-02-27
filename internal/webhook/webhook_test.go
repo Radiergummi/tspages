@@ -20,7 +20,7 @@ import (
 func testDB(t *testing.T) *sql.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)")
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
