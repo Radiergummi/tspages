@@ -48,10 +48,10 @@
 <!-- endregion -->
 
 <div class="grid grid-rows-[auto_1fr] h-screen overflow-hidden">
-    <header class="grid grid-cols-[auto_1fr_auto] items-center px-8 h-13 bg-base-50 dark:bg-black">
+    <header class="grid grid-cols-[auto_1fr_auto] items-center px-4 sm:px-8 h-13 bg-base-50 dark:bg-black">
 
         <!-- region Logo -->
-        <a class="flex items-center gap-2.5 mr-8 shrink-0 no-underline" href="/sites">
+        <a class="flex items-center gap-2.5 mr-4 sm:mr-8 shrink-0 no-underline" href="/sites">
             <span class="text-lg font-semibold text-black dark:text-base-200 tracking-tight">
                 tspages
             </span>
@@ -59,9 +59,9 @@
         <!-- endregion -->
 
         <!-- region Navigation -->
-        <nav aria-label="Main" class="flex items-stretch h-full">
+        <nav aria-label="Main" class="flex items-stretch h-full overflow-x-auto scrollbar-none">
             <a
-                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/sites"
@@ -69,7 +69,7 @@
                 Sites
             </a>
             <a
-                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/deployments"
@@ -77,7 +77,7 @@
                 Deployments
             </a>
             <a
-                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/analytics"
@@ -85,7 +85,7 @@
                 Analytics
             </a>
             <a
-                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/webhooks"
@@ -93,7 +93,7 @@
                 Webhooks
             </a>
             <a
-                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/api"
@@ -101,7 +101,7 @@
                 API
             </a>
             <a
-                    class="flex items-center px-4 text-sm font-medium border-b-2 no-underline transition-colors
+                    class="flex items-center px-3 sm:px-4 text-sm font-medium border-b-2 no-underline whitespace-nowrap transition-colors
                     text-muted border-transparent hover:text-black dark:hover:text-base-200
                     aria-[current=page]:text-blue-500 aria-[current=page]:border-b-blue-500"
                     href="/help"
@@ -112,10 +112,10 @@
         <!-- endregion -->
 
         <!-- region Current User -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 ml-4 sm:ml-0">
             {{avatarHTML .User.Name .User.ProfilePicURL}}
 
-            <span class="text-sm text-muted">
+            <span class="text-sm text-muted hidden sm:inline">
                 {{.User.Name}}
             </span>
         </div>

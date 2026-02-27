@@ -150,14 +150,18 @@
         }
 
         & table {
+            display: block;
+            overflow-x: auto;
             border-collapse: collapse;
-            width: 100%;
+            width: max-content;
+            max-width: 100%;
         }
 
         & th, & td {
             padding: 0.5em 1em;
             @apply border border-default;
             text-align: left;
+            white-space: nowrap;
         }
 
         & th {

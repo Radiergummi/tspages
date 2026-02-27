@@ -1,11 +1,11 @@
 {{define "title"}} - {{.Current.Title}}{{end}}
 
-{{define "main-attrs"}}class="!max-w-6xl"{{end}}
+{{define "main-attrs"}}style="max-width:72rem"{{end}}
 
 {{define "content"}}
-    <div class="flex gap-8">
-        <nav aria-label="Help topics" class="w-48 shrink-0 sticky top-21 self-start">
-            <ul class="flex flex-col gap-0.5">
+    <div class="xl:grid xl:grid-cols-[12rem_minmax(0,56rem)] xl:gap-8 xl:justify-center">
+        <nav aria-label="Help topics" class="mb-6 xl:mb-0 xl:sticky xl:top-21 xl:self-start">
+            <ul class="flex flex-wrap gap-1 xl:flex-col xl:gap-0.5">
                 {{range .Pages}}
                     <li>
                         <a
@@ -22,7 +22,7 @@
             </ul>
         </nav>
 
-        <article class="min-w-0 flex-1 prose">
+        <article class="min-w-0 prose">
             <h1 class="text-2xl font-semibold mb-6">{{.Current.Title}}</h1>
             {{.Content}}
         </article>
