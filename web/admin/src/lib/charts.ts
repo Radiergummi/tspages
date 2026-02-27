@@ -52,7 +52,7 @@ export function initCharts(): Theme {
     const cv = (name: string) => style.getPropertyValue(name).trim();
 
     const textColor = cv(dark ? "--color-base-500" : "--color-base-600");
-    const gridColor = cv(dark ? "--color-base-900" : "--color-base-100");
+    const gridColor = cv(dark ? "--color-base-800" : "--color-base-100");
     const mainText = cv(dark ? "--color-base-200" : "--color-black");
     const surfaceColor = cv(dark ? "--color-base-900" : "--color-base-50");
 
@@ -77,23 +77,35 @@ export function initCharts(): Theme {
     Chart.register({
         id: "crosshair",
         beforeDatasetsDraw(chart) {
-            if ("type" in chart.config && chart.config.type === "doughnut") return;
+            if ("type" in chart.config && chart.config.type === "doughnut") {
+                return;
+            }
+
             const tooltip = chart.tooltip;
-            if (!tooltip?.opacity || !tooltip.dataPoints?.length) return;
+
+            if (!tooltip?.opacity || !tooltip.dataPoints?.length) {
+                return;
+            }
+
             const {ctx, chartArea} = chart;
-            const el = tooltip.dataPoints[0].element;
+            const node = tooltip.dataPoints[0].element;
+
             ctx.save();
-            if ("width" in el && typeof el.width === "number") {
+
+            if ("width" in node && typeof node.width === "number") {
                 ctx.fillStyle = gridColor;
-                ctx.fillRect(el.x - el.width / 2, chartArea.top, el.width, chartArea.bottom - chartArea.top);
+                ctx.fillRect(node.x - node.width / 2, chartArea.top, node.width, chartArea.bottom - chartArea.top);
             } else {
                 ctx.beginPath();
-                ctx.moveTo(el.x, chartArea.top);
-                ctx.lineTo(el.x, chartArea.bottom);
+                ctx.moveTo(node.x, chartArea.top);
+                ctx.lineTo(node.x, chartArea.bottom);
+
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = gridColor;
+
                 ctx.stroke();
             }
+
             ctx.restore();
         },
     });
@@ -114,7 +126,9 @@ export function initCharts(): Theme {
                        ) / 2;
             const rawData = chart.data.datasets[0].data as number[];
             const mode = chart.canvas.dataset.center;
-            const value = mode === "count" ? rawData.filter(v => v > 0).length : rawData.reduce((a, b) => a + b, 0);
+            const value = mode === "count"
+                          ? rawData.filter(v => v > 0).length
+                          : rawData.reduce((a, b) => a + b, 0);
 
             ctx.save();
             ctx.textAlign = "center";
@@ -265,13 +279,19 @@ function externalTooltip(options?: TooltipOptions) {
         const ph = cy + chart.canvas.clientHeight;
         const isDoughnut = "type" in chart.config && chart.config.type === "doughnut";
         const anchorX = isDoughnut
-            ? (tooltip.caretX < (chartArea.left + chartArea.right) / 2 ? chartArea.left : chartArea.right)
-            : tooltip.caretX;
+                        ? (
+                            tooltip.caretX < (
+                                chartArea.left + chartArea.right
+                            ) / 2 ? chartArea.left : chartArea.right
+                        )
+                        : tooltip.caretX;
         const caretX = cx + anchorX;
         const rightX = caretX + gap;
         const leftX = caretX - node.offsetWidth - gap;
         const x = rightX + node.offsetWidth <= pw ? rightX : Math.max(0, leftX);
-        const midY = cy + (chartArea.top + chartArea.bottom) / 2;
+        const midY = cy + (
+                     chartArea.top + chartArea.bottom
+        ) / 2;
         const y = Math.max(0, Math.min(midY - node.offsetHeight / 2, ph - node.offsetHeight));
 
         node.style.left = `${x}px`;
@@ -517,48 +537,54 @@ export function treemap<T extends Record<string, unknown>>(
                     callbacks: {
                         title: () => "",
                         label: (item: TooltipItem<"treemap">) => {
-                            const raw = item.raw as {g?: string; v?: number};
+                            const raw = item.raw as { g?: string; v?: number };
                             return `${raw.g ?? ""}: ${raw.v ?? 0}`;
                         },
                     },
                 },
             },
         },
-        plugins: [{
-            id: "treemapLabels",
-            afterDatasetsDraw(chart: Chart) {
-                const meta = chart.getDatasetMeta(0);
-                const ctx = chart.ctx;
-                const pad = 6;
-                const font = Chart.defaults.font.family;
-                ctx.save();
-                for (const el of meta.data) {
-                    const {x, y, width: w, height: h} = el as any;
-                    const raw = (el as any).$context?.raw as {g?: string; v?: number} | undefined;
-                    if (!raw?.g || w < 16 || h < 16) continue;
-                    const vertical = h > w;
+        plugins: [
+            {
+                id: "treemapLabels",
+                afterDatasetsDraw(chart: Chart) {
+                    const meta = chart.getDatasetMeta(0);
+                    const ctx = chart.ctx;
+                    const pad = 6;
+                    const font = Chart.defaults.font.family;
                     ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(x, y, w, h);
-                    ctx.clip();
-                    if (vertical) {
-                        ctx.translate(x + pad + 5, y + h - pad);
-                        ctx.rotate(-Math.PI / 2);
-                    } else {
-                        ctx.translate(x + pad, y + pad + 11);
+                    for (const el of meta.data) {
+                        const {x, y, width: w, height: h} = el as any;
+                        const raw = (
+                            el as any
+                        ).$context?.raw as { g?: string; v?: number } | undefined;
+                        if (!raw?.g || w < 16 || h < 16) {
+                            continue;
+                        }
+                        const vertical = h > w;
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(x, y, w, h);
+                        ctx.clip();
+                        if (vertical) {
+                            ctx.translate(x + pad + 5, y + h - pad);
+                            ctx.rotate(-Math.PI / 2);
+                        } else {
+                            ctx.translate(x + pad, y + pad + 11);
+                        }
+                        ctx.textBaseline = "middle";
+                        ctx.font = "bold 11px " + font;
+                        ctx.fillStyle = "white";
+                        ctx.fillText(raw.g, 0, 0);
+                        ctx.font = "10px " + font;
+                        ctx.fillStyle = "rgba(255,255,255,0.6)";
+                        ctx.fillText(formatNumber(raw.v ?? 0), 0, 14);
+                        ctx.restore();
                     }
-                    ctx.textBaseline = "middle";
-                    ctx.font = "bold 11px " + font;
-                    ctx.fillStyle = "white";
-                    ctx.fillText(raw.g, 0, 0);
-                    ctx.font = "10px " + font;
-                    ctx.fillStyle = "rgba(255,255,255,0.6)";
-                    ctx.fillText(formatNumber(raw.v ?? 0), 0, 14);
                     ctx.restore();
-                }
-                ctx.restore();
+                },
             },
-        }],
+        ],
     });
 }
 

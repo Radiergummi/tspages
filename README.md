@@ -114,17 +114,9 @@ The main view lists all sites with their last deploy info and a request sparklin
 
 ![Screenshot of the sites page](./.github/screenshots/tspages-sites.png)
 
-### Site detail
-
 Drill into a site to see its deployment history, activate or roll back deployments, and manage the site.
 
 ![Screenshot of the site details page](./.github/screenshots/tspages-site-details.png)
-
-### Deployment detail
-
-Each deployment shows a file listing and a diff against the previous deployment (added, removed, and changed files).
-
-![Screenshot of the deployment details page](./.github/screenshots/tspages-deployment-details.png)
 
 ### Deployment feed
 
@@ -132,11 +124,16 @@ A global, paginated feed of all deployments across all sites.
 
 ![Screenshot of the deployments page](./.github/screenshots/tspages-deployments.png)
 
+Each deployment shows a file listing and a diff against the previous deployment (added, removed, and changed files).
+
+![Screenshot of the deployment details page](./.github/screenshots/tspages-deployment-details.png)
+
 ### Analytics
 
 Cross-site and per-site analytics with request counts, top pages, visitors, and device breakdowns.
 
 ![Screenshot of the analytics page](./.github/screenshots/tspages-analytics.png)
+
 
 ### Webhooks
 
@@ -144,6 +141,11 @@ Configure webhooks to get notified of new deployments, site changes, or other ev
 per-site, and support custom payloads with deployment details.
 
 ![Screenshot of the webhooks page](./.github/screenshots/tspages-webhooks.png)
+
+Monitor webhook deliveries with a history of recent attempts, including request and response details for debugging.
+
+![Screenshot of the webhooks delivery details page](./.github/screenshots/tspages-webhook-delivery.png)
+
 
 ### API
 
