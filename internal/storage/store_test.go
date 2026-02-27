@@ -585,6 +585,38 @@ func TestCleanupOldDeployments_KeepsActive(t *testing.T) {
 	}
 }
 
+func TestCleanupOldDeployments_KeepZero(t *testing.T) {
+	s := New(t.TempDir())
+
+	ids := []string{"aaa11111", "bbb22222", "ccc33333"}
+	for i, id := range ids {
+		s.CreateDeployment("docs", id)
+		s.WriteManifest("docs", id, Manifest{
+			CreatedAt: time.Date(2025, 1, 1+i, 0, 0, 0, 0, time.UTC),
+		})
+		s.MarkComplete("docs", id)
+	}
+	// Activate the newest.
+	s.ActivateDeployment("docs", "ccc33333")
+
+	// keep=0 → delete everything except the active deployment.
+	n, err := s.CleanupOldDeployments("docs", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("deleted = %d, want 2", n)
+	}
+
+	deps, _ := s.ListDeployments("docs")
+	if len(deps) != 1 {
+		t.Fatalf("remaining = %d, want 1", len(deps))
+	}
+	if deps[0].ID != "ccc33333" {
+		t.Errorf("surviving deployment = %q, want ccc33333", deps[0].ID)
+	}
+}
+
 func TestCleanupOldDeployments_UnderLimit(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")

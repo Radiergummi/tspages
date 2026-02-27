@@ -1426,13 +1426,17 @@ func testNotifierDB(t *testing.T) (*webhook.Notifier, *sql.DB) {
 }
 
 // insertDelivery inserts a test delivery row and returns the webhook_id.
-func insertDelivery(t *testing.T, db *sql.DB, site string, status int) string {
+func insertDelivery(t *testing.T, db *sql.DB, site string, status int, url ...string) string {
 	t.Helper()
 	webhookID := "msg_test_" + site
+	u := "http://example.com/hook"
+	if len(url) > 0 {
+		u = url[0]
+	}
 	_, err := db.Exec(
 		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		webhookID, "deploy.success", site, "http://example.com/hook", `{"v":1}`, 1, status, "", "2025-06-01T10:00:00Z",
+		webhookID, "deploy.success", site, u, `{"v":1}`, 1, status, "", "2025-06-01T10:00:00Z",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1752,8 +1756,15 @@ func TestWebhookRetryHandler_NotFound(t *testing.T) {
 }
 
 func TestWebhookRetryHandler_ReachesResend(t *testing.T) {
-	hs, _, _, db := setupHandlersWithNotifier(t)
-	webhookID := insertDelivery(t, db, "docs", 500)
+	// Use a local server instead of hitting the real internet.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	hs, _, notifier, db := setupHandlersWithNotifier(t)
+	notifier.SetClient(&http.Client{Timeout: 5 * time.Second})
+	webhookID := insertDelivery(t, db, "docs", 500, srv.URL)
 
 	h := hs.WebhookRetry
 	req := reqWithAuth("POST", "/webhooks/"+webhookID+"/retry", adminCaps, adminID)
@@ -1763,7 +1774,6 @@ func TestWebhookRetryHandler_ReachesResend(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	// Resend reaches example.com and returns its status code (the handler returns 200).
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
 	}

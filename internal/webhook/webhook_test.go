@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -620,6 +621,41 @@ func TestNewSafeClient_DoesNotFollowRedirects(t *testing.T) {
 	}
 	if targetHit.Load() != 0 {
 		t.Error("safe client followed redirect to target server")
+	}
+}
+
+func TestIsPrivateIP(t *testing.T) {
+	tests := []struct {
+		ip   string
+		want bool
+	}{
+		// IPv4 private
+		{"127.0.0.1", true},
+		{"10.0.0.1", true},
+		{"172.16.0.1", true},
+		{"192.168.1.1", true},
+		{"169.254.1.1", true},
+		// Tailscale CGNAT — allowed so webhooks can reach tailnet hosts
+		{"100.64.0.1", false},
+		{"100.127.255.254", false},
+		// IPv6 private
+		{"::1", true},
+		{"fe80::1", true},
+		{"fc00::1", true},
+		{"fd12::1", true},
+		// Public
+		{"8.8.8.8", false},
+		{"1.1.1.1", false},
+		{"2607:f8b0:4004:800::200e", false},
+	}
+	for _, tt := range tests {
+		ip := net.ParseIP(tt.ip)
+		if ip == nil {
+			t.Fatalf("failed to parse %q", tt.ip)
+		}
+		if got := isPrivateIP(ip); got != tt.want {
+			t.Errorf("isPrivateIP(%s) = %v, want %v", tt.ip, got, tt.want)
+		}
 	}
 }
 

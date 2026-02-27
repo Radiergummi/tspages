@@ -61,6 +61,9 @@ func migrate(db *sql.DB) error {
 	return err
 }
 
+// SetClient overrides the HTTP client used for webhook delivery.
+func (n *Notifier) SetClient(c *http.Client) { n.client = c }
+
 // Fire sends a webhook notification asynchronously. It is a no-op if the
 // config has no WebhookURL or the event is not in the configured event filter.
 func (n *Notifier) Fire(event string, site string, cfg storage.SiteConfig, data map[string]any) {
@@ -657,7 +660,6 @@ func init() {
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
-		"100.64.0.0/10",
 		"169.254.0.0/16",
 		"::1/128",
 		"fe80::/10",

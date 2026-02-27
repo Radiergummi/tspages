@@ -495,6 +495,42 @@ func TestHandler_NotFoundPage_SymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestHandler_CleanURL_SymlinkEscape(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("docs", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "index.html"), []byte("<h1>Docs</h1>"), 0644)
+
+	// Create a file outside the site root.
+	externalDir := t.TempDir()
+	os.WriteFile(filepath.Join(externalDir, "secret.html"), []byte("SECRET DATA"), 0644)
+
+	// Symlink: content/secret.html → external secret.html
+	os.Symlink(filepath.Join(externalDir, "secret.html"), filepath.Join(contentDir, "secret.html"))
+
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+
+	// Request /secret — clean URL fallback should try secret.html (the symlink)
+	// but the containment check must block it.
+	req := httptest.NewRequest("GET", "/secret", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "secret")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "SECRET DATA") {
+		t.Error("served external file via symlink escape in clean URL .html fallback")
+	}
+}
+
 func TestHandler_CustomHeaders(t *testing.T) {
 	store := storage.New(t.TempDir())
 	dir, _ := store.CreateDeployment("docs", "aaa11111")

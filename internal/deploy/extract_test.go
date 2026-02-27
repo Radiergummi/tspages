@@ -528,3 +528,20 @@ func TestExtract_Gzip_SizeLimit(t *testing.T) {
 		t.Fatal("expected gzip decompression size limit error")
 	}
 }
+
+func TestExtract_Xz_SizeLimit(t *testing.T) {
+	// Compress 1000 bytes with xz, then try to extract with a 100-byte limit.
+	var buf bytes.Buffer
+	xw, err := xz.NewWriter(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	xw.Write(make([]byte, 1000))
+	xw.Close()
+
+	dir := t.TempDir()
+	_, err = Extract(ExtractRequest{Body: buf.Bytes()}, dir, 100)
+	if err == nil {
+		t.Fatal("expected xz decompression size limit error")
+	}
+}
