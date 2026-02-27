@@ -103,7 +103,12 @@
 
                     {{if .TimeSeries}}
                         <div class="relative pt-4 h-48">
-                            <canvas id="deliveries-chart" height="140" aria-label="Deliveries over time" role="img"></canvas>
+                            <canvas
+                                    id="deliveries-chart"
+                                    height="140"
+                                    aria-label="Deliveries over time"
+                                    role="img"
+                            ></canvas>
                         </div>
                     {{end}}
                 </section>
@@ -121,6 +126,49 @@
                     </section>
                 {{end}}
             </div>
+
+            {{if .Latency}}
+                <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                    <header class="flex items-end justify-between px-5 h-14">
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Duration
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtms .LatencyStats.Min}}<span class="text-muted mx-1">&mdash;</span>{{fmtms .LatencyStats.Max}}
+                            </code>
+                        </div>
+                        <div class="flex gap-10">
+                            <div class="flex flex-col">
+                                <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                    <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-blue-500"></span>
+                                    Avg
+                                </span>
+                                <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                    {{fmtms .LatencyStats.Avg}}
+                                </code>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                    <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-orange-400"></span>
+                                    P95
+                                </span>
+                                <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                    {{fmtms .LatencyStats.P95}}
+                                </code>
+                            </div>
+                        </div>
+                    </header>
+                    <div class="relative pt-4 h-48">
+                        <canvas
+                                id="latency-chart"
+                                height="140"
+                                aria-label="Response latency over time"
+                                role="img"
+                        ></canvas>
+                    </div>
+                </section>
+            {{end}}
         {{end}}
 
         <div class="flex justify-end flex-wrap gap-3" role="search" aria-label="Filter webhook deliveries">
@@ -227,12 +275,6 @@
                             scope="col"
                             class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
                     >
-                        URL
-                    </th>
-                    <th
-                            scope="col"
-                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
-                    >
                         Time
                     </th>
                 </tr>
@@ -241,7 +283,10 @@
                 <tbody class="[&>tr:last-child>td]:border-b-0">
 
                 {{range .Deliveries}}
-                    <tr>
+                    <tr
+                            class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
+                            onclick="window.location='/webhooks/{{.WebhookID}}'"
+                    >
                         <td class="px-4 py-3 text-xs border-b border-default">
                             <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
                                 {{.Event}}
@@ -250,12 +295,7 @@
 
                         {{if $.Global}}
                             <td class="px-4 py-3 text-xs border-b border-default">
-                                <a
-                                        class="text-blue-500 no-underline hover:underline"
-                                        href="/sites/{{.Site}}"
-                                >
-                                    {{.Site}}
-                                </a>
+                                {{.Site}}
                             </td>
                         {{end}}
 
@@ -268,12 +308,6 @@
                         </td>
                         <td class="px-4 py-3 text-xs border-b border-default text-muted">
                             {{.Attempts}}
-                        </td>
-                        <td
-                                class="px-4 py-3 text-xs border-b border-default font-mono text-muted truncate max-w-50"
-                                title="{{.URL}}"
-                        >
-                            {{.URL}}
                         </td>
                         <td class="px-4 py-3 text-xs border-b border-default text-muted">
                             <time

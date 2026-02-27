@@ -53,7 +53,9 @@ func migrate(db *sql.DB) error {
 			attempt    INTEGER NOT NULL,
 			status     INTEGER,
 			error      TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL
+			created_at  TEXT NOT NULL,
+			signed      INTEGER NOT NULL DEFAULT 0,
+			duration_ms INTEGER NOT NULL DEFAULT 0
 		);
 	`)
 	return err
@@ -104,13 +106,13 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 
 	maxAttempts := 1 + len(n.retryDelays)
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		status, sendErr := n.send(cfg.WebhookURL, cfg.WebhookSecret, msgID, ts, payload)
+		status, dur, sendErr := n.send(cfg.WebhookURL, cfg.WebhookSecret, msgID, ts, payload)
 
 		errStr := ""
 		if sendErr != nil {
 			errStr = sendErr.Error()
 		}
-		n.logDelivery(msgID, event, site, cfg.WebhookURL, string(payload), attempt, status, errStr)
+		n.logDelivery(msgID, event, site, cfg.WebhookURL, string(payload), attempt, status, errStr, cfg.WebhookSecret != "", dur.Milliseconds())
 
 		if sendErr == nil && status >= 200 && status < 300 {
 			return
@@ -127,10 +129,10 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 	}
 }
 
-func (n *Notifier) send(url, secret, msgID string, ts time.Time, payload []byte) (int, error) {
+func (n *Notifier) send(url, secret, msgID string, ts time.Time, payload []byte) (int, time.Duration, error) {
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("webhook-id", msgID)
@@ -139,29 +141,31 @@ func (n *Notifier) send(url, secret, msgID string, ts time.Time, payload []byte)
 	if secret != "" {
 		wh, err := standardwebhooks.NewWebhook(strings.TrimPrefix(secret, "whsec_"))
 		if err != nil {
-			return 0, fmt.Errorf("init webhook signer: %w", err)
+			return 0, 0, fmt.Errorf("init webhook signer: %w", err)
 		}
 		sig, err := wh.Sign(msgID, ts, payload)
 		if err != nil {
-			return 0, fmt.Errorf("sign webhook: %w", err)
+			return 0, 0, fmt.Errorf("sign webhook: %w", err)
 		}
 		req.Header.Set("webhook-signature", sig)
 	}
 
+	start := time.Now()
 	resp, err := n.client.Do(req)
+	dur := time.Since(start)
 	if err != nil {
-		return 0, err
+		return 0, dur, err
 	}
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	resp.Body.Close()
-	return resp.StatusCode, nil
+	return resp.StatusCode, dur, nil
 }
 
-func (n *Notifier) logDelivery(webhookID, event, site, url, payload string, attempt, status int, errStr string) {
+func (n *Notifier) logDelivery(webhookID, event, site, url, payload string, attempt, status int, errStr string, signed bool, durationMs int64) {
 	_, err := n.db.Exec(
-		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		webhookID, event, site, url, payload, attempt, status, errStr, time.Now().UTC().Format(time.RFC3339),
+		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at, signed, duration_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		webhookID, event, site, url, payload, attempt, status, errStr, time.Now().UTC().Format(time.RFC3339), signed, durationMs,
 	)
 	if err != nil {
 		log.Printf("webhook: log delivery: %v", err)
@@ -321,6 +325,124 @@ func (n *Notifier) DeliveriesOverTime(site string, from, to time.Time) ([]Delive
 	return fillDeliveryBuckets(buckets, from, to), nil
 }
 
+// LatencyStats holds aggregate latency values across a time range.
+type LatencyStats struct {
+	Min float64 `json:"min"`
+	Avg float64 `json:"avg"`
+	P95 float64 `json:"p95"`
+	Max float64 `json:"max"`
+}
+
+// LatencyStats returns min/avg/p95/max latency in ms for the given time range.
+func (n *Notifier) LatencyStats(site string, from, to time.Time) (LatencyStats, error) {
+	var whereConds []string
+	var args []any
+	if site != "" {
+		whereConds = append(whereConds, "site = ?")
+		args = append(args, site)
+	}
+	if !from.IsZero() {
+		whereConds = append(whereConds, "created_at >= ?")
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	whereConds = append(whereConds, "created_at <= ?")
+	args = append(args, to.UTC().Format(time.RFC3339))
+	whereConds = append(whereConds, "duration_ms > 0")
+
+	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+
+	var s LatencyStats
+	err := n.db.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(MIN(duration_ms), 0), COALESCE(AVG(duration_ms), 0), COALESCE(MAX(duration_ms), 0)
+		 FROM webhook_deliveries %s`, whereClause), args...,
+	).Scan(&s.Min, &s.Avg, &s.Max)
+	if err != nil {
+		return s, fmt.Errorf("latency stats: %w", err)
+	}
+	// Approximate p95: use the value at the 95th percentile rank.
+	var p95 float64
+	err = n.db.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(duration_ms, 0) FROM webhook_deliveries %s
+		 ORDER BY duration_ms ASC LIMIT 1 OFFSET (
+			SELECT CAST(COUNT(*) * 0.95 AS INTEGER) FROM webhook_deliveries %s
+		 )`, whereClause, whereClause), append(args, args...)...,
+	).Scan(&p95)
+	if err == nil {
+		s.P95 = p95
+	} else {
+		s.P95 = s.Max
+	}
+	return s, nil
+}
+
+// LatencyTimeBucket represents a time bucket with avg/p95/max latency in ms.
+type LatencyTimeBucket struct {
+	Time string  `json:"time"`
+	P50  float64 `json:"p50"`
+	P95  float64 `json:"p95"`
+	Max  float64 `json:"max"`
+}
+
+// LatencyOverTime returns time-bucketed latency percentiles.
+func (n *Notifier) LatencyOverTime(site string, from, to time.Time) ([]LatencyTimeBucket, error) {
+	stepSecs := int(deliveryBucketStep(from, to).Seconds())
+
+	var whereConds []string
+	var args []any
+	args = append(args, stepSecs, stepSecs)
+	if site != "" {
+		whereConds = append(whereConds, "site = ?")
+		args = append(args, site)
+	}
+	if !from.IsZero() {
+		whereConds = append(whereConds, "created_at >= ?")
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	whereConds = append(whereConds, "created_at <= ?")
+	args = append(args, to.UTC().Format(time.RFC3339))
+	// Exclude rows with no latency data (e.g. old rows before the column existed).
+	whereConds = append(whereConds, "duration_ms > 0")
+
+	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+
+	// Use a CTE with PERCENT_RANK to compute real per-bucket p95.
+	query := fmt.Sprintf(`WITH bucketed AS (
+			SELECT %s AS bucket, duration_ms
+			FROM webhook_deliveries %s
+		),
+		ranked AS (
+			SELECT bucket, duration_ms,
+				PERCENT_RANK() OVER (PARTITION BY bucket ORDER BY duration_ms) AS pct_rank
+			FROM bucketed
+		)
+		SELECT bucket,
+			CAST(AVG(duration_ms) AS REAL) AS avg_ms,
+			CAST(COALESCE(MIN(CASE WHEN pct_rank >= 0.95 THEN duration_ms END), MAX(duration_ms)) AS REAL) AS p95_ms,
+			CAST(MAX(duration_ms) AS REAL) AS max_ms
+		FROM ranked
+		GROUP BY bucket ORDER BY bucket`, deliveryBucketSQL, whereClause)
+
+	rows, err := n.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("latency over time: %w", err)
+	}
+	defer rows.Close()
+
+	var buckets []LatencyTimeBucket
+	for rows.Next() {
+		var b LatencyTimeBucket
+		if err := rows.Scan(&b.Time, &b.P50, &b.P95, &b.Max); err != nil {
+			return nil, fmt.Errorf("scan latency bucket: %w", err)
+		}
+		buckets = append(buckets, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate latency buckets: %w", err)
+	}
+
+	return buckets, nil
+}
+
 // EventBreakdown returns delivery counts grouped by event type.
 func (n *Notifier) EventBreakdown(site string, from, to time.Time) ([]EventCount, error) {
 	var whereConds []string
@@ -370,17 +492,19 @@ type DeliverySummary struct {
 	URL          string `json:"url"`
 	Attempts     int    `json:"attempts"`
 	Succeeded    bool   `json:"succeeded"`
+	Signed       bool   `json:"signed"`
 	FirstAttempt string `json:"first_attempt"`
 	LastAttempt  string `json:"last_attempt"`
 }
 
 // DeliveryAttempt represents a single delivery attempt.
 type DeliveryAttempt struct {
-	Attempt   int    `json:"attempt"`
-	Status    int    `json:"status"`
-	Error     string `json:"error"`
-	CreatedAt string `json:"created_at"`
-	Payload   string `json:"payload"`
+	Attempt    int    `json:"attempt"`
+	Status     int    `json:"status"`
+	Error      string `json:"error"`
+	CreatedAt  string `json:"created_at"`
+	Payload    string `json:"payload"`
+	DurationMs int64  `json:"duration_ms"`
 }
 
 // ListDeliveries returns grouped webhook deliveries with optional filters.
@@ -453,10 +577,29 @@ func (n *Notifier) ListDeliveries(site, event, status string, limit, offset int)
 	return deliveries, total, nil
 }
 
+// GetDelivery returns the summary for a single webhook delivery.
+func (n *Notifier) GetDelivery(webhookID string) (DeliverySummary, error) {
+	var d DeliverySummary
+	err := n.db.QueryRow(
+		`SELECT webhook_id, event, site, url,
+			MAX(attempt) as attempts,
+			MAX(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) as succeeded,
+			MAX(signed) as signed,
+			MIN(created_at) as first_attempt,
+			MAX(created_at) as last_attempt
+		 FROM webhook_deliveries WHERE webhook_id = ? GROUP BY webhook_id`,
+		webhookID,
+	).Scan(&d.WebhookID, &d.Event, &d.Site, &d.URL, &d.Attempts, &d.Succeeded, &d.Signed, &d.FirstAttempt, &d.LastAttempt)
+	if err != nil {
+		return d, fmt.Errorf("get delivery: %w", err)
+	}
+	return d, nil
+}
+
 // GetDeliveryAttempts returns all attempts for a given webhook ID, ordered by attempt number.
 func (n *Notifier) GetDeliveryAttempts(webhookID string) ([]DeliveryAttempt, error) {
 	rows, err := n.db.Query(
-		`SELECT attempt, status, error, created_at, payload
+		`SELECT attempt, status, error, created_at, payload, duration_ms
 		 FROM webhook_deliveries WHERE webhook_id = ? ORDER BY attempt`,
 		webhookID,
 	)
@@ -468,7 +611,7 @@ func (n *Notifier) GetDeliveryAttempts(webhookID string) ([]DeliveryAttempt, err
 	var attempts []DeliveryAttempt
 	for rows.Next() {
 		var a DeliveryAttempt
-		if err := rows.Scan(&a.Attempt, &a.Status, &a.Error, &a.CreatedAt, &a.Payload); err != nil {
+		if err := rows.Scan(&a.Attempt, &a.Status, &a.Error, &a.CreatedAt, &a.Payload, &a.DurationMs); err != nil {
 			return nil, fmt.Errorf("scan attempt: %w", err)
 		}
 		attempts = append(attempts, a)

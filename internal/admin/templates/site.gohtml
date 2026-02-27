@@ -391,11 +391,6 @@
                         <th
                                 scope="col"
                                 class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
-                        >URL
-                        </th>
-                        <th
-                                scope="col"
-                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-paper dark:border-base-950"
                         >Time
                         </th>
                     </tr>
@@ -403,7 +398,10 @@
 
                     <tbody class="[&>tr:last-child>td]:border-b-0">
                     {{range .RecentDeliveries}}
-                        <tr>
+                        <tr
+                                class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
+                                onclick="window.location='/webhooks/{{.WebhookID}}'"
+                        >
                             <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950">
                                 <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
                                     {{.Event}}
@@ -418,12 +416,6 @@
                             </td>
                             <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
                                 {{.Attempts}}
-                            </td>
-                            <td
-                                    class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 font-mono text-muted truncate max-w-50"
-                                    title="{{.URL}}"
-                            >
-                                {{.URL}}
                             </td>
                             <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
                                 <time datetime="{{.FirstAttempt}}" title="{{.FirstAttempt}}">

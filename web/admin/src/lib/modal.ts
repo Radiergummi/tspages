@@ -1,31 +1,46 @@
 export function openModal(id: string): void {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove("hidden");
-  el.classList.add("flex");
+    const node = document.getElementById(id);
+
+    if (!node) {
+        return;
+    }
+
+    node.classList.remove("hidden");
+    node.classList.add("flex");
 }
 
 export function closeModal(id: string): void {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove("flex");
-  el.classList.add("hidden");
+    const node = document.getElementById(id);
+
+    if (!node) {
+        return;
+    }
+
+    node.classList.remove("flex");
+    node.classList.add("hidden");
 }
 
 /**
  * Set up a modal: close on backdrop click, close on Escape key.
  */
-export function initModal(id: string): void {
-  const el = document.getElementById(id);
-  if (!el) return;
+export function initModal(id: string): HTMLElement | undefined {
+    const node = document.getElementById(id);
 
-  el.addEventListener("click", (e) => {
-    if (e.target === el) closeModal(id);
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !el.classList.contains("hidden")) {
-      closeModal(id);
+    if (!node) {
+        return;
     }
-  });
+
+    node.addEventListener("click", (event) => {
+        if (event.target === node) {
+            closeModal(id);
+        }
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !node.classList.contains("hidden")) {
+            closeModal(id);
+        }
+    });
+
+    return node;
 }

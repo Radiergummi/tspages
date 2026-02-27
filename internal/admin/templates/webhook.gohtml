@@ -1,0 +1,150 @@
+{{define "title"}} - webhook {{.Delivery.WebhookID}}{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        <nav>
+            <a
+                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                    href="/webhooks"
+            >
+                <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                >
+                    <path d="M9 14 4 9l5-5" />
+                    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+                </svg>
+                <span>Webhooks</span>
+            </a>
+        </nav>
+
+        <header>
+            <h1 class="text-2xl font-semibold tracking-tight">
+                Webhook
+                <code>{{.Delivery.WebhookID}}</code>
+            </h1>
+        </header>
+
+        <section class="grid gap-4 grid-cols-12">
+            <dl class="col-span-3 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Event</dt>
+                <dd class="text-sm">
+                    <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                        {{.Delivery.Event}}
+                    </span>
+                </dd>
+            </dl>
+            <dl class="col-span-3 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">Site</dt>
+                <dd class="font-mono text-sm">
+                    <a
+                            class="text-blue-500 no-underline hover:underline"
+                            href="/sites/{{.Delivery.Site}}"
+                    >
+                        {{.Delivery.Site}}
+                    </a>
+                </dd>
+            </dl>
+            <dl class="col-span-2 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Status
+                </dt>
+                <dd class="text-sm">
+                    {{if .Delivery.Succeeded}}
+                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
+                            ok
+                        </span>
+                    {{else}}
+                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">
+                            failed
+                        </span>
+                    {{end}}
+                </dd>
+            </dl>
+            <dl class="col-span-2 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Signed
+                </dt>
+                <dd class="text-sm">
+                    {{if .Delivery.Signed}}
+                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
+                            yes
+                        </span>
+                    {{else}}
+                        <span class="text-muted">
+                            no
+                        </span>
+                    {{end}}
+                </dd>
+            </dl>
+            <dl class="col-span-9 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    URL
+                </dt>
+                <dd class="font-mono text-sm truncate" title="{{.Delivery.URL}}">
+                    {{.Delivery.URL}}
+                </dd>
+            </dl>
+        </section>
+
+        {{if .Attempts}}
+            <section>
+                <header class="mb-4">
+                    <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-2">
+                        <span>Delivery attempts</span>
+                        <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                            {{len .Attempts}}
+                        </span>
+                    </h2>
+                </header>
+
+                <div class="flex flex-col gap-4">
+                    {{range .Attempts}}
+                        <div class="bg-surface rounded-md dark:ring-1 dark:ring-base-500/25 overflow-hidden">
+                            <header class="flex items-center gap-4 px-5 py-3 border-b border-paper dark:border-black">
+                                <span class="text-sm font-semibold">
+                                    Attempt {{.Attempt}}
+                                </span>
+
+                                {{if and (ge .Status 200) (lt .Status 300)}}
+                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">{{.Status}}</span>
+                                {{else if gt .Status 0}}
+                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">{{.Status}}</span>
+                                {{end}}
+
+                                {{if .Error}}
+                                    <span class="text-xs text-red-600 dark:text-red-400">
+                                        {{.Error}}
+                                    </span>
+                                {{end}}
+
+                                {{if gt .DurationMs 0}}
+                                    <span class="ms-auto text-xs font-mono text-muted">{{.DurationMs}}ms</span>
+                                {{end}}
+
+                                <time
+                                        datetime="{{.CreatedAt}}"
+                                        title="{{.CreatedAt}}"
+                                        class="text-xs text-muted"
+                                >
+                                    {{reltime .CreatedAt}}
+                                </time>
+                            </header>
+                            {{if .Payload}}
+                                <pre class="px-5 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all m-0">{{.Payload}}</pre>
+                            {{end}}
+                        </div>
+                    {{end}}
+                </div>
+            </section>
+        {{end}}
+    </article>
+{{end}}

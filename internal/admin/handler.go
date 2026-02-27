@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -876,45 +877,53 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var statsTotal, statsSucceeded, statsFailed int64
 	var timeSeries []webhook.DeliveryTimeBucket
 	var events []webhook.EventCount
+	var latency []webhook.LatencyTimeBucket
+	var latencyStats webhook.LatencyStats
 	if h.notifier != nil {
 		statsTotal, statsSucceeded, statsFailed, _ = h.notifier.DeliveryStats("", from, now)
 		timeSeries, _ = h.notifier.DeliveriesOverTime("", from, now)
 		events, _ = h.notifier.EventBreakdown("", from, now)
+		latency, _ = h.notifier.LatencyOverTime("", from, now)
+		latencyStats, _ = h.notifier.LatencyStats("", from, now)
 	}
 
 	if wantsJSON(r) {
 		writeJSON(w, map[string]any{
-			"deliveries":  deliveries,
-			"page":        page,
-			"total_pages": totalPages,
-			"range":       rangeParam,
-			"total":       statsTotal,
-			"succeeded":   statsSucceeded,
-			"failed":      statsFailed,
-			"time_series": timeSeries,
-			"events":      events,
+			"deliveries":    deliveries,
+			"page":          page,
+			"total_pages":   totalPages,
+			"range":         rangeParam,
+			"total":         statsTotal,
+			"succeeded":     statsSucceeded,
+			"failed":        statsFailed,
+			"time_series":   timeSeries,
+			"events":        events,
+			"latency":       latency,
+			"latency_stats": latencyStats,
 		})
 		return
 	}
 
 	renderPage(w, r, webhooksTmpl, "webhooks", struct {
-		Deliveries []webhook.DeliverySummary
-		Page       int
-		TotalPages int
-		Site       string
-		Global     bool
-		Event      string
-		Status     string
-		User       UserInfo
-		BasePath   string
-		Range      string
-		Total      int64
-		Succeeded  int64
-		Failed     int64
-		TimeSeries []webhook.DeliveryTimeBucket
-		Events     []webhook.EventCount
+		Deliveries   []webhook.DeliverySummary
+		Page         int
+		TotalPages   int
+		Site         string
+		Global       bool
+		Event        string
+		Status       string
+		User         UserInfo
+		BasePath     string
+		Range        string
+		Total        int64
+		Succeeded    int64
+		Failed       int64
+		TimeSeries   []webhook.DeliveryTimeBucket
+		Events       []webhook.EventCount
+		Latency      []webhook.LatencyTimeBucket
+		LatencyStats webhook.LatencyStats
 	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity), "/webhooks",
-		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events})
+		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 
 // --- GET /sites/{site}/webhooks ---
@@ -967,45 +976,53 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	var statsTotal, statsSucceeded, statsFailed int64
 	var timeSeries []webhook.DeliveryTimeBucket
 	var events []webhook.EventCount
+	var latency []webhook.LatencyTimeBucket
+	var latencyStats webhook.LatencyStats
 	if h.notifier != nil {
 		statsTotal, statsSucceeded, statsFailed, _ = h.notifier.DeliveryStats(siteName, from, now)
 		timeSeries, _ = h.notifier.DeliveriesOverTime(siteName, from, now)
 		events, _ = h.notifier.EventBreakdown(siteName, from, now)
+		latency, _ = h.notifier.LatencyOverTime(siteName, from, now)
+		latencyStats, _ = h.notifier.LatencyStats(siteName, from, now)
 	}
 
 	if wantsJSON(r) {
 		writeJSON(w, map[string]any{
-			"deliveries":  deliveries,
-			"page":        page,
-			"total_pages": totalPages,
-			"range":       rangeParam,
-			"total":       statsTotal,
-			"succeeded":   statsSucceeded,
-			"failed":      statsFailed,
-			"time_series": timeSeries,
-			"events":      events,
+			"deliveries":    deliveries,
+			"page":          page,
+			"total_pages":   totalPages,
+			"range":         rangeParam,
+			"total":         statsTotal,
+			"succeeded":     statsSucceeded,
+			"failed":        statsFailed,
+			"time_series":   timeSeries,
+			"events":        events,
+			"latency":       latency,
+			"latency_stats": latencyStats,
 		})
 		return
 	}
 
 	renderPage(w, r, webhooksTmpl, "sites", struct {
-		Deliveries []webhook.DeliverySummary
-		Page       int
-		TotalPages int
-		Site       string
-		Global     bool
-		Event      string
-		Status     string
-		User       UserInfo
-		BasePath   string
-		Range      string
-		Total      int64
-		Succeeded  int64
-		Failed     int64
-		TimeSeries []webhook.DeliveryTimeBucket
-		Events     []webhook.EventCount
+		Deliveries   []webhook.DeliverySummary
+		Page         int
+		TotalPages   int
+		Site         string
+		Global       bool
+		Event        string
+		Status       string
+		User         UserInfo
+		BasePath     string
+		Range        string
+		Total        int64
+		Succeeded    int64
+		Failed       int64
+		TimeSeries   []webhook.DeliveryTimeBucket
+		Events       []webhook.EventCount
+		Latency      []webhook.LatencyTimeBucket
+		LatencyStats webhook.LatencyStats
 	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity), basePath,
-		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events})
+		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 
 // --- GET /webhooks/{id} ---
@@ -1042,6 +1059,12 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	attempts, _ := h.notifier.GetDeliveryAttempts(webhookID)
+	for i, a := range attempts {
+		var buf bytes.Buffer
+		if json.Indent(&buf, []byte(a.Payload), "", "  ") == nil {
+			attempts[i].Payload = buf.String()
+		}
+	}
 
 	if wantsJSON(r) {
 		writeJSON(w, map[string]any{

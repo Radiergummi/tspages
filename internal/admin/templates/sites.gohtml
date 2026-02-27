@@ -24,26 +24,44 @@
             <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
                 <thead>
                 <tr>
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    >
                         Name
                     </th>
 
                     {{if .Admin}}
-                        <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        <th
+                                scope="col"
+                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
                             Deployed by
                         </th>
-                        <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        <th
+                                scope="col"
+                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
                             Last deployed
                         </th>
-                        <th scope="col" class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        <th
+                                scope="col"
+                                class="text-right px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
                             Requests
                         </th>
                     {{else}}
-                        <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default">
+                        <th
+                                scope="col"
+                                class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                        >
                             URL
                         </th>
                     {{end}}
-                    <th scope="col" class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"></th>
+                    <th
+                            scope="col"
+                            class="text-left px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                    ></th>
                 </tr>
                 </thead>
                 <tbody class="[&>tr:last-child>td]:border-b-0">
@@ -155,7 +173,10 @@
                     <div class="flex items-center justify-between px-5 py-4 border-b border-default">
                         <h3 id="new-site-modal-title" class="text-base font-semibold inline-flex items-center">New
                             site {{helpicon "getting-started" "Getting started"}}</h3>
-                        <button aria-label="Close" class="modal-close text-xl text-muted hover:text-black dark:hover:text-base-200 bg-transparent border-0 cursor-pointer p-0 leading-none">
+                        <button
+                                aria-label="Close"
+                                class="modal-close text-xl text-muted hover:text-black dark:hover:text-base-200 bg-transparent border-0 cursor-pointer p-0 leading-none"
+                        >
                             <svg
                                     aria-hidden="true"
                                     xmlns="http://www.w3.org/2000/svg"

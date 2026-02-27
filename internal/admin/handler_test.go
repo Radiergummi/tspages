@@ -566,14 +566,16 @@ func TestDeploymentHandler_DiffAgainstPrevious(t *testing.T) {
 
 func TestDiffFiles(t *testing.T) {
 	current := []storage.FileInfo{
-		{Path: "index.html", Size: 200},
-		{Path: "new.js", Size: 50},
-		{Path: "same.css", Size: 100},
+		{Path: "index.html", Size: 200, Hash: "aaa"},
+		{Path: "new.js", Size: 50, Hash: "bbb"},
+		{Path: "same.css", Size: 100, Hash: "ccc"},
+		{Path: "same-size-diff-content.txt", Size: 100, Hash: "ddd"},
 	}
 	previous := []storage.FileInfo{
-		{Path: "index.html", Size: 100},
-		{Path: "old.txt", Size: 30},
-		{Path: "same.css", Size: 100},
+		{Path: "index.html", Size: 100, Hash: "xxx"},
+		{Path: "old.txt", Size: 30, Hash: "yyy"},
+		{Path: "same.css", Size: 100, Hash: "ccc"},
+		{Path: "same-size-diff-content.txt", Size: 100, Hash: "zzz"},
 	}
 
 	added, removed, changed := diffFiles(current, previous)
@@ -584,8 +586,8 @@ func TestDiffFiles(t *testing.T) {
 	if len(removed) != 1 || removed[0] != "old.txt" {
 		t.Errorf("removed = %v, want [old.txt]", removed)
 	}
-	if len(changed) != 1 || changed[0] != "index.html" {
-		t.Errorf("changed = %v, want [index.html]", changed)
+	if len(changed) != 2 {
+		t.Errorf("changed = %v, want [index.html same-size-diff-content.txt]", changed)
 	}
 }
 

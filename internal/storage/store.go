@@ -2,6 +2,7 @@ package storage
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -229,6 +230,7 @@ type DeploymentInfo struct {
 type FileInfo struct {
 	Path string `json:"path"`
 	Size int64  `json:"size"`
+	Hash string `json:"hash"`
 }
 
 // ContentDir returns the path to the content directory for a deployment.
@@ -262,7 +264,12 @@ func (s *Store) ListDeploymentFiles(site, id string) ([]FileInfo, error) {
 		if err != nil {
 			return err
 		}
-		files = append(files, FileInfo{Path: rel, Size: info.Size()})
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		h := sha256.Sum256(data)
+		files = append(files, FileInfo{Path: rel, Size: info.Size(), Hash: hex.EncodeToString(h[:])})
 		return nil
 	})
 	if err != nil && !os.IsNotExist(err) {

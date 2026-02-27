@@ -469,6 +469,12 @@ var funcs = template.FuncMap{
 		}
 		return "?"
 	},
+	"fmtms": func(v float64) string {
+		if v >= 1000 {
+			return fmt.Sprintf("%.2fs", v/1000)
+		}
+		return fmt.Sprintf("%dms", int(v))
+	},
 	"deref": func(b *bool) bool {
 		return b != nil && *b
 	},
@@ -504,6 +510,7 @@ var (
 	helpTmpl        = newTmpl("templates/layout.gohtml", "templates/help.gohtml")
 	apiTmpl         = newTmpl("templates/layout.gohtml", "templates/api.gohtml")
 	webhooksTmpl        = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
+	webhookDetailTmpl   = newTmpl("templates/layout.gohtml", "templates/webhook.gohtml")
 	siteDeploymentsTmpl = newTmpl("templates/layout.gohtml", "templates/site-deployments.gohtml")
 	errorTmpl           = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
 )

@@ -1,6 +1,11 @@
 {{define "title"}} - {{if .SiteName}}{{.SiteName}} analytics{{else}}Analytics{{end}}{{end}}
 {{define "head-extra"}}
-    <link rel="alternate" type="application/json" title="Analytics (JSON)" href="{{if .SiteName}}/sites/{{.SiteName}}/analytics.json{{else}}/analytics.json{{end}}">
+    <link
+            rel="alternate"
+            type="application/json"
+            title="Analytics (JSON)"
+            href="{{if .SiteName}}/sites/{{.SiteName}}/analytics.json{{else}}/analytics.json{{end}}"
+    >
 {{end}}
 
 {{define "content"}}
@@ -182,7 +187,12 @@
                     </header>
 
                     <div class="relative pt-4 h-48">
-                        <canvas id="status-chart" height="140" aria-label="Responses by status code" role="img"></canvas>
+                        <canvas
+                                id="status-chart"
+                                height="140"
+                                aria-label="Responses by status code"
+                                role="img"
+                        ></canvas>
                     </div>
                 </section>
             {{end}}
