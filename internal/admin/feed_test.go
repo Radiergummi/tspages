@@ -190,6 +190,66 @@ func TestSiteFeedHandler_InvalidSite(t *testing.T) {
 	}
 }
 
+func TestFeedHandler_EmptyStore(t *testing.T) {
+	store := storage.New(t.TempDir())
+	recorder := setupRecorder(t)
+	dnsSuffix := "test.ts.net"
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+
+	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
+	rec := httptest.NewRecorder()
+	hs.Feed.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var feed atomFeed
+	if err := xml.Unmarshal(rec.Body.Bytes(), &feed); err != nil {
+		t.Fatalf("invalid XML: %v", err)
+	}
+	if len(feed.Entries) != 0 {
+		t.Errorf("got %d entries, want 0 for empty store", len(feed.Entries))
+	}
+	// Updated should be set to roughly now.
+	if _, err := time.Parse(time.RFC3339, feed.Updated); err != nil {
+		t.Errorf("feed.Updated %q is not valid RFC3339: %v", feed.Updated, err)
+	}
+}
+
+func TestSiteFeedHandler_SiteWithNoDeployments(t *testing.T) {
+	store := storage.New(t.TempDir())
+	// Create site directory so it exists, but don't add any deployments.
+	store.CreateDeployment("empty", "tmp00001")
+	store.MarkComplete("empty", "tmp00001")
+	store.DeleteDeployment("empty", "tmp00001")
+
+	recorder := setupRecorder(t)
+	dnsSuffix := "test.ts.net"
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+
+	req := reqWithAuth("GET", "/sites/empty/feed.atom", adminCaps, adminID)
+	req.SetPathValue("site", "empty")
+
+	rec := httptest.NewRecorder()
+	hs.SiteFeed.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var feed atomFeed
+	if err := xml.Unmarshal(rec.Body.Bytes(), &feed); err != nil {
+		t.Fatalf("invalid XML: %v", err)
+	}
+	if len(feed.Entries) != 0 {
+		t.Errorf("got %d entries, want 0", len(feed.Entries))
+	}
+	if feed.Title != "tspages: empty" {
+		t.Errorf("title = %q, want %q", feed.Title, "tspages: empty")
+	}
+}
+
 func TestFeedHandler_NoAccess(t *testing.T) {
 	hs, _ := setupHandlers(t)
 	// Caps with no deploy/admin for any site

@@ -37,6 +37,28 @@ func withCaps(r *http.Request, caps []auth.Cap) *http.Request {
 	return r.WithContext(auth.ContextWithCaps(r.Context(), caps))
 }
 
+func TestHandler_PathTraversal_Blocked(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "<h1>Docs</h1>",
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+
+	for _, p := range []string{"../secret", "foo/../../etc/passwd", "..", "....//....//etc/passwd"} {
+		req := httptest.NewRequest("GET", "/"+p, nil)
+		req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+		req.SetPathValue("path", p)
+
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("path %q: got %d, want 404", p, rec.Code)
+		}
+	}
+}
+
 func TestHandler_ServesFile(t *testing.T) {
 	store := storage.New(t.TempDir())
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
@@ -44,7 +66,7 @@ func TestHandler_ServesFile(t *testing.T) {
 		"style.css":  "body{}",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -66,7 +88,7 @@ func TestHandler_IndexFallback(t *testing.T) {
 		"index.html": "<h1>Index</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "")
@@ -85,7 +107,7 @@ func TestHandler_Forbidden(t *testing.T) {
 		"index.html": "hi",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/index.html", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"other"}}})
 	req.SetPathValue("path", "index.html")
@@ -104,7 +126,7 @@ func TestHandler_ETag(t *testing.T) {
 		"style.css": "body{}",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -130,7 +152,7 @@ func TestHandler_ETag_NotModified(t *testing.T) {
 		"style.css": "body{}",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	// First request to get the ETag
 	req := httptest.NewRequest("GET", "/style.css", nil)
@@ -159,7 +181,7 @@ func TestHandler_ETag_ChangesOnNewDeployment(t *testing.T) {
 		"style.css": "body{}",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -203,7 +225,7 @@ func TestHandler_404_Custom(t *testing.T) {
 		"404.html":   "<h1>Custom Not Found</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/nope", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "nope")
@@ -225,7 +247,7 @@ func TestHandler_404_Default(t *testing.T) {
 		"index.html": "<h1>Docs</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/nope", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "nope")
@@ -248,7 +270,7 @@ func TestHandler_404_Default(t *testing.T) {
 func TestHandler_NoDeployment_Placeholder(t *testing.T) {
 	store := storage.New(t.TempDir())
 
-	h := NewHandler(store, "mysite", nil, storage.SiteConfig{})
+	h := NewHandler(store, "mysite", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/index.html", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
 	req.SetPathValue("path", "index.html")
@@ -288,7 +310,7 @@ func TestHandler_SPA_FallbackToIndex(t *testing.T) {
 	spa := true
 	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
 
-	h := NewHandler(store, "app", nil, storage.SiteConfig{})
+	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
 	req := httptest.NewRequest("GET", "/dashboard/settings", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -318,7 +340,7 @@ func TestHandler_SPA_RealFileStillServed(t *testing.T) {
 	spa := true
 	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
 
-	h := NewHandler(store, "app", nil, storage.SiteConfig{})
+	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -347,7 +369,7 @@ func TestHandler_SPA_CustomIndexPage(t *testing.T) {
 	spa := true
 	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa, IndexPage: "app.html"})
 
-	h := NewHandler(store, "app", nil, storage.SiteConfig{})
+	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
 	req := httptest.NewRequest("GET", "/any/route", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -370,7 +392,7 @@ func TestHandler_SPA_Disabled(t *testing.T) {
 		"index.html": "<h1>Docs</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
@@ -395,7 +417,7 @@ func TestHandler_SPA_FromDefaults(t *testing.T) {
 
 	spa := true
 	defaults := storage.SiteConfig{SPARouting: &spa}
-	h := NewHandler(store, "app", nil, defaults)
+	h := NewHandler(store, "app", "", defaults)
 
 	req := httptest.NewRequest("GET", "/some/route", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -421,7 +443,7 @@ func TestHandler_CustomNotFoundPage(t *testing.T) {
 
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{NotFoundPage: "errors/404.html"})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
@@ -435,6 +457,41 @@ func TestHandler_CustomNotFoundPage(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Custom Error") {
 		t.Errorf("expected custom error content, got: %s", rec.Body.String())
+	}
+}
+
+func TestHandler_NotFoundPage_SymlinkEscape(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("docs", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "index.html"), []byte("<h1>Docs</h1>"), 0644)
+
+	// Create a file outside the site root.
+	externalDir := t.TempDir()
+	os.WriteFile(filepath.Join(externalDir, "secret.html"), []byte("<h1>Secret</h1>"), 0644)
+
+	// Symlink inside content pointing outside.
+	os.Symlink(filepath.Join(externalDir, "secret.html"), filepath.Join(contentDir, "evil404.html"))
+
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{NotFoundPage: "evil404.html"})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+
+	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "nonexistent")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "Secret") {
+		t.Error("served external file via symlink escape in NotFoundPage — containment check failed")
 	}
 }
 
@@ -455,7 +512,7 @@ func TestHandler_CustomHeaders(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	// HTML file should get X-Frame-Options from /*
 	req := httptest.NewRequest("GET", "/", nil)
@@ -497,7 +554,7 @@ func TestHandler_CustomHeaders_FromDefaults(t *testing.T) {
 			"/*": {"X-Frame-Options": "SAMEORIGIN"},
 		},
 	}
-	h := NewHandler(store, "docs", nil, defaults)
+	h := NewHandler(store, "docs", "", defaults)
 
 	req := httptest.NewRequest("GET", "/index.html", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
@@ -555,7 +612,7 @@ func TestHandler_FullConfig_Integration(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "app", nil, storage.SiteConfig{})
+	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
 	// 1. Normal file serves correctly with headers
 	req := httptest.NewRequest("GET", "/style.css", nil)
@@ -592,9 +649,7 @@ func TestHandler_FullConfig_Integration(t *testing.T) {
 
 func TestHandler_Placeholder_WithDNSSuffix(t *testing.T) {
 	store := storage.New(t.TempDir())
-	suffix := "example.ts.net"
-
-	h := NewHandler(store, "docs", &suffix, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "example.ts.net", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
 	req.SetPathValue("path", "")
@@ -612,7 +667,7 @@ func TestHandler_AnalyticsEnabled_Default(t *testing.T) {
 	store := storage.New(t.TempDir())
 	setupSite(t, store, "docs", "aaa11111", map[string]string{"index.html": "hi"})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	// Trigger config load by serving a request.
 	req := httptest.NewRequest("GET", "/", nil)
@@ -631,7 +686,7 @@ func TestHandler_AnalyticsEnabled_Disabled(t *testing.T) {
 	analytics := false
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -649,7 +704,7 @@ func TestHandler_AnalyticsEnabled_FromDefaults(t *testing.T) {
 
 	analytics := false
 	defaults := storage.SiteConfig{Analytics: &analytics}
-	h := NewHandler(store, "docs", nil, defaults)
+	h := NewHandler(store, "docs", "", defaults)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -668,7 +723,7 @@ func TestHandler_AnalyticsEnabled_NoDeployment(t *testing.T) {
 
 	analytics := false
 	defaults := storage.SiteConfig{Analytics: &analytics}
-	h := NewHandler(store, "docs", nil, defaults)
+	h := NewHandler(store, "docs", "", defaults)
 
 	// AnalyticsEnabled should respect defaults even before any request.
 	if h.AnalyticsEnabled() {
@@ -700,7 +755,7 @@ func TestMatchRedirect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := matchRedirect(tt.rule, tt.path)
+			got, ok := matchRedirect(tt.rule, strings.Split(tt.path, "/"))
 			if ok != tt.wantOK {
 				t.Errorf("matched = %v, want %v", ok, tt.wantOK)
 			}
@@ -722,7 +777,7 @@ func TestHandler_Redirect_Exact(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/old", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "old")
@@ -749,7 +804,7 @@ func TestHandler_Redirect_NamedParam(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/blog/hello-world", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "blog/hello-world")
@@ -776,7 +831,7 @@ func TestHandler_Redirect_Splat(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/getting-started", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "docs/getting-started")
@@ -804,7 +859,7 @@ func TestHandler_Redirect_FirstMatchWins(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/a", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "a")
@@ -829,7 +884,7 @@ func TestHandler_Redirect_NoMatchServesFile(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -856,7 +911,7 @@ func TestHandler_Redirect_FromDefaults(t *testing.T) {
 			{From: "/old", To: "/new", Status: 301},
 		},
 	}
-	h := NewHandler(store, "docs", nil, defaults)
+	h := NewHandler(store, "docs", "", defaults)
 
 	req := httptest.NewRequest("GET", "/old", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
@@ -878,7 +933,7 @@ func TestHandler_CacheControl_HTML(t *testing.T) {
 		"index.html": "<h1>Docs</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "")
@@ -900,7 +955,7 @@ func TestHandler_CacheControl_RegularAsset(t *testing.T) {
 		"style.css": "body{}",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -919,7 +974,7 @@ func TestHandler_CacheControl_HashedAsset(t *testing.T) {
 		"main.a1b2c3d4.js": "console.log('hi')",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/main.a1b2c3d4.js", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "main.a1b2c3d4.js")
@@ -948,7 +1003,7 @@ func TestHandler_CacheControl_UserOverride(t *testing.T) {
 		},
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -997,7 +1052,7 @@ func TestHandler_Gzip_CompressesHTML(t *testing.T) {
 		"index.html": content,
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "")
@@ -1041,7 +1096,7 @@ func TestHandler_Gzip_SkipsImages(t *testing.T) {
 		"image.png": strings.Repeat("x", 1000),
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/image.png", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "image.png")
@@ -1061,7 +1116,7 @@ func TestHandler_Gzip_SkipsSmallFiles(t *testing.T) {
 		"tiny.txt": "<p>hi</p>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/tiny.txt", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "tiny.txt")
@@ -1086,7 +1141,7 @@ func TestHandler_Gzip_SkipsWithoutAcceptEncoding(t *testing.T) {
 		"index.html": content,
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "")
@@ -1110,7 +1165,7 @@ func TestHandler_Gzip_304NotCompressed(t *testing.T) {
 		"index.html": content,
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	// First request to get ETag.
 	req := httptest.NewRequest("GET", "/", nil)
@@ -1145,7 +1200,7 @@ func TestHandler_Gzip_CompressesCSS(t *testing.T) {
 		"style.css": content,
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -1179,7 +1234,7 @@ func TestHandler_Precompressed_PrefersBrotli(t *testing.T) {
 		"style.css.gz": "gzip-compressed",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -1212,7 +1267,7 @@ func TestHandler_Precompressed_GzipFallback(t *testing.T) {
 		"style.css.gz": "gzip-compressed",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -1239,7 +1294,7 @@ func TestHandler_Precompressed_OnTheFlyFallback(t *testing.T) {
 		"style.css": content,
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -1276,7 +1331,7 @@ func TestHandler_Precompressed_NoEncoding(t *testing.T) {
 		"style.css.gz": "gzip-compressed",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -1310,7 +1365,7 @@ func TestHandler_DirectoryListing_Enabled(t *testing.T) {
 	dl := true
 	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
 
-	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
 	req.SetPathValue("path", "docs")
@@ -1343,7 +1398,7 @@ func TestHandler_DirectoryListing_Disabled(t *testing.T) {
 	store.ActivateDeployment("files", "aaa11111")
 
 	// directory_listing defaults to nil (off)
-	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
 	req.SetPathValue("path", "docs")
@@ -1369,7 +1424,7 @@ func TestHandler_DirectoryListing_IndexTakesPrecedence(t *testing.T) {
 	dl := true
 	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
 
-	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
 	req.SetPathValue("path", "docs")
@@ -1400,7 +1455,7 @@ func TestHandler_DirectoryListing_FromDefaults(t *testing.T) {
 
 	dl := true
 	defaults := storage.SiteConfig{DirectoryListing: &dl}
-	h := NewHandler(store, "files", nil, defaults)
+	h := NewHandler(store, "files", "", defaults)
 
 	req := httptest.NewRequest("GET", "/docs/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
@@ -1429,7 +1484,7 @@ func TestHandler_DirectoryListing_ParentLink(t *testing.T) {
 	dl := true
 	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
 
-	h := NewHandler(store, "files", nil, storage.SiteConfig{})
+	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/a/b/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view"}})
 	req.SetPathValue("path", "a/b")
@@ -1487,7 +1542,7 @@ func TestHandler_TrailingSlash_Add(t *testing.T) {
 
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "about")
@@ -1510,7 +1565,7 @@ func TestHandler_TrailingSlash_Add_SkipsFileExtensions(t *testing.T) {
 	})
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "style.css")
@@ -1530,7 +1585,7 @@ func TestHandler_TrailingSlash_Remove(t *testing.T) {
 	})
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "about/")
@@ -1553,7 +1608,7 @@ func TestHandler_TrailingSlash_Remove_RootUnchanged(t *testing.T) {
 	})
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "")
@@ -1573,7 +1628,7 @@ func TestHandler_TrailingSlash_FromDefaults(t *testing.T) {
 	})
 
 	defaults := storage.SiteConfig{TrailingSlash: "add"}
-	h := NewHandler(store, "docs", nil, defaults)
+	h := NewHandler(store, "docs", "", defaults)
 
 	req := httptest.NewRequest("GET", "/about", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
@@ -1596,7 +1651,7 @@ func TestHandler_CleanURL_Fallback(t *testing.T) {
 		"about.html": "<h1>About</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "about")
@@ -1619,7 +1674,7 @@ func TestHandler_CleanURL_CanonicalRedirect(t *testing.T) {
 		"about.html": "<h1>About</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about.html", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "about.html")
@@ -1643,7 +1698,7 @@ func TestHandler_CleanURL_ExactFileWins(t *testing.T) {
 		"about.html": "<h1>About HTML</h1>",
 	})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "about")
@@ -1669,7 +1724,7 @@ func TestHandler_CleanURL_DirectoryWins(t *testing.T) {
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "about")
@@ -1694,7 +1749,7 @@ func TestHandler_CleanURL_Disabled(t *testing.T) {
 	htmlExt := true
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{HTMLExtensions: &htmlExt})
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
 	// With html_extensions = true, /about should 404 (no clean URL fallback)
 	req := httptest.NewRequest("GET", "/about", nil)
@@ -1733,7 +1788,7 @@ func TestHandler_CleanURL_NestedPath(t *testing.T) {
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
 
-	h := NewHandler(store, "docs", nil, storage.SiteConfig{})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/setup", nil)
 	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
 	req.SetPathValue("path", "docs/setup")
@@ -1798,6 +1853,104 @@ func TestIsCompressible(t *testing.T) {
 	for _, tt := range tests {
 		if got := isCompressible(tt.ct); got != tt.want {
 			t.Errorf("isCompressible(%q) = %v, want %v", tt.ct, got, tt.want)
+		}
+	}
+}
+
+func TestAcceptsEncoding_QValueZero(t *testing.T) {
+	tests := []struct {
+		name           string
+		acceptEncoding string
+		wantGzip       bool
+		wantBrotli     bool
+	}{
+		{"gzip q=0 refused", "gzip;q=0, br", false, true},
+		{"br q=0 refused", "gzip, br;q=0", true, false},
+		{"gzip q=0.0 refused", "gzip;q=0.0", false, false},
+		{"gzip q=0.00 refused", "gzip;q=0.00", false, false},
+		{"gzip q=0.000 refused", "gzip;q=0.000", false, false},
+		{"gzip q=0.001 accepted", "gzip;q=0.001", true, false},
+		{"normal accept", "gzip, br", true, true},
+		{"only gzip", "gzip", true, false},
+		{"empty header", "", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.acceptEncoding != "" {
+				req.Header.Set("Accept-Encoding", tt.acceptEncoding)
+			}
+			if got := acceptsGzip(req); got != tt.wantGzip {
+				t.Errorf("acceptsGzip() = %v, want %v", got, tt.wantGzip)
+			}
+			if got := acceptsBrotli(req); got != tt.wantBrotli {
+				t.Errorf("acceptsBrotli() = %v, want %v", got, tt.wantBrotli)
+			}
+		})
+	}
+}
+
+func TestCompressWriter_NonOK_PassesThrough(t *testing.T) {
+	// WriteHeader with non-200 should pass through immediately
+	// and a second WriteHeader call should be a no-op.
+	rec := httptest.NewRecorder()
+	cw := &compressWriter{ResponseWriter: rec}
+
+	cw.WriteHeader(http.StatusPartialContent) // 206
+	cw.WriteHeader(http.StatusOK)             // should be ignored (headerWritten)
+
+	if rec.Code != http.StatusPartialContent {
+		t.Errorf("status = %d, want 206", rec.Code)
+	}
+
+	// Close should also be a no-op since header was already written.
+	if err := cw.Close(); err != nil {
+		t.Errorf("Close error: %v", err)
+	}
+}
+
+func TestHandler_Gzip_RefusedWithQZero(t *testing.T) {
+	store := storage.New(t.TempDir())
+	body := strings.Repeat("hello world ", 100)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": body,
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+
+	req := httptest.NewRequest("GET", "/index.html", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "index.html")
+	req.Header.Set("Accept-Encoding", "gzip;q=0")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce == "gzip" {
+		t.Error("response should not be gzip-encoded when q=0")
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct {
+		input int64
+		want  string
+	}{
+		{0, "0 B"},
+		{1, "1 B"},
+		{1023, "1023 B"},
+		{1024, "1.0 KB"},
+		{1536, "1.5 KB"},
+		{1024 * 1024, "1.0 MB"},
+		{1024 * 1024 * 1024, "1.0 GB"},
+		{1024*1024*1024 + 512*1024*1024, "1.5 GB"},
+	}
+	for _, tt := range tests {
+		if got := formatBytes(tt.input); got != tt.want {
+			t.Errorf("formatBytes(%d) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }

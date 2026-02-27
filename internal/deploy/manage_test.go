@@ -333,6 +333,159 @@ func TestCleanupDeploymentsHandler_Forbidden(t *testing.T) {
 	}
 }
 
+func TestActivateHandler_RejectsFailed(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateDeployment("docs", "aaa11111")
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	// Create a failed deployment.
+	store.CreateDeployment("docs", "bbb22222")
+	store.MarkFailed("docs", "bbb22222", "bad config")
+
+	h := NewActivateHandler(store, newMockManager())
+
+	req := httptest.NewRequest("POST", "/deploy/docs/bbb22222/activate", nil)
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+	req.SetPathValue("id", "bbb22222")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Errorf("status = %d, want 409 for failed deployment", rec.Code)
+	}
+
+	// Active deployment should be unchanged.
+	cur, _ := store.CurrentDeployment("docs")
+	if cur != "aaa11111" {
+		t.Errorf("current = %q, want aaa11111 (unchanged)", cur)
+	}
+}
+
+func TestListDeploymentsHandler_InvalidSite(t *testing.T) {
+	h := NewListDeploymentsHandler(storage.New(t.TempDir()))
+
+	req := httptest.NewRequest("GET", "/deploy/BAD!", nil)
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", "BAD!")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestDeleteDeploymentHandler_InvalidDeploymentID(t *testing.T) {
+	h := NewDeleteDeploymentHandler(storage.New(t.TempDir()))
+
+	req := httptest.NewRequest("DELETE", "/deploy/docs/../evil", nil)
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", "docs")
+	req.SetPathValue("id", "..")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for invalid deployment ID", rec.Code)
+	}
+}
+
+func TestActivateHandler_InvalidDeploymentID(t *testing.T) {
+	h := NewActivateHandler(storage.New(t.TempDir()), newMockManager())
+
+	req := httptest.NewRequest("POST", "/deploy/docs/../activate", nil)
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", "docs")
+	req.SetPathValue("id", "..")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for invalid deployment ID", rec.Code)
+	}
+}
+
+func TestCleanupDeploymentsHandler_InvalidSite(t *testing.T) {
+	h := NewCleanupDeploymentsHandler(storage.New(t.TempDir()))
+
+	req := httptest.NewRequest("DELETE", "/deploy/BAD!/deployments", nil)
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", "BAD!")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestCleanupDeploymentsHandler_NoActiveDeployment(t *testing.T) {
+	store := storage.New(t.TempDir())
+	// Create deployments but don't activate any.
+	store.CreateDeployment("docs", "aaa11111")
+	store.MarkComplete("docs", "aaa11111")
+	store.CreateDeployment("docs", "bbb22222")
+	store.MarkComplete("docs", "bbb22222")
+
+	h := NewCleanupDeploymentsHandler(store)
+
+	req := httptest.NewRequest("DELETE", "/deploy/docs/deployments", nil)
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Deleted int `json:"deleted"`
+	}
+	json.NewDecoder(rec.Body).Decode(&resp)
+	// With no active deployment, all deployments are inactive and should be deleted.
+	if resp.Deleted != 2 {
+		t.Errorf("deleted = %d, want 2", resp.Deleted)
+	}
+
+	deps, _ := store.ListDeployments("docs")
+	if len(deps) != 0 {
+		t.Errorf("remaining = %d, want 0", len(deps))
+	}
+}
+
+func TestCleanupDeploymentsHandler_NonexistentSite(t *testing.T) {
+	store := storage.New(t.TempDir())
+	h := NewCleanupDeploymentsHandler(store)
+
+	req := httptest.NewRequest("DELETE", "/deploy/nosite/deployments", nil)
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", "nosite")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var resp struct {
+		Deleted int `json:"deleted"`
+	}
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Deleted != 0 {
+		t.Errorf("deleted = %d, want 0 for nonexistent site", resp.Deleted)
+	}
+}
+
 func TestActivateHandler_Forbidden(t *testing.T) {
 	h := NewActivateHandler(storage.New(t.TempDir()), newMockManager())
 

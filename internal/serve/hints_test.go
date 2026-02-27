@@ -1,10 +1,14 @@
 package serve
 
 import (
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"tspages/internal/auth"
+	"tspages/internal/storage"
 )
 
 func TestExtractHints(t *testing.T) {
@@ -123,6 +127,58 @@ func TestExtractHints_MaxLimit(t *testing.T) {
 	got := extractHints(path)
 	if len(got) > maxHints {
 		t.Errorf("got %d hints, want at most %d", len(got), maxHints)
+	}
+}
+
+func TestExtractHints_BeyondScanWindow(t *testing.T) {
+	// Links beyond the 16KB scan window should be silently ignored.
+	padding := strings.Repeat("x", maxHintScanBytes)
+	html := `<html><head>` + padding + `<link rel="stylesheet" href="/late.css"></head></html>`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "index.html")
+	os.WriteFile(path, []byte(html), 0644)
+
+	got := extractHints(path)
+	if len(got) != 0 {
+		t.Errorf("expected no hints for links beyond scan window, got %v", got)
+	}
+}
+
+func TestLoadHints_InvalidatedOnDeploymentChange(t *testing.T) {
+	store := storage.New(t.TempDir())
+
+	// Deploy v1 with one stylesheet.
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": `<html><head><link rel="stylesheet" href="/v1.css"></head><body>v1</body></html>`,
+	})
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "")
+
+	// First request populates hint cache for deployment aaa11111.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	// Deploy v2 with a different stylesheet.
+	setupSite(t, store, "docs", "bbb22222", map[string]string{
+		"index.html": `<html><head><link rel="stylesheet" href="/v2.css"></head><body>v2</body></html>`,
+	})
+
+	// Second request should use the new deployment's hints.
+	req = httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	links := rec.Header().Values("Link")
+	for _, l := range links {
+		if strings.Contains(l, "v1.css") {
+			t.Error("stale hint from old deployment found: v1.css")
+		}
 	}
 }
 

@@ -49,7 +49,7 @@ type SiteDetailResponse struct {
 type handlerDeps struct {
 	store     *storage.Store
 	recorder  *analytics.Recorder
-	dnsSuffix *string
+	dnsSuffix string
 	defaults  storage.SiteConfig
 }
 
@@ -112,8 +112,9 @@ type Handlers struct {
 	SiteHealth     *SiteHealthHandler
 }
 
-func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
+func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
 	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
+	wh := &WebhooksHandler{handlerDeps: d, notifier: notifier}
 	return &Handlers{
 		Sites:          &SitesHandler{d},
 		Site:           &SiteHandler{handlerDeps: d, notifier: notifier},
@@ -123,10 +124,10 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		Analytics:      &AnalyticsHandler{d},
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
 		AllAnalytics:   &AllAnalyticsHandler{d},
-		Webhooks:        &WebhooksHandler{handlerDeps: d, notifier: notifier},
+		Webhooks:        wh,
 		WebhookDetail:   &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
 		WebhookRetry:    &WebhookRetryHandler{handlerDeps: d, notifier: notifier},
-		SiteWebhooks:    &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
+		SiteWebhooks:    &SiteWebhooksHandler{WebhooksHandler: wh},
 		SiteDeployments: &SiteDeploymentsHandler{d},
 		Help:           &HelpHandler{},
 		API:            &APIHandler{},
@@ -163,8 +164,15 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CanDeploy:          auth.CanDeploy(caps, s.Name),
 		}
 		if auth.IsAdmin(caps, s.Name) && h.recorder != nil && h.analyticsEnabled(s.Name) {
-			ss.Requests, _ = h.recorder.TotalRequests(s.Name, time.Time{}, now)
-			ts, _ := h.recorder.RequestsOverTime(s.Name, now.Add(-7*24*time.Hour), now)
+			var err error
+			ss.Requests, err = h.recorder.TotalRequests(s.Name, time.Time{}, now)
+			if err != nil {
+				log.Printf("analytics: total requests for %s: %v", s.Name, err)
+			}
+			ts, err := h.recorder.RequestsOverTime(s.Name, now.Add(-7*24*time.Hour), now)
+			if err != nil {
+				log.Printf("analytics: requests over time for %s: %v", s.Name, err)
+			}
 			ss.Sparkline = countsJSON(ts)
 		}
 		if s.ActiveDeploymentID != "" {
@@ -179,7 +187,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		out = append(out, ss)
 	}
 
-	resp := SitesResponse{Admin: admin, User: userInfo(identity, caps), DNSSuffix: *h.dnsSuffix, Sites: out}
+	resp := SitesResponse{Admin: admin, User: userInfo(identity, caps), DNSSuffix: h.dnsSuffix, Sites: out}
 
 	if wantsJSON(r) {
 		setAlternateLinks(w, [][2]string{
@@ -199,7 +207,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CanCreate  bool
 		Host       string
 		MaxNameLen int
-	}{resp, canCreate, r.Host, storage.MaxSiteNameLen(*h.dnsSuffix)})
+	}{resp, canCreate, r.Host, storage.MaxSiteNameLen(h.dnsSuffix)})
 }
 
 // --- POST /sites ---
@@ -212,7 +220,7 @@ type CreateSiteHandler struct {
 
 func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
-	if !storage.ValidSiteNameForSuffix(name, *h.dnsSuffix) {
+	if !storage.ValidSiteNameForSuffix(name, h.dnsSuffix) {
 		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
@@ -297,8 +305,15 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var sparkline string
 	if admin && h.recorder != nil && analyticsOn {
 		now := time.Now()
-		ss.Requests, _ = h.recorder.TotalRequests(siteName, time.Time{}, now)
-		ts, _ := h.recorder.RequestsOverTime(siteName, now.Add(-7*24*time.Hour), now)
+		var err error
+		ss.Requests, err = h.recorder.TotalRequests(siteName, time.Time{}, now)
+		if err != nil {
+			log.Printf("analytics: total requests for %s: %v", siteName, err)
+		}
+		ts, err := h.recorder.RequestsOverTime(siteName, now.Add(-7*24*time.Hour), now)
+		if err != nil {
+			log.Printf("analytics: requests over time for %s: %v", siteName, err)
+		}
 		sparkline = countsJSON(ts)
 	}
 	if found.ActiveDeploymentID != "" {
@@ -325,7 +340,11 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var recentDeliveries []webhook.DeliverySummary
 	if h.notifier != nil && auth.CanDeploy(caps, siteName) {
-		recentDeliveries, _, _ = h.notifier.ListDeliveries(siteName, "", "", 5, 0)
+		var err error
+		recentDeliveries, _, err = h.notifier.ListDeliveries(siteName, "", "", 5, 0)
+		if err != nil {
+			log.Printf("webhooks: list deliveries for %s: %v", siteName, err)
+		}
 	}
 
 	resp := SiteDetailResponse{Site: ss, Deployments: deployments}
@@ -363,7 +382,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Sparkline         string
 		RecentDeliveries  []webhook.DeliverySummary
 		TotalDeployments  int
-	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
+	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
 }
 
 // --- GET /sites/{site}/deployments/{id} ---
@@ -470,7 +489,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Changed    []string
 	}{
 		userInfo(identity, caps), admin, auth.CanDeploy(caps, siteName),
-		*h.dnsSuffix, siteName, *dep,
+		h.dnsSuffix, siteName, *dep,
 		files, fileCount, prevID,
 		added, removed, changed,
 	})
@@ -711,16 +730,46 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	rangeParam, from, now := parseRange(r)
 
-	total, _ := h.recorder.TotalRequests(siteName, from, now)
-	visitors, _ := h.recorder.UniqueVisitors(siteName, from, now)
-	pages, _ := h.recorder.UniquePages(siteName, from, now)
-	timeSeries, _ := h.recorder.RequestsOverTime(siteName, from, now)
-	statusTS, _ := h.recorder.RequestsOverTimeByStatus(siteName, from, now)
-	topPages, _ := h.recorder.TopPages(siteName, from, now, 20)
-	topVisitors, _ := h.recorder.TopVisitors(siteName, from, now, 20)
-	statusCodes, _ := h.recorder.StatusBreakdown(siteName, from, now)
-	osBreakdown, _ := h.recorder.OSBreakdown(siteName, from, now)
-	nodes, _ := h.recorder.NodeBreakdown(siteName, from, now)
+	total, err := h.recorder.TotalRequests(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: total requests for %s: %v", siteName, err)
+	}
+	visitors, err := h.recorder.UniqueVisitors(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: unique visitors for %s: %v", siteName, err)
+	}
+	pages, err := h.recorder.UniquePages(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: unique pages for %s: %v", siteName, err)
+	}
+	timeSeries, err := h.recorder.RequestsOverTime(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: requests over time for %s: %v", siteName, err)
+	}
+	statusTS, err := h.recorder.RequestsOverTimeByStatus(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: requests by status for %s: %v", siteName, err)
+	}
+	topPages, err := h.recorder.TopPages(siteName, from, now, 20)
+	if err != nil {
+		log.Printf("analytics: top pages for %s: %v", siteName, err)
+	}
+	topVisitors, err := h.recorder.TopVisitors(siteName, from, now, 20)
+	if err != nil {
+		log.Printf("analytics: top visitors for %s: %v", siteName, err)
+	}
+	statusCodes, err := h.recorder.StatusBreakdown(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: status breakdown for %s: %v", siteName, err)
+	}
+	osBreakdown, err := h.recorder.OSBreakdown(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: os breakdown for %s: %v", siteName, err)
+	}
+	nodes, err := h.recorder.NodeBreakdown(siteName, from, now)
+	if err != nil {
+		log.Printf("analytics: node breakdown for %s: %v", siteName, err)
+	}
 	countOK, count4xx, count5xx := statusTotals(statusCodes)
 
 	if wantsJSON(r) {
@@ -781,15 +830,42 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	rangeParam, from, now := parseRange(r)
 
-	total, _ := h.recorder.TotalRequestsMulti(viewable, from, now)
-	visitors, _ := h.recorder.UniqueVisitorsMulti(viewable, from, now)
-	timeSeries, _ := h.recorder.RequestsOverTimeMulti(viewable, from, now)
-	statusTS, _ := h.recorder.RequestsOverTimeByStatusMulti(viewable, from, now)
-	siteBreakdown, _ := h.recorder.SiteBreakdown(viewable, from, now)
-	topVisitors, _ := h.recorder.TopVisitorsMulti(viewable, from, now, 20)
-	statusCodes, _ := h.recorder.StatusBreakdownMulti(viewable, from, now)
-	osBreakdown, _ := h.recorder.OSBreakdownMulti(viewable, from, now)
-	nodes, _ := h.recorder.NodeBreakdownMulti(viewable, from, now)
+	total, err := h.recorder.TotalRequestsMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: total requests multi: %v", err)
+	}
+	visitors, err := h.recorder.UniqueVisitorsMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: unique visitors multi: %v", err)
+	}
+	timeSeries, err := h.recorder.RequestsOverTimeMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: requests over time multi: %v", err)
+	}
+	statusTS, err := h.recorder.RequestsOverTimeByStatusMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: requests by status multi: %v", err)
+	}
+	siteBreakdown, err := h.recorder.SiteBreakdown(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: site breakdown: %v", err)
+	}
+	topVisitors, err := h.recorder.TopVisitorsMulti(viewable, from, now, 20)
+	if err != nil {
+		log.Printf("analytics: top visitors multi: %v", err)
+	}
+	statusCodes, err := h.recorder.StatusBreakdownMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: status breakdown multi: %v", err)
+	}
+	osBreakdown, err := h.recorder.OSBreakdownMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: os breakdown multi: %v", err)
+	}
+	nodes, err := h.recorder.NodeBreakdownMulti(viewable, from, now)
+	if err != nil {
+		log.Printf("analytics: node breakdown multi: %v", err)
+	}
 	countOK, count4xx, count5xx := statusTotals(statusCodes)
 
 	if wantsJSON(r) {
@@ -859,94 +935,17 @@ type WebhooksHandler struct {
 
 func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
-	identity := auth.IdentityFromContext(r.Context())
-
 	if !auth.HasDeployCap(caps) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
-
-	event := r.URL.Query().Get("event")
-	status := r.URL.Query().Get("status")
-	page := 1
-	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
-		page = p
-	}
-
-	offset := (page - 1) * webhooksPageSize
-	var deliveries []webhook.DeliverySummary
-	var total int
-	if h.notifier != nil {
-		deliveries, total, _ = h.notifier.ListDeliveries("", event, status, webhooksPageSize, offset)
-	}
-
-	totalPages := (total + webhooksPageSize - 1) / webhooksPageSize
-	if totalPages == 0 {
-		totalPages = 1
-	}
-	if page > totalPages {
-		page = totalPages
-	}
-
-	rangeParam, from, now := parseRange(r)
-
-	var statsTotal, statsSucceeded, statsFailed int64
-	var timeSeries []webhook.DeliveryTimeBucket
-	var events []webhook.EventCount
-	var latency []webhook.LatencyTimeBucket
-	var latencyStats webhook.LatencyStats
-	if h.notifier != nil {
-		statsTotal, statsSucceeded, statsFailed, _ = h.notifier.DeliveryStats("", from, now)
-		timeSeries, _ = h.notifier.DeliveriesOverTime("", from, now)
-		events, _ = h.notifier.EventBreakdown("", from, now)
-		latency, _ = h.notifier.LatencyOverTime("", from, now)
-		latencyStats, _ = h.notifier.LatencyStats("", from, now)
-	}
-
-	if wantsJSON(r) {
-		writeJSON(w, map[string]any{
-			"deliveries":    deliveries,
-			"page":          page,
-			"total_pages":   totalPages,
-			"range":         rangeParam,
-			"total":         statsTotal,
-			"succeeded":     statsSucceeded,
-			"failed":        statsFailed,
-			"time_series":   timeSeries,
-			"events":        events,
-			"latency":       latency,
-			"latency_stats": latencyStats,
-		})
-		return
-	}
-
-	renderPage(w, r, webhooksTmpl, "webhooks", struct {
-		Deliveries   []webhook.DeliverySummary
-		Page         int
-		TotalPages   int
-		Site         string
-		Global       bool
-		Event        string
-		Status       string
-		User         UserInfo
-		BasePath     string
-		Range        string
-		Total        int64
-		Succeeded    int64
-		Failed       int64
-		TimeSeries   []webhook.DeliveryTimeBucket
-		Events       []webhook.EventCount
-		Latency      []webhook.LatencyTimeBucket
-		LatencyStats webhook.LatencyStats
-	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity, caps), "/webhooks",
-		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
+	h.serveWebhooks(w, r, "", "/webhooks", "webhooks", true)
 }
 
 // --- GET /sites/{site}/webhooks ---
 
 type SiteWebhooksHandler struct {
-	handlerDeps
-	notifier *webhook.Notifier
+	*WebhooksHandler
 }
 
 func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -955,14 +954,18 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
-
 	caps := auth.CapsFromContext(r.Context())
-	identity := auth.IdentityFromContext(r.Context())
-
 	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
+	h.serveWebhooks(w, r, siteName, "/sites/"+siteName+"/webhooks", "sites", false)
+}
+
+// serveWebhooks is the shared implementation for global and site-scoped webhook pages.
+func (h *WebhooksHandler) serveWebhooks(w http.ResponseWriter, r *http.Request, site, basePath, navTab string, global bool) {
+	identity := auth.IdentityFromContext(r.Context())
+	caps := auth.CapsFromContext(r.Context())
 
 	event := r.URL.Query().Get("event")
 	status := r.URL.Query().Get("status")
@@ -975,7 +978,11 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	var deliveries []webhook.DeliverySummary
 	var total int
 	if h.notifier != nil {
-		deliveries, total, _ = h.notifier.ListDeliveries(siteName, event, status, webhooksPageSize, offset)
+		var err error
+		deliveries, total, err = h.notifier.ListDeliveries(site, event, status, webhooksPageSize, offset)
+		if err != nil {
+			log.Printf("webhooks: list deliveries: %v", err)
+		}
 	}
 
 	totalPages := (total + webhooksPageSize - 1) / webhooksPageSize
@@ -986,7 +993,6 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		page = totalPages
 	}
 
-	basePath := "/sites/" + siteName + "/webhooks"
 	rangeParam, from, now := parseRange(r)
 
 	var statsTotal, statsSucceeded, statsFailed int64
@@ -995,11 +1001,27 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	var latency []webhook.LatencyTimeBucket
 	var latencyStats webhook.LatencyStats
 	if h.notifier != nil {
-		statsTotal, statsSucceeded, statsFailed, _ = h.notifier.DeliveryStats(siteName, from, now)
-		timeSeries, _ = h.notifier.DeliveriesOverTime(siteName, from, now)
-		events, _ = h.notifier.EventBreakdown(siteName, from, now)
-		latency, _ = h.notifier.LatencyOverTime(siteName, from, now)
-		latencyStats, _ = h.notifier.LatencyStats(siteName, from, now)
+		var err error
+		statsTotal, statsSucceeded, statsFailed, err = h.notifier.DeliveryStats(site, from, now)
+		if err != nil {
+			log.Printf("webhooks: delivery stats: %v", err)
+		}
+		timeSeries, err = h.notifier.DeliveriesOverTime(site, from, now)
+		if err != nil {
+			log.Printf("webhooks: deliveries over time: %v", err)
+		}
+		events, err = h.notifier.EventBreakdown(site, from, now)
+		if err != nil {
+			log.Printf("webhooks: event breakdown: %v", err)
+		}
+		latency, err = h.notifier.LatencyOverTime(site, from, now)
+		if err != nil {
+			log.Printf("webhooks: latency over time: %v", err)
+		}
+		latencyStats, err = h.notifier.LatencyStats(site, from, now)
+		if err != nil {
+			log.Printf("webhooks: latency stats: %v", err)
+		}
 	}
 
 	if wantsJSON(r) {
@@ -1019,7 +1041,7 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	renderPage(w, r, webhooksTmpl, "sites", struct {
+	renderPage(w, r, webhooksTmpl, navTab, struct {
 		Deliveries   []webhook.DeliverySummary
 		Page         int
 		TotalPages   int
@@ -1037,7 +1059,7 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		Events       []webhook.EventCount
 		Latency      []webhook.LatencyTimeBucket
 		LatencyStats webhook.LatencyStats
-	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity, caps), basePath,
+	}{deliveries, page, totalPages, site, global, event, status, userInfo(identity, caps), basePath,
 		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 
@@ -1112,10 +1134,6 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.HasAdminCap(caps) {
-		RenderError(w, r, http.StatusForbidden, "forbidden")
-		return
-	}
 
 	if h.notifier == nil {
 		RenderError(w, r, http.StatusNotFound, "webhooks not configured")
@@ -1125,6 +1143,11 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	delivery, err := h.notifier.GetDelivery(webhookID)
 	if err != nil {
 		RenderError(w, r, http.StatusNotFound, "delivery not found")
+		return
+	}
+
+	if !auth.IsAdmin(caps, delivery.Site) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 

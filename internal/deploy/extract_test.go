@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"os"
+	"strings"
 
 	"github.com/ulikunitz/xz"
 	"path/filepath"
@@ -243,7 +244,7 @@ func TestExtract_Markdown_QueryParam(t *testing.T) {
 	if !bytes.Contains([]byte(got), []byte("<h1>Hello</h1>")) {
 		t.Errorf("expected rendered markdown heading, got:\n%s", got)
 	}
-	if !bytes.Contains([]byte(got), []byte("<!DOCTYPE html>")) {
+	if !bytes.Contains([]byte(got), []byte("<!doctype html>")) {
 		t.Error("expected HTML wrapper")
 	}
 }
@@ -356,7 +357,7 @@ func TestExtract_PlainText_Default(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := readFile(t, filepath.Join(dir, "index.html"))
-	if !bytes.Contains([]byte(got), []byte("<!DOCTYPE html>")) {
+	if !bytes.Contains([]byte(got), []byte("<!doctype html>")) {
 		t.Error("expected HTML wrapper")
 	}
 	if !bytes.Contains([]byte(got), []byte("<pre>just some text</pre>")) {
@@ -420,6 +421,102 @@ func TestExtract_TarGz_PathTraversal(t *testing.T) {
 	_, err := Extract(ExtractRequest{Body: gzBuf.Bytes()}, dir, 10<<20)
 	if err == nil {
 		t.Fatal("expected path traversal in tar.gz to be rejected")
+	}
+}
+
+func TestIsTar_FalsePositiveAtOffset257(t *testing.T) {
+	// A binary blob with "ustar" at offset 257 looks like tar to isTar().
+	// This test documents the behavior.
+	blob := make([]byte, 300)
+	copy(blob[257:], "ustar")
+	if !isTar(blob) {
+		t.Error("expected isTar to return true for blob with ustar at offset 257")
+	}
+
+	// When gzip-wrapped, this would be misrouted to extractTar.
+	// Verify that extractTar fails gracefully (returns an error, not panic).
+	var gzBuf bytes.Buffer
+	gw := gzip.NewWriter(&gzBuf)
+	gw.Write(blob)
+	gw.Close()
+
+	dir := t.TempDir()
+	_, err := Extract(ExtractRequest{Body: gzBuf.Bytes()}, dir, 10<<20)
+	if err == nil {
+		t.Fatal("expected error when extractTar processes non-tar data with ustar magic")
+	}
+}
+
+func TestExtract_Tar_RejectsUnknownEntryType(t *testing.T) {
+	// Exotic tar entry types (FIFO, char device, etc.) should be rejected.
+	// Note: PAX headers (TypeXGlobalHeader, TypeXHeader) are handled
+	// transparently by Go's archive/tar and never reach this code path.
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	tw.WriteHeader(&tar.Header{
+		Name:     "fifo-entry",
+		Typeflag: tar.TypeFifo,
+	})
+	tw.Close()
+
+	dir := t.TempDir()
+	_, err := Extract(ExtractRequest{Body: buf.Bytes()}, dir, 10<<20)
+	if err == nil {
+		t.Fatal("expected unknown entry type to be rejected")
+	}
+	if !strings.Contains(err.Error(), "unsupported tar entry type") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestSafePath_DotEntry(t *testing.T) {
+	dir := t.TempDir()
+	dest, err := safePath(dir, ".")
+	if err != nil {
+		t.Fatalf("safePath(\".\") returned error: %v", err)
+	}
+	// safePath allows "." (resolves to destDir itself).
+	// Callers must handle this — os.Create on a directory will fail.
+	if dest != filepath.Clean(dir) {
+		t.Errorf("dest = %q, want %q", dest, filepath.Clean(dir))
+	}
+}
+
+func TestExtractZip_TrailingSlashNonDir(t *testing.T) {
+	// A ZIP entry with a name ending in "/" but with the directory mode bit
+	// cleared should be handled as a directory (by the name convention),
+	// not fall through to os.Create.
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	// Create an entry with explicit header to control the name.
+	hdr := &zip.FileHeader{Name: "subdir/"}
+	hdr.SetMode(0644) // file mode, not directory
+	wr, err := w.CreateHeader(hdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = wr // no content for directory entry
+	// Also add a file inside it.
+	f, _ := w.Create("subdir/file.txt")
+	f.Write([]byte("hello"))
+	w.Close()
+
+	dir := t.TempDir()
+	_, err = ExtractZip(bytes.NewReader(buf.Bytes()), int64(buf.Len()), dir, 10<<20)
+	if err != nil {
+		t.Fatalf("ExtractZip error: %v", err)
+	}
+	// The subdir should exist as a directory.
+	info, err := os.Stat(filepath.Join(dir, "subdir"))
+	if err != nil {
+		t.Fatalf("subdir not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("subdir should be a directory")
+	}
+	got := readFile(t, filepath.Join(dir, "subdir", "file.txt"))
+	if got != "hello" {
+		t.Errorf("file.txt = %q, want %q", got, "hello")
 	}
 }
 

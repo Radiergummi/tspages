@@ -36,10 +36,10 @@ func safePath(destDir, entryName string) (string, error) {
 	return dest, nil
 }
 
-//go:embed templates/markdown.html
+//go:embed templates/markdown.gohtml
 var markdownTmplStr string
 
-//go:embed templates/plaintext.html
+//go:embed templates/plaintext.gohtml
 var plaintextTmplStr string
 
 var (

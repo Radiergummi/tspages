@@ -651,3 +651,224 @@ func TestNotifier_RejectsPrivateIP(t *testing.T) {
 		t.Errorf("expected error containing 'private address', got %q", errStr)
 	}
 }
+
+func TestNotifier_GetDelivery(t *testing.T) {
+	n, db := testNotifier(t)
+
+	_, err := db.Exec(
+		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at, signed, duration_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"msg_gd1", "deploy.success", "docs", "http://example.com", `{"v":1}`, 1, 200, "", "2025-06-01T10:00:00Z", 1, 42,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := n.GetDelivery("msg_gd1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.WebhookID != "msg_gd1" {
+		t.Errorf("webhook_id = %q", d.WebhookID)
+	}
+	if d.Event != "deploy.success" {
+		t.Errorf("event = %q", d.Event)
+	}
+	if d.Site != "docs" {
+		t.Errorf("site = %q", d.Site)
+	}
+	if !d.Succeeded {
+		t.Error("expected succeeded = true for status 200")
+	}
+	if !d.Signed {
+		t.Error("expected signed = true")
+	}
+}
+
+func TestNotifier_GetDelivery_NotFound(t *testing.T) {
+	n, _ := testNotifier(t)
+
+	_, err := n.GetDelivery("msg_nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent delivery")
+	}
+}
+
+func TestNotifier_Resend(t *testing.T) {
+	var calls atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	n, db := testNotifier(t)
+
+	// Insert an original delivery.
+	_, err := db.Exec(
+		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"msg_resend", "deploy.success", "docs", srv.URL, `{"v":1}`, 1, 500, "server error", "2025-06-01T10:00:00Z",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := n.Resend("msg_resend", "")
+	if err != nil {
+		t.Fatalf("resend: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status = %d, want 200", status)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("calls = %d, want 1", calls.Load())
+	}
+
+	// Verify the new attempt was logged.
+	var maxAttempt int
+	err = db.QueryRow(`SELECT MAX(attempt) FROM webhook_deliveries WHERE webhook_id = ?`, "msg_resend").Scan(&maxAttempt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if maxAttempt != 2 {
+		t.Errorf("max attempt = %d, want 2", maxAttempt)
+	}
+}
+
+func TestNotifier_Resend_NotFound(t *testing.T) {
+	n, _ := testNotifier(t)
+
+	_, err := n.Resend("msg_nonexistent", "")
+	if err == nil {
+		t.Fatal("expected error for nonexistent delivery")
+	}
+}
+
+func TestNotifier_SemaphoreDrop(t *testing.T) {
+	// Create a server that blocks until we release it.
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	n, _ := testNotifier(t)
+	n.retryDelays = nil // no retries
+
+	cfg := storage.SiteConfig{WebhookURL: srv.URL}
+
+	// Fill the semaphore (capacity 20).
+	for i := 0; i < 20; i++ {
+		n.Fire("deploy.success", "docs", cfg, nil)
+	}
+
+	// Give goroutines time to start and fill the semaphore.
+	time.Sleep(100 * time.Millisecond)
+
+	// The 21st event should be dropped (default case in select).
+	n.Fire("deploy.success", "docs", cfg, map[string]any{"dropped": true})
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Unblock all pending requests.
+	close(block)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Count total deliveries — should be exactly 20, not 21.
+	var count int
+	n.db.QueryRow(`SELECT COUNT(DISTINCT webhook_id) FROM webhook_deliveries`).Scan(&count)
+	if count > 20 {
+		t.Errorf("got %d distinct deliveries, want at most 20 (21st should be dropped)", count)
+	}
+}
+
+func TestNotifier_LatencyStats(t *testing.T) {
+	n, db := testNotifier(t)
+
+	// Insert deliveries with known latencies.
+	rows := []struct {
+		id         string
+		durationMs int64
+		ts         string
+	}{
+		{"msg_l1", 10, "2025-06-01T10:00:00Z"},
+		{"msg_l2", 50, "2025-06-01T10:05:00Z"},
+		{"msg_l3", 100, "2025-06-01T10:10:00Z"},
+		{"msg_l4", 200, "2025-06-01T10:15:00Z"},
+		{"msg_l5", 500, "2025-06-01T10:20:00Z"},
+	}
+	for _, r := range rows {
+		_, err := db.Exec(
+			`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at, duration_ms)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.id, "deploy.success", "docs", "http://example.com", "{}", 1, 200, "", r.ts, r.durationMs,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from, _ := time.Parse(time.RFC3339, "2025-06-01T00:00:00Z")
+	to, _ := time.Parse(time.RFC3339, "2025-06-02T00:00:00Z")
+
+	stats, err := n.LatencyStats("", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Min != 10 {
+		t.Errorf("min = %v, want 10", stats.Min)
+	}
+	if stats.Max != 500 {
+		t.Errorf("max = %v, want 500", stats.Max)
+	}
+	if stats.P95 == 0 {
+		t.Error("p95 should be nonzero")
+	}
+	if stats.Avg == 0 {
+		t.Error("avg should be nonzero")
+	}
+}
+
+func TestNotifier_LatencyOverTime(t *testing.T) {
+	n, db := testNotifier(t)
+
+	// Insert deliveries with known latencies spread across time.
+	rows := []struct {
+		id         string
+		durationMs int64
+		ts         string
+	}{
+		{"msg_lt1", 10, "2025-06-01T10:00:00Z"},
+		{"msg_lt2", 50, "2025-06-01T10:05:00Z"},
+		{"msg_lt3", 200, "2025-06-01T11:00:00Z"},
+	}
+	for _, r := range rows {
+		_, err := db.Exec(
+			`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at, duration_ms)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.id, "deploy.success", "docs", "http://example.com", "{}", 1, 200, "", r.ts, r.durationMs,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from, _ := time.Parse(time.RFC3339, "2025-06-01T10:00:00Z")
+	to, _ := time.Parse(time.RFC3339, "2025-06-01T12:00:00Z")
+
+	buckets, err := n.LatencyOverTime("", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(buckets) == 0 {
+		t.Fatal("expected non-empty buckets")
+	}
+	// First bucket should have data from msg_lt1 and msg_lt2.
+	if buckets[0].Max == 0 {
+		t.Error("first bucket max should be nonzero")
+	}
+}

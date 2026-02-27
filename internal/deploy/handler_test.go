@@ -4,15 +4,21 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
 )
+
+type errReader struct{ err error }
+
+func (r *errReader) Read([]byte) (int, error) { return 0, r.err }
 
 type mockManager struct {
 	ensured map[string]int
@@ -48,7 +54,7 @@ func withIdentity(r *http.Request, id auth.Identity) *http.Request {
 func TestHandler_Success(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
@@ -81,7 +87,7 @@ func TestHandler_Success(t *testing.T) {
 
 func TestHandler_Forbidden(t *testing.T) {
 	store := storage.New(t.TempDir())
-	h := NewHandler(store, newMockManager(), 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: newMockManager(), MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{"index.html": "hi"})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
@@ -99,7 +105,7 @@ func TestHandler_Forbidden(t *testing.T) {
 func TestHandler_WritesManifest(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
@@ -143,7 +149,7 @@ func TestHandler_WritesManifest(t *testing.T) {
 func TestHandler_UploadTooLarge(t *testing.T) {
 	store := storage.New(t.TempDir())
 	// maxUploadMB=1 means 1 MiB limit
-	h := NewHandler(store, newMockManager(), 1, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: newMockManager(), MaxUploadMB: 1, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	// Random data doesn't compress — zip body will exceed 1 MiB
 	randomData := make([]byte, 2<<20)
@@ -165,7 +171,7 @@ func TestHandler_UploadTooLarge(t *testing.T) {
 func TestHandler_ActivateFalse(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{"index.html": "hi"})
 	req := httptest.NewRequest("POST", "/deploy/docs?activate=false", bytes.NewReader(body))
@@ -191,7 +197,7 @@ func TestHandler_ActivateFalse(t *testing.T) {
 func TestHandler_ParsesSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>SPA</h1>",
@@ -234,7 +240,7 @@ func TestHandler_ParsesSiteConfig(t *testing.T) {
 func TestHandler_ParsesRedirectsFile(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{
 		"index.html": "<h1>Hi</h1>",
@@ -275,7 +281,7 @@ func TestHandler_ParsesRedirectsFile(t *testing.T) {
 func TestHandler_ParsesHeadersFile(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{
 		"index.html": "<h1>Hi</h1>",
@@ -313,7 +319,7 @@ func TestHandler_ParsesHeadersFile(t *testing.T) {
 func TestHandler_TomlOverridesNetlifyFiles(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>Hi</h1>",
@@ -353,7 +359,7 @@ func TestHandler_TomlOverridesNetlifyFiles(t *testing.T) {
 func TestHandler_InvalidSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{
 		"index.html":   "<h1>Hi</h1>",
@@ -362,6 +368,7 @@ func TestHandler_InvalidSiteConfig(t *testing.T) {
 	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/zip")
 	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req = withIdentity(req, auth.Identity{LoginName: "alice@example.com", DisplayName: "Alice"})
 	req.SetPathValue("site", "docs")
 
 	rec := httptest.NewRecorder()
@@ -370,12 +377,39 @@ func TestHandler_InvalidSiteConfig(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400 for invalid site config", rec.Code)
 	}
+
+	// Deployment should be preserved as failed, not deleted.
+	deps, err := store.ListDeployments("docs")
+	if err != nil {
+		t.Fatalf("list deployments: %v", err)
+	}
+	if len(deps) != 1 {
+		t.Fatalf("got %d deployments, want 1 (failed)", len(deps))
+	}
+	if !deps[0].Failed {
+		t.Error("deployment should be marked as failed")
+	}
+	if deps[0].FailedReason == "" {
+		t.Error("deployment should have a failure reason")
+	}
+
+	// Manifest should exist with deployer info.
+	m, err := store.ReadManifest("docs", deps[0].ID)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if m.CreatedBy != "Alice" {
+		t.Errorf("manifest created_by = %q, want %q", m.CreatedBy, "Alice")
+	}
+	if m.SizeBytes == 0 {
+		t.Error("manifest size_bytes should reflect extracted content")
+	}
 }
 
 func TestHandler_NoSiteConfig(t *testing.T) {
 	store := storage.New(t.TempDir())
 	mgr := newMockManager()
-	h := NewHandler(store, mgr, 10, 10, &testDNSSuffix, nil, storage.SiteConfig{})
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
 
 	body := makeZip(t, map[string]string{
 		"index.html": "<h1>Hi</h1>",
@@ -402,5 +436,42 @@ func TestHandler_NoSiteConfig(t *testing.T) {
 	}
 	if cfg.SPARouting != nil {
 		t.Error("spa should be nil when no config")
+	}
+}
+
+func TestHandler_ReadError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	h := NewHandler(HandlerConfig{Store: store, Manager: newMockManager(), MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
+
+	req := httptest.NewRequest("POST", "/deploy/docs", &errReader{err: io.ErrUnexpectedEOF})
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for read error", rec.Code)
+	}
+}
+
+func TestHandler_SiteNameValidForLabelButTooLongForSuffix(t *testing.T) {
+	store := storage.New(t.TempDir())
+	// Use a long DNS suffix so that a 60-char site name would exceed 253 total.
+	longSuffix := strings.Repeat("a", 200) + ".ts.net"
+	h := NewHandler(HandlerConfig{Store: store, Manager: newMockManager(), MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: longSuffix})
+
+	// 60-char name is valid per ValidSiteName (< 63) but too long for the suffix.
+	longName := strings.Repeat("x", 60)
+	body := makeZip(t, map[string]string{"index.html": "<h1>hi</h1>"})
+	req := httptest.NewRequest("POST", "/deploy/"+longName, bytes.NewReader(body))
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", longName)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for name too long with suffix", rec.Code)
 	}
 }

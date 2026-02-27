@@ -43,6 +43,18 @@ func (ss *siteServer) Close() error {
 // creates a real tsnet.Server; tests can replace this to avoid network calls.
 type siteStarter func(site string) (*siteServer, error)
 
+// ManagerConfig holds configuration for creating a new Manager.
+type ManagerConfig struct {
+	Store      *storage.Store
+	StateDir   string
+	AuthKey    string
+	Capability string
+	MaxSites   int
+	Recorder   *analytics.Recorder
+	DNSSuffix  string
+	Defaults   storage.SiteConfig
+}
+
 // Manager tracks per-site tsnet servers.
 type Manager struct {
 	store      *storage.Store
@@ -51,7 +63,7 @@ type Manager struct {
 	capability string
 	maxSites   int
 	recorder   *analytics.Recorder
-	dnsSuffix  *string
+	dnsSuffix  string
 	defaults   storage.SiteConfig
 	startSite  siteStarter
 
@@ -59,16 +71,16 @@ type Manager struct {
 	servers map[string]*siteServer
 }
 
-func New(store *storage.Store, stateDir, authKey, capability string, maxSites int, recorder *analytics.Recorder, dnsSuffix *string, defaults storage.SiteConfig) *Manager {
+func New(cfg ManagerConfig) *Manager {
 	m := &Manager{
-		store:      store,
-		stateDir:   stateDir,
-		authKey:    authKey,
-		capability: capability,
-		maxSites:   maxSites,
-		recorder:   recorder,
-		dnsSuffix:  dnsSuffix,
-		defaults:   defaults,
+		store:      cfg.Store,
+		stateDir:   cfg.StateDir,
+		authKey:    cfg.AuthKey,
+		capability: cfg.Capability,
+		maxSites:   cfg.MaxSites,
+		recorder:   cfg.Recorder,
+		dnsSuffix:  cfg.DNSSuffix,
+		defaults:   cfg.Defaults,
 		servers:    make(map[string]*siteServer),
 	}
 	m.startSite = m.defaultStartSite
@@ -239,13 +251,17 @@ func (m *Manager) RunningCount() int {
 // Close shuts down all site servers.
 func (m *Manager) Close() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	snapshot := make(map[string]*siteServer, len(m.servers))
 	for name, ss := range m.servers {
+		snapshot[name] = ss
+	}
+	m.servers = make(map[string]*siteServer)
+	m.mu.Unlock()
+
+	for name, ss := range snapshot {
 		log.Printf("stopping site %q", name)
 		if err := ss.Close(); err != nil {
 			log.Printf("warning: closing site %q: %v", name, err)
 		}
 	}
-	m.servers = make(map[string]*siteServer)
 }

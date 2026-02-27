@@ -516,6 +516,31 @@ func TestParseHeadersFile(t *testing.T) {
 	}
 }
 
+func TestParseHeadersFile_PathWithNoHeaders(t *testing.T) {
+	// A path line with no subsequent header lines should produce an empty map for that path.
+	got, err := ParseHeadersFile([]byte("/*\n  X-Frame-Options: DENY\n/empty\n"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d paths, want 2", len(got))
+	}
+	if hdrs := got["/empty"]; len(hdrs) != 0 {
+		t.Errorf("expected empty headers for /empty, got %v", hdrs)
+	}
+}
+
+func TestValidateSiteConfig_HeaderPathMissingSlash(t *testing.T) {
+	cfg := SiteConfig{
+		Headers: map[string]map[string]string{
+			"assets/*": {"Cache-Control": "public"},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for header path without leading /")
+	}
+}
+
 func TestSiteConfig_Merge_RedirectsInheritDefaults(t *testing.T) {
 	defaults := SiteConfig{
 		Redirects: []RedirectRule{{From: "/default", To: "/new-default"}},

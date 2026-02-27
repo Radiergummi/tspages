@@ -243,22 +243,28 @@ func fillDeliveryBuckets(sparse []DeliveryTimeBucket, from, to time.Time) []Deli
 	return out
 }
 
-// DeliveryStats returns aggregate counts for webhook deliveries.
-func (n *Notifier) DeliveryStats(site string, from, to time.Time) (total, succeeded, failed int64, err error) {
-	var whereConds []string
+// deliveryFilter builds a WHERE clause and args for webhook delivery queries.
+// Extra conditions (e.g. "duration_ms > 0") can be appended via extra.
+func deliveryFilter(site string, from, to time.Time, extra ...string) (string, []any) {
+	var conds []string
 	var args []any
 	if site != "" {
-		whereConds = append(whereConds, "site = ?")
+		conds = append(conds, "site = ?")
 		args = append(args, site)
 	}
 	if !from.IsZero() {
-		whereConds = append(whereConds, "created_at >= ?")
+		conds = append(conds, "created_at >= ?")
 		args = append(args, from.UTC().Format(time.RFC3339))
 	}
-	whereConds = append(whereConds, "created_at <= ?")
+	conds = append(conds, "created_at <= ?")
 	args = append(args, to.UTC().Format(time.RFC3339))
+	conds = append(conds, extra...)
+	return "WHERE " + strings.Join(conds, " AND "), args
+}
 
-	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+// DeliveryStats returns aggregate counts for webhook deliveries.
+func (n *Notifier) DeliveryStats(site string, from, to time.Time) (total, succeeded, failed int64, err error) {
+	whereClause, args := deliveryFilter(site, from, to)
 
 	query := fmt.Sprintf(`SELECT COUNT(*),
 		COALESCE(SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END), 0),
@@ -276,23 +282,9 @@ func (n *Notifier) DeliveryStats(site string, from, to time.Time) (total, succee
 // DeliveriesOverTime returns time-bucketed delivery counts.
 func (n *Notifier) DeliveriesOverTime(site string, from, to time.Time) ([]DeliveryTimeBucket, error) {
 	stepSecs := int(deliveryBucketStep(from, to).Seconds())
-
-	var whereConds []string
-	var args []any
-	// bucket step args come first
-	args = append(args, stepSecs, stepSecs)
-	if site != "" {
-		whereConds = append(whereConds, "site = ?")
-		args = append(args, site)
-	}
-	if !from.IsZero() {
-		whereConds = append(whereConds, "created_at >= ?")
-		args = append(args, from.UTC().Format(time.RFC3339))
-	}
-	whereConds = append(whereConds, "created_at <= ?")
-	args = append(args, to.UTC().Format(time.RFC3339))
-
-	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+	whereClause, filterArgs := deliveryFilter(site, from, to)
+	// bucket step args come first, then filter args
+	args := append([]any{stepSecs, stepSecs}, filterArgs...)
 
 	query := fmt.Sprintf(`SELECT bucket,
 		SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END),
@@ -335,21 +327,7 @@ type LatencyStats struct {
 
 // LatencyStats returns min/avg/p95/max latency in ms for the given time range.
 func (n *Notifier) LatencyStats(site string, from, to time.Time) (LatencyStats, error) {
-	var whereConds []string
-	var args []any
-	if site != "" {
-		whereConds = append(whereConds, "site = ?")
-		args = append(args, site)
-	}
-	if !from.IsZero() {
-		whereConds = append(whereConds, "created_at >= ?")
-		args = append(args, from.UTC().Format(time.RFC3339))
-	}
-	whereConds = append(whereConds, "created_at <= ?")
-	args = append(args, to.UTC().Format(time.RFC3339))
-	whereConds = append(whereConds, "duration_ms > 0")
-
-	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+	whereClause, args := deliveryFilter(site, from, to, "duration_ms > 0")
 
 	var s LatencyStats
 	err := n.db.QueryRow(fmt.Sprintf(
@@ -386,24 +364,8 @@ type LatencyTimeBucket struct {
 // LatencyOverTime returns time-bucketed latency percentiles.
 func (n *Notifier) LatencyOverTime(site string, from, to time.Time) ([]LatencyTimeBucket, error) {
 	stepSecs := int(deliveryBucketStep(from, to).Seconds())
-
-	var whereConds []string
-	var args []any
-	args = append(args, stepSecs, stepSecs)
-	if site != "" {
-		whereConds = append(whereConds, "site = ?")
-		args = append(args, site)
-	}
-	if !from.IsZero() {
-		whereConds = append(whereConds, "created_at >= ?")
-		args = append(args, from.UTC().Format(time.RFC3339))
-	}
-	whereConds = append(whereConds, "created_at <= ?")
-	args = append(args, to.UTC().Format(time.RFC3339))
-	// Exclude rows with no latency data (e.g. old rows before the column existed).
-	whereConds = append(whereConds, "duration_ms > 0")
-
-	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+	whereClause, filterArgs := deliveryFilter(site, from, to, "duration_ms > 0")
+	args := append([]any{stepSecs, stepSecs}, filterArgs...)
 
 	// Use a CTE with PERCENT_RANK to compute real per-bucket p95.
 	query := fmt.Sprintf(`WITH bucketed AS (
@@ -445,20 +407,7 @@ func (n *Notifier) LatencyOverTime(site string, from, to time.Time) ([]LatencyTi
 
 // EventBreakdown returns delivery counts grouped by event type.
 func (n *Notifier) EventBreakdown(site string, from, to time.Time) ([]EventCount, error) {
-	var whereConds []string
-	var args []any
-	if site != "" {
-		whereConds = append(whereConds, "site = ?")
-		args = append(args, site)
-	}
-	if !from.IsZero() {
-		whereConds = append(whereConds, "created_at >= ?")
-		args = append(args, from.UTC().Format(time.RFC3339))
-	}
-	whereConds = append(whereConds, "created_at <= ?")
-	args = append(args, to.UTC().Format(time.RFC3339))
-
-	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
+	whereClause, args := deliveryFilter(site, from, to)
 
 	query := fmt.Sprintf(`SELECT event, COUNT(DISTINCT webhook_id)
 		FROM webhook_deliveries %s GROUP BY event ORDER BY COUNT(DISTINCT webhook_id) DESC`, whereClause)

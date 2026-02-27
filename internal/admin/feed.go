@@ -97,7 +97,7 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	entries := make([]atomXMLEntry, len(all))
 	for i, d := range all {
-		entries[i] = deploymentToEntry(d.Site, d.DeploymentInfo, *h.dnsSuffix, r.Host)
+		entries[i] = deploymentToEntry(d.Site, d.DeploymentInfo, h.dnsSuffix, r.Host)
 	}
 
 	var updated string
@@ -154,7 +154,7 @@ func (h *SiteFeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	entries := make([]atomXMLEntry, len(deps))
 	for i, d := range deps {
-		entries[i] = deploymentToEntry(siteName, d, *h.dnsSuffix, r.Host)
+		entries[i] = deploymentToEntry(siteName, d, h.dnsSuffix, r.Host)
 	}
 
 	var updated string

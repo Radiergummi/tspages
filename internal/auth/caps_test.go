@@ -183,6 +183,58 @@ func TestHasAdminCap(t *testing.T) {
 	}
 }
 
+func TestHasDeployCap(t *testing.T) {
+	tests := []struct {
+		name string
+		caps []Cap
+		want bool
+	}{
+		{"admin grants deploy cap", []Cap{{Access: "admin"}}, true},
+		{"deploy grants deploy cap", []Cap{{Access: "deploy"}}, true},
+		{"scoped deploy", []Cap{{Access: "deploy", Sites: []string{"docs"}}}, true},
+		{"view does not grant deploy cap", []Cap{{Access: "view"}}, false},
+		{"metrics does not grant deploy cap", []Cap{{Access: "metrics"}}, false},
+		{"empty caps", []Cap{}, false},
+		{"nil caps", nil, false},
+		{"multi merge", []Cap{{Access: "view"}, {Access: "deploy"}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := HasDeployCap(tt.caps); got != tt.want {
+				t.Errorf("HasDeployCap() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCaps_InvalidJSON(t *testing.T) {
+	raw := []json.RawMessage{json.RawMessage(`{invalid json}`)}
+	_, err := ParseCaps(raw)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestMiddleware_InvalidCaps(t *testing.T) {
+	// Malformed capability JSON should produce a 500 response.
+	raw := []json.RawMessage{json.RawMessage(`not valid json`)}
+	client := &mockWhoIs{caps: raw}
+
+	handler := Middleware(client, "example.com/cap/pages")(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Error("handler should not be called on parse error")
+		}),
+	)
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "100.64.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", rec.Code)
+	}
+}
+
 func TestParseCaps(t *testing.T) {
 	raw := []json.RawMessage{
 		json.RawMessage(`{"access":"deploy","sites":["docs"]}`),

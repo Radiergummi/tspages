@@ -83,11 +83,8 @@ func main() {
 
 	admin.SetHideFooter(cfg.Server.HideFooter)
 
-	var dnsSuffix string
-	mgr := multihost.New(store, cfg.Tailscale.StateDir, cfg.Tailscale.AuthKey, cfg.Tailscale.Capability, cfg.Server.MaxSites, recorder, &dnsSuffix, cfg.Defaults)
-	defer mgr.Close()
-
-	// Control plane tsnet server
+	// Control plane tsnet server — start it and listen before creating
+	// handlers so we can resolve the DNS suffix first.
 	srv := &tsnet.Server{
 		Hostname: cfg.Tailscale.Hostname,
 		Dir:      cfg.Tailscale.StateDir,
@@ -100,16 +97,52 @@ func main() {
 		log.Fatalf("getting local client: %v", err)
 	}
 
+	ln, err := srv.ListenTLS("tcp", ":443")
+	if err != nil {
+		log.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	// Resolve DNS suffix now that the server is connected.
+	var dnsSuffix string
+	status, err := lc.StatusWithoutPeers(context.Background())
+	if err != nil {
+		log.Fatalf("getting tailnet status: %v", err)
+	}
+	if status.CurrentTailnet != nil {
+		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
+	}
+
+	mgr := multihost.New(multihost.ManagerConfig{
+		Store:      store,
+		StateDir:   cfg.Tailscale.StateDir,
+		AuthKey:    cfg.Tailscale.AuthKey,
+		Capability: cfg.Tailscale.Capability,
+		MaxSites:   cfg.Server.MaxSites,
+		Recorder:   recorder,
+		DNSSuffix:  dnsSuffix,
+		Defaults:   cfg.Defaults,
+	})
+	defer mgr.Close()
+
 	whoIsClient := tsadapter.New(lc)
 	withAuth := auth.Middleware(whoIsClient, cfg.Tailscale.Capability)
 
-	deployHandler := deploy.NewHandler(store, mgr, cfg.Server.MaxUploadMB, cfg.Server.MaxDeployments, &dnsSuffix, notifier, cfg.Defaults)
+	deployHandler := deploy.NewHandler(deploy.HandlerConfig{
+		Store:          store,
+		Manager:        mgr,
+		MaxUploadMB:    cfg.Server.MaxUploadMB,
+		MaxDeployments: cfg.Server.MaxDeployments,
+		DNSSuffix:      dnsSuffix,
+		Notifier:       notifier,
+		Defaults:       cfg.Defaults,
+	})
 	deleteHandler := deploy.NewDeleteHandler(store, mgr, notifier, cfg.Defaults)
 	listHandler := deploy.NewListDeploymentsHandler(store)
 	deleteDeploymentHandler := deploy.NewDeleteDeploymentHandler(store)
 	cleanupDeploymentsHandler := deploy.NewCleanupDeploymentsHandler(store)
 	activateHandler := deploy.NewActivateHandler(store, mgr)
-	h := admin.NewHandlers(store, recorder, &dnsSuffix, mgr, mgr, cfg.Defaults, notifier)
+	h := admin.NewHandlers(store, recorder, dnsSuffix, mgr, mgr, cfg.Defaults, notifier)
 	healthHandler := admin.NewHealthHandler(store, recorder)
 
 	mux := http.NewServeMux()
@@ -213,20 +246,6 @@ func main() {
 				log.Fatalf("health listener: %v", err)
 			}
 		}()
-	}
-
-	ln, err := srv.ListenTLS("tcp", ":443")
-	if err != nil {
-		log.Fatalf("listen: %v", err)
-	}
-	defer ln.Close()
-
-	status, err := lc.StatusWithoutPeers(context.Background())
-	if err != nil {
-		log.Fatalf("getting tailnet status: %v", err)
-	}
-	if status.CurrentTailnet != nil {
-		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
 	}
 
 	// Start servers for all sites with active deployments

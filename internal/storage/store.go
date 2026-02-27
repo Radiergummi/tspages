@@ -81,13 +81,20 @@ func ValidSiteNameForSuffix(name, dnsSuffix string) bool {
 	return ValidSiteName(name) && len(name) <= MaxSiteNameLen(dnsSuffix)
 }
 
+// ValidDeploymentID reports whether id is safe to use as a deployment path component.
+func ValidDeploymentID(id string) bool {
+	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, "/\\")
+}
+
 // CreateSite creates the directory structure for a new site.
 // Returns ErrSiteExists if the site directory already exists.
 func (s *Store) CreateSite(name string) error {
 	if !ValidSiteName(name) {
 		return fmt.Errorf("invalid site name: %q", name)
 	}
-	os.MkdirAll(filepath.Join(s.dataDir, "sites"), 0755)
+	if err := os.MkdirAll(filepath.Join(s.dataDir, "sites"), 0755); err != nil {
+		return fmt.Errorf("create sites dir: %w", err)
+	}
 	dir := filepath.Join(s.dataDir, "sites", name)
 	if err := os.Mkdir(dir, 0755); err != nil {
 		if os.IsExist(err) {
@@ -103,7 +110,9 @@ func (s *Store) CreateDeployment(site, id string) (string, error) {
 		return "", fmt.Errorf("invalid site name: %q", site)
 	}
 	parent := filepath.Join(s.dataDir, "sites", site, "deployments")
-	os.MkdirAll(parent, 0755)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return "", fmt.Errorf("create deployments dir: %w", err)
+	}
 	dir := filepath.Join(parent, id)
 	if err := os.Mkdir(dir, 0755); err != nil {
 		if os.IsExist(err) {
@@ -119,8 +128,13 @@ func (s *Store) MarkComplete(site, id string) error {
 	return os.WriteFile(marker, nil, 0644)
 }
 
+func (s *Store) MarkFailed(site, id, reason string) error {
+	marker := filepath.Join(s.dataDir, "sites", site, "deployments", id, ".failed")
+	return os.WriteFile(marker, []byte(reason), 0644)
+}
+
 func (s *Store) ActivateDeployment(site, id string) error {
-	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+	if !ValidDeploymentID(id) {
 		return ErrDeploymentNotFound
 	}
 	depDir := filepath.Join(s.dataDir, "sites", site, "deployments", id)
@@ -235,10 +249,20 @@ func (s *Store) ListSites() ([]SiteInfo, error) {
 type DeploymentInfo struct {
 	ID              string    `json:"id"`
 	Active          bool      `json:"active"`
+	Failed          bool      `json:"failed,omitempty"`
+	FailedReason    string    `json:"failed_reason,omitempty"`
 	CreatedAt       time.Time `json:"created_at,omitempty"`
 	CreatedBy       string    `json:"created_by,omitempty"`
 	CreatedByAvatar string    `json:"created_by_avatar,omitempty"`
 	SizeBytes       int64     `json:"size_bytes,omitempty"`
+}
+
+// deploymentInfoFromManifest populates a DeploymentInfo from a Manifest.
+func deploymentInfoFromManifest(d *DeploymentInfo, m Manifest) {
+	d.CreatedAt = m.CreatedAt
+	d.CreatedBy = m.CreatedBy
+	d.CreatedByAvatar = m.CreatedByAvatar
+	d.SizeBytes = m.SizeBytes
 }
 
 // FileInfo describes a single file within a deployment's content directory.
@@ -253,14 +277,44 @@ func (s *Store) ContentDir(site, id string) string {
 	return filepath.Join(s.dataDir, "sites", site, "deployments", id, "content")
 }
 
-// ListDeploymentFiles walks the content directory and returns all files
-// sorted alphabetically by path.
+// WriteFileIndex persists a pre-computed file listing as files.json
+// alongside the deployment's manifest.
+func (s *Store) WriteFileIndex(site, id string, files []FileInfo) error {
+	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, "files.json")
+	data, err := json.Marshal(files)
+	if err != nil {
+		return fmt.Errorf("marshal file index: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// ReadFileIndex reads a cached file listing from files.json.
+// Returns os.ErrNotExist if no cache exists.
+func (s *Store) ReadFileIndex(site, id string) ([]FileInfo, error) {
+	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, "files.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var files []FileInfo
+	if err := json.Unmarshal(data, &files); err != nil {
+		return nil, fmt.Errorf("parse file index: %w", err)
+	}
+	return files, nil
+}
+
+// ListDeploymentFiles returns all files in a deployment's content directory,
+// sorted alphabetically by path. Uses a cached files.json when available,
+// falling back to walking and hashing the content directory.
 func (s *Store) ListDeploymentFiles(site, id string) ([]FileInfo, error) {
 	if !ValidSiteName(site) {
 		return nil, fmt.Errorf("invalid site name: %q", site)
 	}
-	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+	if !ValidDeploymentID(id) {
 		return nil, ErrDeploymentNotFound
+	}
+	if cached, err := s.ReadFileIndex(site, id); err == nil {
+		return cached, nil
 	}
 	contentDir := s.ContentDir(site, id)
 	var files []FileInfo
@@ -304,7 +358,7 @@ func (s *Store) DeleteDeployment(site, id string) error {
 	if !ValidSiteName(site) {
 		return fmt.Errorf("invalid site name: %q", site)
 	}
-	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+	if !ValidDeploymentID(id) {
 		return ErrDeploymentNotFound
 	}
 	current, _ := s.CurrentDeployment(site)
@@ -313,7 +367,10 @@ func (s *Store) DeleteDeployment(site, id string) error {
 	}
 	dir := filepath.Join(s.dataDir, "sites", site, "deployments", id)
 	if _, err := os.Stat(dir); err != nil {
-		return ErrDeploymentNotFound
+		if errors.Is(err, fs.ErrNotExist) {
+			return ErrDeploymentNotFound
+		}
+		return fmt.Errorf("checking deployment: %w", err)
 	}
 	return os.RemoveAll(dir)
 }
@@ -395,19 +452,27 @@ func (s *Store) ListDeployments(site string) ([]DeploymentInfo, error) {
 		if !e.IsDir() {
 			continue
 		}
-		marker := filepath.Join(deploymentsDir, e.Name(), ".complete")
-		if _, err := os.Stat(marker); err != nil {
-			continue
+		depDir := filepath.Join(deploymentsDir, e.Name())
+		completeMarker := filepath.Join(depDir, ".complete")
+		failedMarker := filepath.Join(depDir, ".failed")
+
+		_, completeErr := os.Stat(completeMarker)
+		failedReason, failedErr := os.ReadFile(failedMarker)
+
+		if completeErr != nil && failedErr != nil {
+			continue // orphaned/in-progress
 		}
+
 		info := DeploymentInfo{
 			ID:     e.Name(),
 			Active: e.Name() == current,
 		}
+		if failedErr == nil {
+			info.Failed = true
+			info.FailedReason = string(failedReason)
+		}
 		if m, err := s.ReadManifest(site, e.Name()); err == nil {
-			info.CreatedAt = m.CreatedAt
-			info.CreatedBy = m.CreatedBy
-			info.CreatedByAvatar = m.CreatedByAvatar
-			info.SizeBytes = m.SizeBytes
+			deploymentInfoFromManifest(&info, m)
 		}
 		deployments = append(deployments, info)
 	}
@@ -433,9 +498,13 @@ func (s *Store) CleanupOrphans() {
 			if !dep.IsDir() {
 				continue
 			}
-			marker := filepath.Join(deploymentsDir, dep.Name(), ".complete")
-			if _, err := os.Stat(marker); os.IsNotExist(err) {
-				os.RemoveAll(filepath.Join(deploymentsDir, dep.Name()))
+			depDir := filepath.Join(deploymentsDir, dep.Name())
+			completeMarker := filepath.Join(depDir, ".complete")
+			failedMarker := filepath.Join(depDir, ".failed")
+			_, completeErr := os.Stat(completeMarker)
+			_, failedErr := os.Stat(failedMarker)
+			if os.IsNotExist(completeErr) && os.IsNotExist(failedErr) {
+				os.RemoveAll(depDir)
 			}
 		}
 	}

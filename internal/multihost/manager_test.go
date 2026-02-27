@@ -17,7 +17,12 @@ import (
 func newTestManager(t *testing.T, maxSites int) (*Manager, *startLog) {
 	t.Helper()
 	store := storage.New(t.TempDir())
-	m := New(store, t.TempDir(), "", "test/cap", maxSites, nil, nil, storage.SiteConfig{})
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   t.TempDir(),
+		Capability: "test/cap",
+		MaxSites:   maxSites,
+	})
 	sl := &startLog{}
 	m.startSite = sl.starter()
 	return m, sl
@@ -128,7 +133,12 @@ func TestStopServer_FreesSlot(t *testing.T) {
 func TestStartExistingSites(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
-	m := New(store, dir, "", "test/cap", 10, nil, nil, storage.SiteConfig{})
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   dir,
+		Capability: "test/cap",
+		MaxSites:   10,
+	})
 	sl := &startLog{}
 	m.startSite = sl.starter()
 
@@ -211,6 +221,80 @@ func TestClose(t *testing.T) {
 	// After close, the map is cleared.
 	if m.RunningCount() != 0 {
 		t.Errorf("expected empty map after Close, got %d", m.RunningCount())
+	}
+}
+
+func TestClose_WithCloserError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   t.TempDir(),
+		Capability: "test/cap",
+		MaxSites:   10,
+	})
+	m.startSite = func(site string) (*siteServer, error) {
+		return &siteServer{closer: func() error {
+			return fmt.Errorf("close error for %s", site)
+		}}, nil
+	}
+
+	m.EnsureServer("a")
+	m.EnsureServer("b")
+
+	// Close should not panic and should clear the map even when closers fail.
+	m.Close()
+
+	if m.RunningCount() != 0 {
+		t.Errorf("expected empty map after Close, got %d", m.RunningCount())
+	}
+}
+
+func TestStopServer_WithCloserError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   t.TempDir(),
+		Capability: "test/cap",
+		MaxSites:   10,
+	})
+	m.startSite = func(site string) (*siteServer, error) {
+		return &siteServer{closer: func() error {
+			return fmt.Errorf("close failed")
+		}}, nil
+	}
+
+	m.EnsureServer("docs")
+	err := m.StopServer("docs")
+	if err == nil {
+		t.Error("expected error from failing closer")
+	}
+
+	// Site should still be removed from the map despite the error.
+	if m.IsRunning("docs") {
+		t.Error("site should be removed from map after StopServer")
+	}
+}
+
+func TestStartExistingSites_ListError(t *testing.T) {
+	// Place a file where the "sites" directory would be, so ReadDir fails
+	// with a non-IsNotExist error.
+	dir := t.TempDir()
+	sitesDir := filepath.Join(dir, "sites")
+	os.WriteFile(sitesDir, []byte("not a dir"), 0644)
+	store := storage.New(dir)
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   t.TempDir(),
+		Capability: "test/cap",
+		MaxSites:   10,
+	})
+	m.startSite = func(site string) (*siteServer, error) {
+		return &siteServer{closer: func() error { return nil }}, nil
+	}
+
+	err := m.StartExistingSites()
+	if err == nil {
+		t.Error("expected error from ListSites failure")
 	}
 }
 

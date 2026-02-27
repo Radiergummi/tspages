@@ -1,6 +1,10 @@
 package admin
 
-import "testing"
+import (
+	"fmt"
+	"sync"
+	"testing"
+)
 
 func TestDocPages_AllExist(t *testing.T) {
 	pages := DocPages()
@@ -23,5 +27,35 @@ func TestRenderDoc_NotFound(t *testing.T) {
 	_, err := RenderDoc("nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent doc")
+	}
+}
+
+func TestRenderDoc_Concurrent(t *testing.T) {
+	slugs := DocPages()
+	if len(slugs) == 0 {
+		t.Skip("no doc pages")
+	}
+	slug := slugs[0].Slug
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 20)
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			html, err := RenderDoc(slug)
+			if err != nil {
+				errs <- err
+				return
+			}
+			if len(html) == 0 {
+				errs <- fmt.Errorf("empty HTML for %q", slug)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
 	}
 }

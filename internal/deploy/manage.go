@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
@@ -121,7 +120,7 @@ func (h *DeleteDeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "invalid site name", http.StatusBadRequest)
 		return
 	}
-	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+	if !storage.ValidDeploymentID(id) {
 		http.Error(w, "invalid deployment id", http.StatusBadRequest)
 		return
 	}
@@ -195,7 +194,7 @@ func (h *ActivateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
 		return
 	}
-	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+	if !storage.ValidDeploymentID(id) {
 		http.Error(w, "invalid deployment id", http.StatusBadRequest)
 		return
 	}
@@ -215,6 +214,10 @@ func (h *ActivateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	found := false
 	for _, d := range deployments {
 		if d.ID == id {
+			if d.Failed {
+				http.Error(w, "cannot activate a failed deployment", http.StatusConflict)
+				return
+			}
 			found = true
 			break
 		}

@@ -121,6 +121,15 @@ func (cw *compressWriter) Close() error {
 	return nil
 }
 
+func (cw *compressWriter) Flush() {
+	if cw.gw != nil {
+		cw.gw.Flush()
+	}
+	if f, ok := cw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func (cw *compressWriter) Unwrap() http.ResponseWriter {
 	return cw.ResponseWriter
 }

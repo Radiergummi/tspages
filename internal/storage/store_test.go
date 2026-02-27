@@ -599,6 +599,179 @@ func TestCleanupOldDeployments_UnderLimit(t *testing.T) {
 	}
 }
 
+func TestMarkFailed(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "aaa11111")
+
+	if err := s.MarkFailed("docs", "aaa11111", "invalid tspages.toml: bad key"); err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+
+	marker := filepath.Join(s.dataDir, "sites", "docs", "deployments", "aaa11111", ".failed")
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("read .failed marker: %v", err)
+	}
+	if string(data) != "invalid tspages.toml: bad key" {
+		t.Errorf("reason = %q, want %q", string(data), "invalid tspages.toml: bad key")
+	}
+}
+
+func TestListDeployments_IncludesFailed(t *testing.T) {
+	s := New(t.TempDir())
+
+	// Complete deployment
+	s.CreateDeployment("docs", "aaa11111")
+	s.MarkComplete("docs", "aaa11111")
+	s.ActivateDeployment("docs", "aaa11111")
+
+	// Failed deployment
+	s.CreateDeployment("docs", "bbb22222")
+	s.WriteManifest("docs", "bbb22222", Manifest{CreatedBy: "bob@example.com", SizeBytes: 0})
+	s.MarkFailed("docs", "bbb22222", "invalid config")
+
+	// Orphan — should not appear
+	s.CreateDeployment("docs", "ccc33333")
+
+	deps, err := s.ListDeployments("docs")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(deps) != 2 {
+		t.Fatalf("got %d deployments, want 2", len(deps))
+	}
+
+	for _, d := range deps {
+		switch d.ID {
+		case "aaa11111":
+			if d.Failed {
+				t.Error("aaa11111 should not be failed")
+			}
+			if !d.Active {
+				t.Error("aaa11111 should be active")
+			}
+		case "bbb22222":
+			if !d.Failed {
+				t.Error("bbb22222 should be failed")
+			}
+			if d.FailedReason != "invalid config" {
+				t.Errorf("bbb22222 reason = %q, want %q", d.FailedReason, "invalid config")
+			}
+			if d.Active {
+				t.Error("bbb22222 should not be active")
+			}
+			if d.CreatedBy != "bob@example.com" {
+				t.Errorf("bbb22222 created_by = %q", d.CreatedBy)
+			}
+		default:
+			t.Errorf("unexpected deployment %q", d.ID)
+		}
+	}
+}
+
+func TestCleanupOrphans_PreservesFailed(t *testing.T) {
+	s := New(t.TempDir())
+
+	// Complete deployment
+	path1, _ := s.CreateDeployment("docs", "complete1")
+	s.MarkComplete("docs", "complete1")
+
+	// Failed deployment — should survive cleanup
+	path2, _ := s.CreateDeployment("docs", "failed01")
+	s.MarkFailed("docs", "failed01", "bad config")
+
+	// Orphan — should be removed
+	s.CreateDeployment("docs", "orphan01")
+
+	s.CleanupOrphans()
+
+	if _, err := os.Stat(path1); err != nil {
+		t.Errorf("complete deployment was removed: %v", err)
+	}
+	if _, err := os.Stat(path2); err != nil {
+		t.Errorf("failed deployment was removed: %v", err)
+	}
+	orphanPath := filepath.Join(s.dataDir, "sites", "docs", "deployments", "orphan01")
+	if _, err := os.Stat(orphanPath); err == nil {
+		t.Error("orphan deployment was not removed")
+	}
+}
+
+func TestGetSite(t *testing.T) {
+	s := New(t.TempDir())
+
+	// Invalid name.
+	if _, err := s.GetSite(".."); err == nil {
+		t.Error("expected error for invalid site name")
+	}
+
+	// Non-existent site.
+	if _, err := s.GetSite("nope"); err == nil {
+		t.Error("expected error for non-existent site")
+	}
+
+	// Existing site without active deployment.
+	s.CreateSite("docs")
+	info, err := s.GetSite("docs")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.Name != "docs" {
+		t.Errorf("name = %q, want %q", info.Name, "docs")
+	}
+	if info.ActiveDeploymentID != "" {
+		t.Errorf("active = %q, want empty", info.ActiveDeploymentID)
+	}
+
+	// With active deployment.
+	s.CreateDeployment("docs", "abc12345")
+	s.MarkComplete("docs", "abc12345")
+	s.ActivateDeployment("docs", "abc12345")
+
+	info, err = s.GetSite("docs")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.ActiveDeploymentID != "abc12345" {
+		t.Errorf("active = %q, want %q", info.ActiveDeploymentID, "abc12345")
+	}
+}
+
+func TestActivateDeployment_NotFound(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateSite("docs")
+
+	err := s.ActivateDeployment("docs", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent deployment")
+	}
+	if !strings.Contains(err.Error(), "deployment not found") {
+		t.Errorf("error = %q, want containing 'deployment not found'", err)
+	}
+}
+
+func TestActivateDeployment_InvalidID(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateSite("docs")
+
+	for _, id := range []string{"", ".", "..", "../other", "a/b", "a\\b"} {
+		if err := s.ActivateDeployment("docs", id); !errors.Is(err, ErrDeploymentNotFound) {
+			t.Errorf("ActivateDeployment(%q) = %v, want ErrDeploymentNotFound", id, err)
+		}
+	}
+}
+
+func TestCreateDeployment_DuplicateID(t *testing.T) {
+	s := New(t.TempDir())
+	if _, err := s.CreateDeployment("docs", "abc12345"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.CreateDeployment("docs", "abc12345")
+	if !errors.Is(err, ErrDeploymentExists) {
+		t.Fatalf("got %v, want ErrDeploymentExists", err)
+	}
+}
+
 func TestNewDeploymentID(t *testing.T) {
 	id := NewDeploymentID()
 	if len(id) != 8 {

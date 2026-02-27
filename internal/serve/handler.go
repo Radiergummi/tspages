@@ -33,7 +33,7 @@ var dirlistTmpl = template.Must(template.New("dirlist").Parse(dirlistTmplStr))
 type Handler struct {
 	store     *storage.Store
 	site      string
-	dnsSuffix *string
+	dnsSuffix string
 	defaults  storage.SiteConfig
 
 	mu        sync.RWMutex
@@ -42,7 +42,12 @@ type Handler struct {
 	hintCache map[string][]string
 }
 
-func NewHandler(store *storage.Store, site string, dnsSuffix *string, defaults storage.SiteConfig) *Handler {
+// isUnderRoot reports whether resolved is equal to resolvedRoot or a child of it.
+func isUnderRoot(resolved, resolvedRoot string) bool {
+	return resolved == resolvedRoot || strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator))
+}
+
+func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.SiteConfig) *Handler {
 	return &Handler{store: store, site: site, dnsSuffix: dnsSuffix, defaults: defaults,
 		cachedCfg: storage.SiteConfig{}.Merge(defaults)}
 }
@@ -149,7 +154,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if cleanURLs {
 			htmlPath := fullPath + ".html"
 			if resolvedHTML, err := filepath.EvalSymlinks(htmlPath); err == nil {
-				if strings.HasPrefix(resolvedHTML, resolvedRoot+string(os.PathSeparator)) {
+				if isUnderRoot(resolvedHTML, resolvedRoot) {
 					htmlFilePath := filePath + ".html"
 					h.sendEarlyHints(w, deploymentID, htmlFilePath, htmlPath)
 					w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
@@ -168,7 +173,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serve404(w, root, resolvedRoot, cfg)
 		return
 	}
-	if !strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) && resolved != resolvedRoot {
+	if !isUnderRoot(resolved, resolvedRoot) {
 		http.NotFound(w, r)
 		return
 	}
@@ -177,7 +182,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if info, err := os.Stat(resolved); err == nil && info.IsDir() {
 		dirIndexPath := filepath.Join(fullPath, indexPage)
 		resolvedIndex, err := filepath.EvalSymlinks(dirIndexPath)
-		if err == nil && (strings.HasPrefix(resolvedIndex, resolvedRoot+string(os.PathSeparator)) || resolvedIndex == resolvedRoot) {
+		if err == nil && isUnderRoot(resolvedIndex, resolvedRoot) {
 			indexFilePath := filepath.Join(filePath, indexPage)
 			h.sendEarlyHints(w, deploymentID, indexFilePath, dirIndexPath)
 			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
@@ -218,7 +223,7 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, root,
 		h.serveDefault404(w)
 		return
 	}
-	if !strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) && resolved != resolvedRoot {
+	if !isUnderRoot(resolved, resolvedRoot) {
 		h.serveDefault404(w)
 		return
 	}
@@ -230,9 +235,17 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, root,
 }
 
 func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storage.SiteConfig) {
-	for pattern, hdrs := range cfg.Headers {
+	// Sort patterns so that more specific patterns (longer, no wildcard)
+	// are applied after less specific ones, producing deterministic results
+	// when multiple patterns match.
+	patterns := make([]string, 0, len(cfg.Headers))
+	for pattern := range cfg.Headers {
+		patterns = append(patterns, pattern)
+	}
+	sort.Strings(patterns)
+	for _, pattern := range patterns {
 		if matchHeaderPath(pattern, "/"+reqPath) {
-			for name, value := range hdrs {
+			for name, value := range cfg.Headers[pattern] {
 				w.Header().Set(name, value)
 			}
 		}
@@ -391,18 +404,20 @@ func matchHeaderPath(pattern, reqPath string) bool {
 	return pattern == reqPath
 }
 
-// matchRedirect checks if reqPath matches a redirect rule's From pattern.
+// matchRedirect checks if pathSegs matches a redirect rule's From pattern.
 // Returns the substituted target URL and true if matched, or ("", false).
 // Patterns: "/exact", "/blog/:slug" (named param), "/docs/*" (splat).
-func matchRedirect(rule storage.RedirectRule, reqPath string) (string, bool) {
+func matchRedirect(rule storage.RedirectRule, pathSegs []string) (string, bool) {
 	fromSegs := strings.Split(rule.From, "/")
-	pathSegs := strings.Split(reqPath, "/")
 
-	params := make(map[string]string)
+	var params map[string]string
 
 	for i, seg := range fromSegs {
 		if seg == "*" {
 			// Splat: capture everything remaining
+			if params == nil {
+				params = make(map[string]string)
+			}
 			params["*"] = strings.Join(pathSegs[i:], "/")
 			break
 		}
@@ -410,6 +425,9 @@ func matchRedirect(rule storage.RedirectRule, reqPath string) (string, bool) {
 			return "", false
 		}
 		if strings.HasPrefix(seg, ":") {
+			if params == nil {
+				params = make(map[string]string)
+			}
 			params[seg[1:]] = pathSegs[i]
 		} else if seg != pathSegs[i] {
 			return "", false
@@ -419,6 +437,10 @@ func matchRedirect(rule storage.RedirectRule, reqPath string) (string, bool) {
 	// If no splat, segment counts must match exactly
 	if !strings.Contains(rule.From, "*") && len(fromSegs) != len(pathSegs) {
 		return "", false
+	}
+
+	if params == nil {
+		return rule.To, true
 	}
 
 	// Substitute params into target by rebuilding segment-by-segment
@@ -437,8 +459,9 @@ func matchRedirect(rule storage.RedirectRule, reqPath string) (string, bool) {
 }
 
 func (h *Handler) checkRedirects(reqPath string, cfg storage.SiteConfig) (string, int, bool) {
+	pathSegs := strings.Split(reqPath, "/")
 	for _, rule := range cfg.Redirects {
-		if target, ok := matchRedirect(rule, reqPath); ok {
+		if target, ok := matchRedirect(rule, pathSegs); ok {
 			status := rule.Status
 			if status == 0 {
 				status = 301
@@ -571,7 +594,7 @@ func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg
 	}
 	custom404 := filepath.Join(root, notFoundPage)
 	if resolved, err := filepath.EvalSymlinks(custom404); err == nil {
-		if strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) {
+		if isUnderRoot(resolved, resolvedRoot) {
 			if content, err := os.ReadFile(resolved); err == nil {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
@@ -592,8 +615,8 @@ func (h *Handler) serveDefault404(w http.ResponseWriter) {
 
 func (h *Handler) servePlaceholder(w http.ResponseWriter) {
 	controlPlane := "the control plane"
-	if h.dnsSuffix != nil && *h.dnsSuffix != "" {
-		controlPlane = fmt.Sprintf("https://pages.%s", *h.dnsSuffix)
+	if h.dnsSuffix != "" {
+		controlPlane = fmt.Sprintf("https://pages.%s", h.dnsSuffix)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = placeholderTmpl.Execute(w, struct {

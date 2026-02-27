@@ -474,7 +474,7 @@ export function lineChart(
           display: false,
           grace: "5%",
           ...(options?.yMin !== null && {
-            min: options.yMin,
+            min: options!.yMin,
           }),
         },
       },

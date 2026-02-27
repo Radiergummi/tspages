@@ -310,62 +310,25 @@ type NodeCount struct {
 // --- Query methods ---
 
 func (r *Recorder) TotalRequests(site string, from, to time.Time) (int64, error) {
-	var count int64
-	var err error
-	if from.IsZero() {
-		err = r.db.QueryRow(
-			`SELECT COUNT(*) FROM requests WHERE site = ? AND ts <= ?`,
-			site, to.UTC().Format(time.RFC3339),
-		).Scan(&count)
-	} else {
-		err = r.db.QueryRow(
-			`SELECT COUNT(*) FROM requests WHERE site = ? AND ts >= ? AND ts <= ?`,
-			site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-		).Scan(&count)
-	}
-	return count, err
+	return r.TotalRequestsMulti([]string{site}, from, to)
 }
 
 func (r *Recorder) UniqueVisitors(site string, from, to time.Time) (int64, error) {
-	var count int64
-	err := r.db.QueryRow(
-		`SELECT COUNT(DISTINCT user_login) FROM requests WHERE site = ? AND ts >= ? AND ts <= ? AND user_login != ''`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	).Scan(&count)
-	return count, err
+	return r.UniqueVisitorsMulti([]string{site}, from, to)
 }
 
 func (r *Recorder) UniquePages(site string, from, to time.Time) (int64, error) {
+	timeCond, args := timeFilter(from, to)
+	args = append([]any{site}, args...)
 	var count int64
 	err := r.db.QueryRow(
-		`SELECT COUNT(DISTINCT path) FROM requests WHERE site = ? AND ts >= ? AND ts <= ?`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
+		`SELECT COUNT(DISTINCT path) FROM requests WHERE site = ? AND `+timeCond, args...,
 	).Scan(&count)
 	return count, err
 }
 
 func (r *Recorder) RequestsOverTime(site string, from, to time.Time) ([]TimeBucket, error) {
-	stepSecs := int(bucketStep(from, to).Seconds())
-	rows, err := r.db.Query(
-		`SELECT `+bucketSQL+` AS bucket, COUNT(*) FROM requests WHERE site = ? AND ts >= ? AND ts <= ? GROUP BY bucket ORDER BY bucket`,
-		stepSecs, stepSecs, site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var sparse []TimeBucket
-	for rows.Next() {
-		var b TimeBucket
-		if err := rows.Scan(&b.Time, &b.Count); err != nil {
-			return nil, err
-		}
-		sparse = append(sparse, b)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return fillBuckets(sparse, from, to), nil
+	return r.RequestsOverTimeMulti([]string{site}, from, to)
 }
 
 func fillStatusBuckets(sparse []StatusTimeBucket, from, to time.Time) []StatusTimeBucket {
@@ -397,38 +360,15 @@ func fillStatusBuckets(sparse []StatusTimeBucket, from, to time.Time) []StatusTi
 }
 
 func (r *Recorder) RequestsOverTimeByStatus(site string, from, to time.Time) ([]StatusTimeBucket, error) {
-	stepSecs := int(bucketStep(from, to).Seconds())
-	rows, err := r.db.Query(
-		`SELECT `+bucketSQL+` AS bucket,
-			SUM(CASE WHEN status/100 IN (1,2,3) THEN 1 ELSE 0 END),
-			SUM(CASE WHEN status/100 = 4 THEN 1 ELSE 0 END),
-			SUM(CASE WHEN status/100 = 5 THEN 1 ELSE 0 END)
-		FROM requests WHERE site = ? AND ts >= ? AND ts <= ?
-		GROUP BY bucket ORDER BY bucket`,
-		stepSecs, stepSecs, site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var sparse []StatusTimeBucket
-	for rows.Next() {
-		var b StatusTimeBucket
-		if err := rows.Scan(&b.Time, &b.OK, &b.ClientErr, &b.ServerErr); err != nil {
-			return nil, err
-		}
-		sparse = append(sparse, b)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return fillStatusBuckets(sparse, from, to), nil
+	return r.RequestsOverTimeByStatusMulti([]string{site}, from, to)
 }
 
 func (r *Recorder) TopPages(site string, from, to time.Time, limit int) ([]PathCount, error) {
+	timeCond, args := timeFilter(from, to)
+	args = append([]any{site}, args...)
+	args = append(args, limit)
 	rows, err := r.db.Query(
-		`SELECT path, COUNT(*) AS c FROM requests WHERE site = ? AND ts >= ? AND ts <= ? GROUP BY path ORDER BY c DESC LIMIT ?`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339), limit,
+		`SELECT path, COUNT(*) AS c FROM requests WHERE site = ? AND `+timeCond+` GROUP BY path ORDER BY c DESC LIMIT ?`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -446,103 +386,23 @@ func (r *Recorder) TopPages(site string, from, to time.Time, limit int) ([]PathC
 }
 
 func (r *Recorder) TopVisitors(site string, from, to time.Time, limit int) ([]VisitorCount, error) {
-	rows, err := r.db.Query(
-		`SELECT user_login, MAX(user_name), MAX(profile_pic_url), COUNT(*) AS c FROM requests WHERE site = ? AND ts >= ? AND ts <= ? AND user_login != '' GROUP BY user_login ORDER BY c DESC LIMIT ?`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339), limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []VisitorCount
-	for rows.Next() {
-		var v VisitorCount
-		if err := rows.Scan(&v.UserLogin, &v.UserName, &v.ProfilePicURL, &v.Count); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return r.TopVisitorsMulti([]string{site}, from, to, limit)
 }
 
 func (r *Recorder) StatusBreakdown(site string, from, to time.Time) ([]StatusCount, error) {
-	rows, err := r.db.Query(
-		`SELECT CAST(status/100 AS TEXT) || 'xx' AS cat, COUNT(*) AS c FROM requests WHERE site = ? AND ts >= ? AND ts <= ? GROUP BY cat ORDER BY cat`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []StatusCount
-	for rows.Next() {
-		var s StatusCount
-		if err := rows.Scan(&s.Status, &s.Count); err != nil {
-			return nil, err
-		}
-		out = append(out, s)
-	}
-	return out, rows.Err()
+	return r.StatusBreakdownMulti([]string{site}, from, to)
 }
 
 func (r *Recorder) HourlyPattern(site string, from, to time.Time) ([]HourCount, error) {
-	rows, err := r.db.Query(
-		`SELECT CAST(strftime('%H', ts) AS INTEGER) AS h, COUNT(*) AS c FROM requests WHERE site = ? AND ts >= ? AND ts <= ? GROUP BY h ORDER BY h`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []HourCount
-	for rows.Next() {
-		var h HourCount
-		if err := rows.Scan(&h.Hour, &h.Count); err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
+	return r.HourlyPatternMulti([]string{site}, from, to)
 }
 
 func (r *Recorder) OSBreakdown(site string, from, to time.Time) ([]OSCount, error) {
-	rows, err := r.db.Query(
-		`SELECT os, COUNT(*) AS c FROM requests WHERE site = ? AND ts >= ? AND ts <= ? AND os != '' GROUP BY os ORDER BY c DESC`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []OSCount
-	for rows.Next() {
-		var o OSCount
-		if err := rows.Scan(&o.OS, &o.Count); err != nil {
-			return nil, err
-		}
-		out = append(out, o)
-	}
-	return out, rows.Err()
+	return r.OSBreakdownMulti([]string{site}, from, to)
 }
 
 func (r *Recorder) NodeBreakdown(site string, from, to time.Time) ([]NodeCount, error) {
-	rows, err := r.db.Query(
-		`SELECT node_name, MAX(os), COUNT(*) AS c FROM requests WHERE site = ? AND ts >= ? AND ts <= ? AND node_name != '' GROUP BY node_name ORDER BY c DESC`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []NodeCount
-	for rows.Next() {
-		var n NodeCount
-		if err := rows.Scan(&n.NodeName, &n.OS, &n.Count); err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+	return r.NodeBreakdownMulti([]string{site}, from, to)
 }
 
 // --- Aggregate query methods (filtered to given sites) ---
@@ -563,15 +423,25 @@ func siteFilter(sites []string) (string, []any) {
 	return "site IN (" + strings.Join(placeholders, ",") + ")", args
 }
 
+// timeFilter appends "ts >= ?" and "ts <= ?" conditions, skipping the lower
+// bound when from is zero (meaning "all time").
+func timeFilter(from, to time.Time) (string, []any) {
+	if from.IsZero() {
+		return "ts <= ?", []any{to.UTC().Format(time.RFC3339)}
+	}
+	return "ts >= ? AND ts <= ?", []any{from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339)}
+}
+
 func (r *Recorder) TotalRequestsMulti(sites []string, from, to time.Time) (int64, error) {
 	if len(sites) == 0 {
 		return 0, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	var count int64
 	err := r.db.QueryRow(
-		`SELECT COUNT(*) FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ?`, args...,
+		`SELECT COUNT(*) FROM requests WHERE `+inClause+` AND `+timeCond, args...,
 	).Scan(&count)
 	return count, err
 }
@@ -581,10 +451,11 @@ func (r *Recorder) UniqueVisitorsMulti(sites []string, from, to time.Time) (int6
 		return 0, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	var count int64
 	err := r.db.QueryRow(
-		`SELECT COUNT(DISTINCT user_login) FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? AND user_login != ''`, args...,
+		`SELECT COUNT(DISTINCT user_login) FROM requests WHERE `+inClause+` AND `+timeCond+` AND user_login != ''`, args...,
 	).Scan(&count)
 	return count, err
 }
@@ -594,11 +465,12 @@ func (r *Recorder) RequestsOverTimeMulti(sites []string, from, to time.Time) ([]
 		return nil, nil
 	}
 	stepSecs := int(bucketStep(from, to).Seconds())
-	inClause, args := siteFilter(sites)
-	args = append([]any{stepSecs, stepSecs}, args...)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	inClause, siteArgs := siteFilter(sites)
+	timeCond, timeArgs := timeFilter(from, to)
+	args := append([]any{stepSecs, stepSecs}, siteArgs...)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
-		`SELECT `+bucketSQL+` AS bucket, COUNT(*) FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? GROUP BY bucket ORDER BY bucket`, args...,
+		`SELECT `+bucketSQL+` AS bucket, COUNT(*) FROM requests WHERE `+inClause+` AND `+timeCond+` GROUP BY bucket ORDER BY bucket`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -623,15 +495,16 @@ func (r *Recorder) RequestsOverTimeByStatusMulti(sites []string, from, to time.T
 		return nil, nil
 	}
 	stepSecs := int(bucketStep(from, to).Seconds())
-	inClause, args := siteFilter(sites)
-	args = append([]any{stepSecs, stepSecs}, args...)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	inClause, siteArgs := siteFilter(sites)
+	timeCond, timeArgs := timeFilter(from, to)
+	args := append([]any{stepSecs, stepSecs}, siteArgs...)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
 		`SELECT `+bucketSQL+` AS bucket,
 			SUM(CASE WHEN status/100 IN (1,2,3) THEN 1 ELSE 0 END),
 			SUM(CASE WHEN status/100 = 4 THEN 1 ELSE 0 END),
 			SUM(CASE WHEN status/100 = 5 THEN 1 ELSE 0 END)
-		FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ?
+		FROM requests WHERE `+inClause+` AND `+timeCond+`
 		GROUP BY bucket ORDER BY bucket`, args...,
 	)
 	if err != nil {
@@ -657,9 +530,10 @@ func (r *Recorder) SiteBreakdown(sites []string, from, to time.Time) ([]SiteCoun
 		return nil, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
-		`SELECT site, COUNT(*) AS c FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? GROUP BY site ORDER BY c DESC`, args...,
+		`SELECT site, COUNT(*) AS c FROM requests WHERE `+inClause+` AND `+timeCond+` GROUP BY site ORDER BY c DESC`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -681,9 +555,11 @@ func (r *Recorder) TopVisitorsMulti(sites []string, from, to time.Time, limit in
 		return nil, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339), limit)
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
+	args = append(args, limit)
 	rows, err := r.db.Query(
-		`SELECT user_login, MAX(user_name), MAX(profile_pic_url), COUNT(*) AS c FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? AND user_login != '' GROUP BY user_login ORDER BY c DESC LIMIT ?`, args...,
+		`SELECT user_login, MAX(user_name), MAX(profile_pic_url), COUNT(*) AS c FROM requests WHERE `+inClause+` AND `+timeCond+` AND user_login != '' GROUP BY user_login ORDER BY c DESC LIMIT ?`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -705,9 +581,10 @@ func (r *Recorder) StatusBreakdownMulti(sites []string, from, to time.Time) ([]S
 		return nil, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
-		`SELECT CAST(status/100 AS TEXT) || 'xx' AS cat, COUNT(*) AS c FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? GROUP BY cat ORDER BY cat`, args...,
+		`SELECT CAST(status/100 AS TEXT) || 'xx' AS cat, COUNT(*) AS c FROM requests WHERE `+inClause+` AND `+timeCond+` GROUP BY cat ORDER BY cat`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -729,9 +606,10 @@ func (r *Recorder) HourlyPatternMulti(sites []string, from, to time.Time) ([]Hou
 		return nil, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
-		`SELECT CAST(strftime('%H', ts) AS INTEGER) AS h, COUNT(*) AS c FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? GROUP BY h ORDER BY h`, args...,
+		`SELECT CAST(strftime('%H', ts) AS INTEGER) AS h, COUNT(*) AS c FROM requests WHERE `+inClause+` AND `+timeCond+` GROUP BY h ORDER BY h`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -753,9 +631,10 @@ func (r *Recorder) OSBreakdownMulti(sites []string, from, to time.Time) ([]OSCou
 		return nil, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
-		`SELECT os, COUNT(*) AS c FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? AND os != '' GROUP BY os ORDER BY c DESC`, args...,
+		`SELECT os, COUNT(*) AS c FROM requests WHERE `+inClause+` AND `+timeCond+` AND os != '' GROUP BY os ORDER BY c DESC`, args...,
 	)
 	if err != nil {
 		return nil, err
@@ -777,9 +656,10 @@ func (r *Recorder) NodeBreakdownMulti(sites []string, from, to time.Time) ([]Nod
 		return nil, nil
 	}
 	inClause, args := siteFilter(sites)
-	args = append(args, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339))
+	timeCond, timeArgs := timeFilter(from, to)
+	args = append(args, timeArgs...)
 	rows, err := r.db.Query(
-		`SELECT node_name, MAX(os), COUNT(*) AS c FROM requests WHERE `+inClause+` AND ts >= ? AND ts <= ? AND node_name != '' GROUP BY node_name ORDER BY c DESC`, args...,
+		`SELECT node_name, MAX(os), COUNT(*) AS c FROM requests WHERE `+inClause+` AND `+timeCond+` AND node_name != '' GROUP BY node_name ORDER BY c DESC`, args...,
 	)
 	if err != nil {
 		return nil, err

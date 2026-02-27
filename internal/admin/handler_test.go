@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,9 @@ import (
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/webhook"
+
+	_ "modernc.org/sqlite"
 )
 
 type mockEnsurer struct {
@@ -103,7 +107,7 @@ func setupHandlers(t *testing.T) (*Handlers, *storage.Store) {
 	store := setupStore(t)
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	return NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil), store
+	return NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil), store
 }
 
 var (
@@ -317,7 +321,7 @@ func TestSiteHandler_HidesAnalyticsWhenDisabled(t *testing.T) {
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 	h := hs.Site
 	req := reqWithAuth("GET", "/sites/docs", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -457,7 +461,7 @@ func TestDeploymentHandler_FileListing(t *testing.T) {
 	store.ActivateDeployment("docs", "aaa11111")
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, nil, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 	h := hs.Deployment
 
 	req := reqWithAuth("GET", "/sites/docs/deployments/aaa11111", adminCaps, adminID)
@@ -531,7 +535,7 @@ func TestDeploymentHandler_DiffAgainstPrevious(t *testing.T) {
 	store.ActivateDeployment("docs", "bbb22222")
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, nil, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 	h := hs.Deployment
 
 	req := reqWithAuth("GET", "/sites/docs/deployments/bbb22222", adminCaps, adminID)
@@ -828,7 +832,7 @@ func TestCreateSiteHandler_CallsEnsureServer(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	mock := &mockEnsurer{}
-	hs := NewHandlers(store, nil, &dnsSuffix, mock, mock, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, nil, dnsSuffix, mock, mock, storage.SiteConfig{}, nil)
 	h := hs.CreateSite
 
 	req := formReqWithAuth("/sites", "name=newsite5", adminCaps, adminID)
@@ -913,7 +917,7 @@ func TestAnalyticsHandler_Disabled(t *testing.T) {
 	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/sites/docs/analytics", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -933,7 +937,7 @@ func TestAnalyticsHandler_DisabledViaDefaults(t *testing.T) {
 	analytics := false
 	defaults := storage.SiteConfig{Analytics: &analytics}
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, defaults, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, defaults, nil)
 
 	req := reqWithAuth("GET", "/sites/docs/analytics", adminCaps, adminID)
 	req.SetPathValue("site", "docs")
@@ -980,7 +984,7 @@ func TestAllAnalyticsHandler_AdminJSON(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 	req.Header.Set("Accept", "application/json")
@@ -1010,7 +1014,7 @@ func TestAllAnalyticsHandler_AdminHTML(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 
@@ -1036,7 +1040,7 @@ func TestAllAnalyticsHandler_ViewOnlyForbidden(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	// viewerCaps only grants view — analytics requires deploy
 	req := reqWithAuth("GET", "/analytics?range=all", viewerCaps, viewerID)
@@ -1054,7 +1058,7 @@ func TestAllAnalyticsHandler_FilteredByAccess(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	// Deploy caps for "docs" only — should see docs data but not demo
 	deployCaps := []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}}
@@ -1092,7 +1096,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 	store.WriteSiteConfig("demo", "bbb22222", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics?range=all", adminCaps, adminID)
 	req.Header.Set("Accept", "application/json")
@@ -1123,7 +1127,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 func TestAllAnalyticsHandler_NoRecorder(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, nil, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := NewHandlers(store, nil, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
 	req := reqWithAuth("GET", "/analytics", adminCaps, adminID)
 
@@ -1155,6 +1159,22 @@ func TestPurgeAnalyticsHandler(t *testing.T) {
 	json.NewDecoder(rec.Body).Decode(&resp)
 	if resp["deleted"].(float64) != 3 {
 		t.Errorf("deleted = %v, want 3", resp["deleted"])
+	}
+}
+
+func TestPurgeAnalyticsHandler_NoRecorder(t *testing.T) {
+	store := setupStore(t)
+	dnsSuffix := "test.ts.net"
+	hs := NewHandlers(store, nil, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+
+	req := reqWithAuth("POST", "/sites/docs/analytics/purge", adminCaps, adminID)
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	hs.PurgeAnalytics.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", rec.Code)
 	}
 }
 
@@ -1263,7 +1283,7 @@ func TestSiteHealthHandler_Running(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	checker := &mockChecker{running: map[string]bool{"docs": true}}
-	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	d := handlerDeps{store: store, dnsSuffix: dnsSuffix}
 	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
 
 	req := reqWithAuth("GET", "/sites/docs/healthz", adminCaps, adminID)
@@ -1291,7 +1311,7 @@ func TestSiteHealthHandler_Stopped(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	checker := &mockChecker{running: map[string]bool{}}
-	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	d := handlerDeps{store: store, dnsSuffix: dnsSuffix}
 	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
 
 	req := reqWithAuth("GET", "/sites/docs/healthz", adminCaps, adminID)
@@ -1316,7 +1336,7 @@ func TestSiteHealthHandler_Forbidden(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	checker := &mockChecker{}
-	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	d := handlerDeps{store: store, dnsSuffix: dnsSuffix}
 	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
 
 	// viewerCaps only has view access to "docs", not "demo"
@@ -1334,7 +1354,7 @@ func TestSiteHealthHandler_NotFound(t *testing.T) {
 	store := setupStore(t)
 	dnsSuffix := "test.ts.net"
 	checker := &mockChecker{}
-	d := handlerDeps{store: store, dnsSuffix: &dnsSuffix}
+	d := handlerDeps{store: store, dnsSuffix: dnsSuffix}
 	h := &SiteHealthHandler{handlerDeps: d, checker: checker}
 
 	req := reqWithAuth("GET", "/sites/nonexistent/healthz", adminCaps, adminID)
@@ -1385,5 +1405,371 @@ func TestSubtractISO8601(t *testing.T) {
 		if ok && !got.Equal(tt.want) {
 			t.Errorf("subtractISO8601(%q) = %v, want %v", tt.input, got, tt.want)
 		}
+	}
+}
+
+// --- helpers for webhook handler tests ---
+
+func testNotifierDB(t *testing.T) (*webhook.Notifier, *sql.DB) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "webhook.db")
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	n, err := webhook.NewNotifier(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n, db
+}
+
+// insertDelivery inserts a test delivery row and returns the webhook_id.
+func insertDelivery(t *testing.T, db *sql.DB, site string, status int) string {
+	t.Helper()
+	webhookID := "msg_test_" + site
+	_, err := db.Exec(
+		`INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		webhookID, "deploy.success", site, "http://example.com/hook", `{"v":1}`, 1, status, "", "2025-06-01T10:00:00Z",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return webhookID
+}
+
+func setupHandlersWithNotifier(t *testing.T) (*Handlers, *storage.Store, *webhook.Notifier, *sql.DB) {
+	t.Helper()
+	store := setupStore(t)
+	recorder := setupRecorder(t)
+	notifier, db := testNotifierDB(t)
+	dnsSuffix := "test.ts.net"
+	return NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, notifier), store, notifier, db
+}
+
+// --- SiteDeploymentsHandler ---
+
+func TestSiteDeploymentsHandler_AdminJSON(t *testing.T) {
+	hs, _ := setupHandlers(t)
+	h := hs.SiteDeployments
+	req := reqWithAuth("GET", "/sites/docs/deployments", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	deps := resp["deployments"].([]any)
+	if len(deps) != 1 {
+		t.Fatalf("got %d deployments, want 1", len(deps))
+	}
+	if resp["page"].(float64) != 1 {
+		t.Errorf("page = %v, want 1", resp["page"])
+	}
+}
+
+func TestSiteDeploymentsHandler_AdminHTML(t *testing.T) {
+	hs, _ := setupHandlers(t)
+	h := hs.SiteDeployments
+	req := reqWithAuth("GET", "/sites/docs/deployments", adminCaps, adminID)
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "aaa11111") {
+		t.Error("HTML missing deployment ID")
+	}
+}
+
+func TestSiteDeploymentsHandler_Forbidden(t *testing.T) {
+	hs, _ := setupHandlers(t)
+	h := hs.SiteDeployments
+	req := reqWithAuth("GET", "/sites/demo/deployments", viewerCaps, viewerID)
+	req.SetPathValue("site", "demo")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestSiteDeploymentsHandler_InvalidSite(t *testing.T) {
+	hs, _ := setupHandlers(t)
+	h := hs.SiteDeployments
+	req := reqWithAuth("GET", "/sites/BAD!/deployments", adminCaps, adminID)
+	req.SetPathValue("site", "BAD!")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+// --- WebhooksHandler ---
+
+func TestWebhooksHandler_AdminJSON(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.Webhooks
+	req := reqWithAuth("GET", "/webhooks", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["page"].(float64) != 1 {
+		t.Errorf("page = %v, want 1", resp["page"])
+	}
+	if resp["total_pages"].(float64) != 1 {
+		t.Errorf("total_pages = %v, want 1", resp["total_pages"])
+	}
+}
+
+func TestWebhooksHandler_Forbidden(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.Webhooks
+	req := reqWithAuth("GET", "/webhooks", viewerCaps, viewerID)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestWebhooksHandler_NilNotifier(t *testing.T) {
+	hs, _ := setupHandlers(t) // nil notifier
+	h := hs.Webhooks
+	req := reqWithAuth("GET", "/webhooks", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	// Should still return 200 with empty deliveries, not panic.
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+// --- SiteWebhooksHandler ---
+
+func TestSiteWebhooksHandler_AdminJSON(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.SiteWebhooks
+	req := reqWithAuth("GET", "/sites/docs/webhooks", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSiteWebhooksHandler_Forbidden(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.SiteWebhooks
+	req := reqWithAuth("GET", "/sites/demo/webhooks", viewerCaps, viewerID)
+	req.SetPathValue("site", "demo")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestSiteWebhooksHandler_InvalidSite(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.SiteWebhooks
+	req := reqWithAuth("GET", "/sites/BAD!/webhooks", adminCaps, adminID)
+	req.SetPathValue("site", "BAD!")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+// --- WebhookDetailHandler ---
+
+func TestWebhookDetailHandler_JSON(t *testing.T) {
+	hs, _, _, db := setupHandlersWithNotifier(t)
+	webhookID := insertDelivery(t, db, "docs", 200)
+
+	h := hs.WebhookDetail
+	req := reqWithAuth("GET", "/webhooks/"+webhookID, adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("id", webhookID)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	delivery := resp["delivery"].(map[string]any)
+	if delivery["webhook_id"] != webhookID {
+		t.Errorf("webhook_id = %v, want %q", delivery["webhook_id"], webhookID)
+	}
+}
+
+func TestWebhookDetailHandler_Forbidden(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.WebhookDetail
+	req := reqWithAuth("GET", "/webhooks/msg_123", viewerCaps, viewerID)
+	req.SetPathValue("id", "msg_123")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestWebhookDetailHandler_NotFound(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.WebhookDetail
+	req := reqWithAuth("GET", "/webhooks/msg_nonexistent", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("id", "msg_nonexistent")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestWebhookDetailHandler_NilNotifier(t *testing.T) {
+	hs, _ := setupHandlers(t) // nil notifier
+	h := hs.WebhookDetail
+	req := reqWithAuth("GET", "/webhooks/msg_123", adminCaps, adminID)
+	req.SetPathValue("id", "msg_123")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (webhooks not configured)", rec.Code)
+	}
+}
+
+func TestWebhookDetailHandler_MissingID(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.WebhookDetail
+	req := reqWithAuth("GET", "/webhooks/", adminCaps, adminID)
+	req.SetPathValue("id", "")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+// --- WebhookRetryHandler ---
+
+func TestWebhookRetryHandler_Forbidden(t *testing.T) {
+	hs, _, _, db := setupHandlersWithNotifier(t)
+	webhookID := insertDelivery(t, db, "docs", 500)
+
+	h := hs.WebhookRetry
+	// Deploy caps for "docs" should NOT be enough — retry requires IsAdmin for the site.
+	deployCaps := []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}}
+	req := reqWithAuth("POST", "/webhooks/"+webhookID+"/retry", deployCaps, viewerID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("id", webhookID)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWebhookRetryHandler_NilNotifier(t *testing.T) {
+	hs, _ := setupHandlers(t) // nil notifier
+	h := hs.WebhookRetry
+	req := reqWithAuth("POST", "/webhooks/msg_123/retry", adminCaps, adminID)
+	req.SetPathValue("id", "msg_123")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (webhooks not configured)", rec.Code)
+	}
+}
+
+func TestWebhookRetryHandler_NotFound(t *testing.T) {
+	hs, _, _, _ := setupHandlersWithNotifier(t)
+	h := hs.WebhookRetry
+	req := reqWithAuth("POST", "/webhooks/msg_nonexistent/retry", adminCaps, adminID)
+	req.SetPathValue("id", "msg_nonexistent")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestWebhookRetryHandler_ReachesResend(t *testing.T) {
+	hs, _, _, db := setupHandlersWithNotifier(t)
+	webhookID := insertDelivery(t, db, "docs", 500)
+
+	h := hs.WebhookRetry
+	req := reqWithAuth("POST", "/webhooks/"+webhookID+"/retry", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("id", webhookID)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	// Resend reaches example.com and returns its status code (the handler returns 200).
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["status"] == nil {
+		t.Error("response missing 'status' field")
 	}
 }

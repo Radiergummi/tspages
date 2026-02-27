@@ -35,7 +35,7 @@
                 <code>{{.Deployment.ID}}</code>
             </h1>
             <div class="flex gap-2">
-                {{if and .Admin (not .Deployment.Active)}}
+                {{if and .Admin (not .Deployment.Active) (not .Deployment.Failed)}}
                     <button class="btn btn-primary" data-action="activate">
                         Activate
                     </button>
@@ -74,6 +74,10 @@
                     {{if .Deployment.Active}}
                         <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
                             active
+                        </span>
+                    {{else if .Deployment.Failed}}
+                        <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">
+                            failed
                         </span>
                     {{else}}
                         <span class="text-muted">inactive</span>
@@ -118,6 +122,15 @@
                 </dd>
             </dl>
         </section>
+
+        {{if .Deployment.Failed}}
+            <section class="rounded-md bg-red-500/10 px-5 py-4">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-red-600 dark:text-red-400 mb-2">
+                    Failure reason
+                </h2>
+                <p class="text-sm font-mono">{{.Deployment.FailedReason}}</p>
+            </section>
+        {{end}}
 
         <section>
             <header class="mb-4">

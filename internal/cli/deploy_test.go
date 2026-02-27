@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -100,6 +101,64 @@ func TestPrepareBody_NotFound(t *testing.T) {
 	_, _, err := prepareBody("/nonexistent/path")
 	if err == nil {
 		t.Error("expected error for missing path")
+	}
+}
+
+func TestZipDir_ExcludesDotAndNodeModules(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".git", "objects"), 0755)
+	os.WriteFile(filepath.Join(dir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+	os.MkdirAll(filepath.Join(dir, "node_modules", "foo"), 0755)
+	os.WriteFile(filepath.Join(dir, "node_modules", "foo", "index.js"), []byte("module.exports = {}"), 0644)
+	os.MkdirAll(filepath.Join(dir, ".hidden"), 0755)
+	os.WriteFile(filepath.Join(dir, ".hidden", "secret"), []byte("ssh-key"), 0644)
+	os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>hi</h1>"), 0644)
+
+	data, err := zipDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("invalid zip: %v", err)
+	}
+	for _, f := range r.File {
+		if f.Name == "index.html" {
+			continue
+		}
+		t.Errorf("unexpected file in zip: %q", f.Name)
+	}
+}
+
+func TestDeploy_NoActivateFlag(t *testing.T) {
+	var mu sync.Mutex
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotPath = r.RequestURI
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"deployment_id": "test-123",
+			"site":          "mysite",
+		})
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	p := filepath.Join(dir, "index.html")
+	os.WriteFile(p, []byte("<h1>hi</h1>"), 0644)
+
+	err := Deploy([]string{"--server", srv.URL, "--no-activate", p, "mysite"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(gotPath, "activate=false") {
+		t.Errorf("request URI = %q, want ?activate=false", gotPath)
 	}
 }
 

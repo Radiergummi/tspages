@@ -127,6 +127,14 @@
                                     >
                                         active
                                     </span>
+                                {{else if .Failed}}
+                                    <span
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
+                                        rounded-full bg-red-500/10 text-red-600 dark:text-red-400"
+                                            title="{{.FailedReason}}"
+                                    >
+                                        failed
+                                    </span>
                                 {{end}}
                             </td>
                         </tr>

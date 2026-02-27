@@ -29,7 +29,7 @@ var (
 	deploymentSize = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "tspages_deployment_size_bytes",
 		Help:    "Deployment upload size in bytes.",
-		Buckets: prometheus.ExponentialBuckets(1024, 4, 8), // 1KB → 16GB
+		Buckets: prometheus.ExponentialBuckets(1024, 4, 8), // 1KB → 16MB
 	})
 
 	activeSites = prometheus.NewGauge(prometheus.GaugeOpts{

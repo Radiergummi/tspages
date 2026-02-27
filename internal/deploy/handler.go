@@ -34,18 +34,37 @@ type Handler struct {
 	manager        SiteManager
 	maxUploadMB    int
 	maxDeployments int
-	dnsSuffix      *string
+	dnsSuffix      string
 	notifier       *webhook.Notifier
 	defaults       storage.SiteConfig
 }
 
-func NewHandler(store *storage.Store, manager SiteManager, maxUploadMB, maxDeployments int, dnsSuffix *string, notifier *webhook.Notifier, defaults storage.SiteConfig) *Handler {
-	return &Handler{store: store, manager: manager, maxUploadMB: maxUploadMB, maxDeployments: maxDeployments, dnsSuffix: dnsSuffix, notifier: notifier, defaults: defaults}
+// HandlerConfig holds configuration for creating a new deploy Handler.
+type HandlerConfig struct {
+	Store          *storage.Store
+	Manager        SiteManager
+	MaxUploadMB    int
+	MaxDeployments int
+	DNSSuffix      string
+	Notifier       *webhook.Notifier
+	Defaults       storage.SiteConfig
+}
+
+func NewHandler(cfg HandlerConfig) *Handler {
+	return &Handler{
+		store:          cfg.Store,
+		manager:        cfg.Manager,
+		maxUploadMB:    cfg.MaxUploadMB,
+		maxDeployments: cfg.MaxDeployments,
+		dnsSuffix:      cfg.DNSSuffix,
+		notifier:       cfg.Notifier,
+		defaults:       cfg.Defaults,
+	}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	site := r.PathValue("site")
-	if !storage.ValidSiteNameForSuffix(site, *h.dnsSuffix) {
+	if !storage.ValidSiteNameForSuffix(site, h.dnsSuffix) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
 		return
 	}
@@ -99,18 +118,56 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := ExtractRequest{
+	// Build identity and manifest early so failed deployments have metadata.
+	identity := auth.IdentityFromContext(r.Context())
+	deployedBy := identity.DisplayName
+	if deployedBy == "" {
+		deployedBy = identity.LoginName
+	}
+	writeManifest := func(size int64) error {
+		return h.store.WriteManifest(site, id, storage.Manifest{
+			Site:            site,
+			ID:              id,
+			CreatedAt:       time.Now(),
+			CreatedBy:       deployedBy,
+			CreatedByAvatar: identity.ProfilePicURL,
+			SizeBytes:       size,
+		})
+	}
+	// markFailed writes a manifest (if possible) and marks the deployment as failed.
+	markFailed := func(size int64, reason string) {
+		if err := writeManifest(size); err != nil {
+			log.Printf("warning: writing manifest for failed deployment %s/%s: %v", site, id, err)
+		}
+		if files, err := h.store.ListDeploymentFiles(site, id); err == nil {
+			if err := h.store.WriteFileIndex(site, id, files); err != nil {
+				log.Printf("warning: writing file index for failed deployment %s/%s: %v", site, id, err)
+			}
+		}
+		if err := h.store.MarkFailed(site, id, reason); err != nil {
+			log.Printf("warning: marking deployment %s/%s as failed: %v", site, id, err)
+		}
+	}
+
+	extractReq := ExtractRequest{
 		Body:     body,
 		Query:    r.URL.Query().Get("format"),
 		ContentType:        r.Header.Get("Content-Type"),
 		ContentDisposition: r.Header.Get("Content-Disposition"),
 		Filename: r.PathValue("filename"),
 	}
-	extractedBytes, err := Extract(req, contentDir, maxBytes)
+	extractedBytes, err := Extract(extractReq, contentDir, maxBytes)
 	if err != nil {
-		os.RemoveAll(deployDir)
+		markFailed(0, fmt.Sprintf("extracting upload: %v", err))
 		h.fireDeployFailed(site, err)
 		http.Error(w, fmt.Sprintf("extracting upload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Write manifest now that we know the extracted size.
+	if err := writeManifest(extractedBytes); err != nil {
+		os.RemoveAll(deployDir)
+		http.Error(w, "writing manifest", http.StatusInternalServerError)
 		return
 	}
 
@@ -124,7 +181,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if data, err := os.ReadFile(redirectsPath); err == nil {
 		rules, err := storage.ParseRedirectsFile(data)
 		if err != nil {
-			os.RemoveAll(deployDir)
+			markFailed(extractedBytes, fmt.Sprintf("invalid _redirects: %v", err))
 			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid _redirects: %v", err), http.StatusBadRequest)
 			return
@@ -141,7 +198,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if data, err := os.ReadFile(headersPath); err == nil {
 		hdrs, err := storage.ParseHeadersFile(data)
 		if err != nil {
-			os.RemoveAll(deployDir)
+			markFailed(extractedBytes, fmt.Sprintf("invalid _headers: %v", err))
 			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid _headers: %v", err), http.StatusBadRequest)
 			return
@@ -158,7 +215,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if configData, err := os.ReadFile(configPath); err == nil {
 		tomlCfg, err := storage.ParseSiteConfig(configData)
 		if err != nil {
-			os.RemoveAll(deployDir)
+			markFailed(extractedBytes, fmt.Sprintf("invalid tspages.toml: %v", err))
 			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid tspages.toml: %v", err), http.StatusBadRequest)
 			return
@@ -172,35 +229,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if hasConfig {
 		if err := siteCfg.Validate(); err != nil {
-			os.RemoveAll(deployDir)
+			markFailed(extractedBytes, fmt.Sprintf("invalid config: %v", err))
 			h.fireDeployFailed(site, err)
 			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusBadRequest)
 			return
 		}
 		if err := h.store.WriteSiteConfig(site, id, siteCfg); err != nil {
-			os.RemoveAll(deployDir)
+			markFailed(extractedBytes, fmt.Sprintf("writing site config: %v", err))
 			http.Error(w, "writing site config", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	identity := auth.IdentityFromContext(r.Context())
-	deployedBy := identity.DisplayName
-	if deployedBy == "" {
-		deployedBy = identity.LoginName
-	}
-	manifest := storage.Manifest{
-		Site:            site,
-		ID:              id,
-		CreatedAt:       time.Now(),
-		CreatedBy:       deployedBy,
-		CreatedByAvatar: identity.ProfilePicURL,
-		SizeBytes:       extractedBytes,
-	}
-	if err := h.store.WriteManifest(site, id, manifest); err != nil {
-		os.RemoveAll(deployDir)
-		http.Error(w, "writing manifest", http.StatusInternalServerError)
-		return
+	// Cache the file index so ListDeploymentFiles can skip hashing later.
+	if files, err := h.store.ListDeploymentFiles(site, id); err != nil {
+		log.Printf("warning: listing files for %s/%s: %v", site, id, err)
+	} else if err := h.store.WriteFileIndex(site, id, files); err != nil {
+		log.Printf("warning: writing file index for %s/%s: %v", site, id, err)
 	}
 
 	if err := h.store.MarkComplete(site, id); err != nil {
@@ -233,7 +278,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := DeployResponse{
 		DeploymentID: id,
 		Site:         site,
-		URL:          fmt.Sprintf("https://%s.%s/", site, *h.dnsSuffix),
+		URL:          fmt.Sprintf("https://%s.%s/", site, h.dnsSuffix),
 	}
 	writeJSON(w, resp)
 
