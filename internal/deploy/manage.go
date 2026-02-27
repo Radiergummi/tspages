@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
@@ -59,9 +60,13 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if h.notifier != nil {
 		identity := auth.IdentityFromContext(r.Context())
+		deletedBy := identity.DisplayName
+		if deletedBy == "" {
+			deletedBy = identity.LoginName
+		}
 		h.notifier.Fire("site.deleted", site, resolvedCfg, map[string]any{
 			"site":       site,
-			"deleted_by": identity.DisplayName,
+			"deleted_by": deletedBy,
 		})
 	}
 }
@@ -114,6 +119,10 @@ func (h *DeleteDeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	id := r.PathValue("id")
 	if !storage.ValidSiteName(site) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
+		return
+	}
+	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+		http.Error(w, "invalid deployment id", http.StatusBadRequest)
 		return
 	}
 
@@ -184,6 +193,10 @@ func (h *ActivateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !storage.ValidSiteName(site) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
+		return
+	}
+	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+		http.Error(w, "invalid deployment id", http.StatusBadRequest)
 		return
 	}
 

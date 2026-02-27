@@ -78,11 +78,32 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	// For existing databases: add profile_pic_url if missing.
-	_, err = db.Exec(`ALTER TABLE requests ADD COLUMN profile_pic_url TEXT NOT NULL DEFAULT ''`)
-	if err != nil && strings.Contains(err.Error(), "duplicate column") {
-		err = nil
+	var hasCol bool
+	rows, err := db.Query(`PRAGMA table_info(requests)`)
+	if err != nil {
+		return err
 	}
-	return err
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull int
+		var dflt sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "profile_pic_url" {
+			hasCol = true
+		}
+	}
+	if !hasCol {
+		_, err = db.Exec(`ALTER TABLE requests ADD COLUMN profile_pic_url TEXT NOT NULL DEFAULT ''`)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full
@@ -91,6 +112,11 @@ func (r *Recorder) Record(e Event) {
 	if r.closed.Load() {
 		return
 	}
+	defer func() {
+		if x := recover(); x != nil {
+			// Channel was closed between the closed check and the send.
+		}
+	}()
 	select {
 	case r.ch <- e:
 	default:
@@ -150,10 +176,13 @@ func (r *Recorder) flush(events []Event) {
 		)
 		if err != nil {
 			log.Printf("analytics: insert: %v", err)
+			tx.Rollback()
+			return
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		log.Printf("analytics: commit: %v", err)
+		tx.Rollback()
 	}
 }
 
@@ -282,10 +311,18 @@ type NodeCount struct {
 
 func (r *Recorder) TotalRequests(site string, from, to time.Time) (int64, error) {
 	var count int64
-	err := r.db.QueryRow(
-		`SELECT COUNT(*) FROM requests WHERE site = ? AND ts >= ? AND ts <= ?`,
-		site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
-	).Scan(&count)
+	var err error
+	if from.IsZero() {
+		err = r.db.QueryRow(
+			`SELECT COUNT(*) FROM requests WHERE site = ? AND ts <= ?`,
+			site, to.UTC().Format(time.RFC3339),
+		).Scan(&count)
+	} else {
+		err = r.db.QueryRow(
+			`SELECT COUNT(*) FROM requests WHERE site = ? AND ts >= ? AND ts <= ?`,
+			site, from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339),
+		).Scan(&count)
+	}
 	return count, err
 }
 

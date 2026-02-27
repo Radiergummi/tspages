@@ -599,13 +599,14 @@ func RenderError(w http.ResponseWriter, r *http.Request, code int, msg string) {
 		return
 	}
 
+	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
 	data := struct {
 		User       UserInfo
 		Code       int
 		StatusText string
 		Message    string
-	}{userInfo(identity), code, http.StatusText(code), msg}
+	}{userInfo(identity, caps), code, http.StatusText(code), msg}
 
 	tpl := errorTmpl.cached
 	if devModeFlag.Load() {

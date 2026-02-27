@@ -247,5 +247,5 @@ func (m *Manager) Close() {
 			log.Printf("warning: closing site %q: %v", name, err)
 		}
 	}
-	m.servers = nil
+	m.servers = make(map[string]*siteServer)
 }

@@ -261,8 +261,8 @@ func (n *Notifier) DeliveryStats(site string, from, to time.Time) (total, succee
 	whereClause := "WHERE " + strings.Join(whereConds, " AND ")
 
 	query := fmt.Sprintf(`SELECT COUNT(*),
-		SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END),
-		SUM(CASE WHEN succeeded = 0 THEN 1 ELSE 0 END)
+		COALESCE(SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN succeeded = 0 THEN 1 ELSE 0 END), 0)
 		FROM (
 			SELECT webhook_id,
 				MAX(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) AS succeeded
@@ -365,7 +365,7 @@ func (n *Notifier) LatencyStats(site string, from, to time.Time) (LatencyStats, 
 		`SELECT COALESCE(duration_ms, 0) FROM webhook_deliveries %s
 		 ORDER BY duration_ms ASC LIMIT 1 OFFSET (
 			SELECT CAST(COUNT(*) * 0.95 AS INTEGER) FROM webhook_deliveries %s
-		 )`, whereClause, whereClause), append(args, args...)...,
+		 )`, whereClause, whereClause), append(append([]any{}, args...), args...)...,
 	).Scan(&p95)
 	if err == nil {
 		s.P95 = p95
@@ -378,7 +378,7 @@ func (n *Notifier) LatencyStats(site string, from, to time.Time) (LatencyStats, 
 // LatencyTimeBucket represents a time bucket with avg/p95/max latency in ms.
 type LatencyTimeBucket struct {
 	Time string  `json:"time"`
-	P50  float64 `json:"p50"`
+	Avg  float64 `json:"avg"`
 	P95  float64 `json:"p95"`
 	Max  float64 `json:"max"`
 }
@@ -431,7 +431,7 @@ func (n *Notifier) LatencyOverTime(site string, from, to time.Time) ([]LatencyTi
 	var buckets []LatencyTimeBucket
 	for rows.Next() {
 		var b LatencyTimeBucket
-		if err := rows.Scan(&b.Time, &b.P50, &b.P95, &b.Max); err != nil {
+		if err := rows.Scan(&b.Time, &b.Avg, &b.P95, &b.Max); err != nil {
 			return nil, fmt.Errorf("scan latency bucket: %w", err)
 		}
 		buckets = append(buckets, b)
@@ -538,6 +538,7 @@ func (n *Notifier) ListDeliveries(site, event, status string, limit, offset int)
 	innerQuery := fmt.Sprintf(`SELECT webhook_id, event, site, url,
 		MAX(attempt) as attempts,
 		MAX(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) as succeeded,
+		MAX(signed) as signed,
 		MIN(created_at) as first_attempt,
 		MAX(created_at) as last_attempt
 		FROM webhook_deliveries
@@ -565,7 +566,7 @@ func (n *Notifier) ListDeliveries(site, event, status string, limit, offset int)
 	var deliveries []DeliverySummary
 	for rows.Next() {
 		var d DeliverySummary
-		if err := rows.Scan(&d.WebhookID, &d.Event, &d.Site, &d.URL, &d.Attempts, &d.Succeeded, &d.FirstAttempt, &d.LastAttempt); err != nil {
+		if err := rows.Scan(&d.WebhookID, &d.Event, &d.Site, &d.URL, &d.Attempts, &d.Succeeded, &d.Signed, &d.FirstAttempt, &d.LastAttempt); err != nil {
 			return nil, 0, fmt.Errorf("scan delivery: %w", err)
 		}
 		deliveries = append(deliveries, d)
@@ -645,8 +646,9 @@ func (n *Notifier) Resend(webhookID, secret string) (int, error) {
 	}
 	attempt := maxAttempt + 1
 
+	retryMsgID := "msg_" + randomHex(16)
 	ts := time.Now().UTC()
-	status, dur, sendErr := n.send(url, secret, webhookID, ts, []byte(payload))
+	status, dur, sendErr := n.send(url, secret, retryMsgID, ts, []byte(payload))
 
 	errStr := ""
 	if sendErr != nil {
@@ -694,8 +696,11 @@ func newSafeClient() *http.Client {
 	}
 }
 
-func isPrivateIP(ip net.IP) bool {
-	privateRanges := []string{
+var privateNetworks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		"0.0.0.0/8",
 		"127.0.0.0/8",
 		"10.0.0.0/8",
 		"172.16.0.0/12",
@@ -705,9 +710,17 @@ func isPrivateIP(ip net.IP) bool {
 		"::1/128",
 		"fe80::/10",
 		"fc00::/7",
-	}
-	for _, cidr := range privateRanges {
+	} {
 		_, network, _ := net.ParseCIDR(cidr)
+		privateNetworks = append(privateNetworks, network)
+	}
+}
+
+func isPrivateIP(ip net.IP) bool {
+	if ip.IsUnspecified() || ip.IsLoopback() {
+		return true
+	}
+	for _, network := range privateNetworks {
 		if network.Contains(ip) {
 			return true
 		}

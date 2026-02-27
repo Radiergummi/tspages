@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/xml"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"time"
@@ -62,6 +63,11 @@ type FeedHandler struct{ handlerDeps }
 func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
 
+	if !auth.HasDeployCap(caps) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	sites, err := h.store.ListSites()
 	if err != nil {
 		http.Error(w, "listing sites", http.StatusInternalServerError)
@@ -70,7 +76,7 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var all []deploymentWithSite
 	for _, s := range sites {
-		if !auth.CanView(caps, s.Name) {
+		if !auth.CanDeploy(caps, s.Name) {
 			continue
 		}
 		deps, err := h.store.ListDeployments(s.Name)
@@ -128,7 +134,7 @@ func (h *SiteFeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps) && !auth.CanView(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -200,5 +206,7 @@ func writeFeed(w http.ResponseWriter, feed atomXMLFeed) {
 	w.Write([]byte(xml.Header))
 	enc := xml.NewEncoder(w)
 	enc.Indent("", "  ")
-	enc.Encode(feed)
+	if err := enc.Encode(feed); err != nil {
+		log.Printf("warning: encoding atom feed: %v", err)
+	}
 }

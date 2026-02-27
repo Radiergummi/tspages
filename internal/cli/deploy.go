@@ -99,7 +99,8 @@ func Deploy(args []string) error {
 	req.ContentLength = int64(len(body))
 
 	fmt.Fprintf(os.Stderr, "Deploying to %s...\n", site)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("upload failed: %w", err)
 	}
@@ -160,6 +161,10 @@ func zipDir(dir string) ([]byte, error) {
 			return err
 		}
 		if d.IsDir() {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") || name == "node_modules" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
@@ -173,11 +178,12 @@ func zipDir(dir string) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
+		src, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		_, err = f.Write(data)
+		defer src.Close()
+		_, err = io.Copy(f, src)
 		return err
 	})
 	if err != nil {

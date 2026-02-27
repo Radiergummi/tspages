@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -86,22 +87,28 @@ func (s *Store) CreateSite(name string) error {
 	if !ValidSiteName(name) {
 		return fmt.Errorf("invalid site name: %q", name)
 	}
+	os.MkdirAll(filepath.Join(s.dataDir, "sites"), 0755)
 	dir := filepath.Join(s.dataDir, "sites", name)
-	if _, err := os.Stat(dir); err == nil {
-		return ErrSiteExists
+	if err := os.Mkdir(dir, 0755); err != nil {
+		if os.IsExist(err) {
+			return ErrSiteExists
+		}
+		return err
 	}
-	return os.MkdirAll(filepath.Join(dir, "deployments"), 0755)
+	return os.Mkdir(filepath.Join(dir, "deployments"), 0755)
 }
 
 func (s *Store) CreateDeployment(site, id string) (string, error) {
 	if !ValidSiteName(site) {
 		return "", fmt.Errorf("invalid site name: %q", site)
 	}
-	dir := filepath.Join(s.dataDir, "sites", site, "deployments", id)
-	if _, err := os.Stat(dir); err == nil {
-		return "", ErrDeploymentExists
-	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	parent := filepath.Join(s.dataDir, "sites", site, "deployments")
+	os.MkdirAll(parent, 0755)
+	dir := filepath.Join(parent, id)
+	if err := os.Mkdir(dir, 0755); err != nil {
+		if os.IsExist(err) {
+			return "", ErrDeploymentExists
+		}
 		return "", fmt.Errorf("create deployment dir: %w", err)
 	}
 	return dir, nil
@@ -113,6 +120,14 @@ func (s *Store) MarkComplete(site, id string) error {
 }
 
 func (s *Store) ActivateDeployment(site, id string) error {
+	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") {
+		return ErrDeploymentNotFound
+	}
+	depDir := filepath.Join(s.dataDir, "sites", site, "deployments", id)
+	if _, err := os.Stat(depDir); err != nil {
+		return fmt.Errorf("deployment not found: %w", err)
+	}
+
 	link := filepath.Join(s.dataDir, "sites", site, "current")
 	target := filepath.Join("deployments", id)
 
@@ -264,12 +279,16 @@ func (s *Store) ListDeploymentFiles(site, id string) ([]FileInfo, error) {
 		if err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
+		f, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		h := sha256.Sum256(data)
-		files = append(files, FileInfo{Path: rel, Size: info.Size(), Hash: hex.EncodeToString(h[:])})
+		defer f.Close()
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			return err
+		}
+		files = append(files, FileInfo{Path: rel, Size: info.Size(), Hash: hex.EncodeToString(h.Sum(nil))})
 		return nil
 	})
 	if err != nil && !os.IsNotExist(err) {

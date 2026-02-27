@@ -208,8 +208,10 @@ func TestClose(t *testing.T) {
 	m.EnsureServer("b")
 	m.Close()
 
-	// After close, the map should still have entries (Close doesn't clear it),
-	// but re-use after Close is not expected. Just verify it doesn't panic.
+	// After close, the map is cleared.
+	if m.RunningCount() != 0 {
+		t.Errorf("expected empty map after Close, got %d", m.RunningCount())
+	}
 }
 
 func writeFile(t *testing.T, dir, name, content string) {

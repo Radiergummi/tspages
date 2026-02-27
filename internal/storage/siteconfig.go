@@ -269,10 +269,18 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 	if defaults.Headers != nil || c.Headers != nil {
 		merged.Headers = make(map[string]map[string]string)
 		for path, hdrs := range defaults.Headers {
-			merged.Headers[path] = hdrs
+			inner := make(map[string]string, len(hdrs))
+			for k, v := range hdrs {
+				inner[k] = v
+			}
+			merged.Headers[path] = inner
 		}
 		for path, hdrs := range c.Headers {
-			merged.Headers[path] = hdrs
+			inner := make(map[string]string, len(hdrs))
+			for k, v := range hdrs {
+				inner[k] = v
+			}
+			merged.Headers[path] = inner
 		}
 	}
 

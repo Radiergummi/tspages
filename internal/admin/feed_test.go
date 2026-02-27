@@ -73,27 +73,16 @@ func TestFeedHandler_AdminSeesAllSites(t *testing.T) {
 	}
 }
 
-func TestFeedHandler_FilteredByViewAccess(t *testing.T) {
+func TestFeedHandler_ViewOnlyForbidden(t *testing.T) {
 	hs, _ := setupHandlers(t)
-	// viewerCaps only grants view on "docs"
+	// viewerCaps only grants view — feed requires deploy
 	req := reqWithAuth("GET", "/feed.atom", viewerCaps, viewerID)
 
 	rec := httptest.NewRecorder()
 	hs.Feed.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d", rec.Code)
-	}
-
-	var feed atomFeed
-	if err := xml.Unmarshal(rec.Body.Bytes(), &feed); err != nil {
-		t.Fatalf("invalid XML: %v", err)
-	}
-	if len(feed.Entries) != 1 {
-		t.Fatalf("got %d entries, want 1 (docs only)", len(feed.Entries))
-	}
-	if feed.Entries[0].Author.Name != "Alice" {
-		t.Errorf("entry author = %q, want Alice", feed.Entries[0].Author.Name)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
 	}
 }
 
@@ -203,20 +192,14 @@ func TestSiteFeedHandler_InvalidSite(t *testing.T) {
 
 func TestFeedHandler_NoAccess(t *testing.T) {
 	hs, _ := setupHandlers(t)
-	// Caps with no view/deploy/admin for any site
+	// Caps with no deploy/admin for any site
 	noCaps := []auth.Cap{{Access: "view", Sites: []string{"other"}}}
 	req := reqWithAuth("GET", "/feed.atom", noCaps, viewerID)
 
 	rec := httptest.NewRecorder()
 	hs.Feed.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d", rec.Code)
-	}
-
-	var feed atomFeed
-	xml.Unmarshal(rec.Body.Bytes(), &feed)
-	if len(feed.Entries) != 0 {
-		t.Errorf("got %d entries, want 0", len(feed.Entries))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
 	}
 }

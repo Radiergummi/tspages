@@ -131,8 +131,9 @@ func TestHandler_WritesManifest(t *testing.T) {
 	if m.CreatedBy != "Alice" {
 		t.Errorf("manifest created_by = %q, want %q", m.CreatedBy, "Alice")
 	}
-	if m.SizeBytes != int64(len(body)) {
-		t.Errorf("manifest size_bytes = %d, want %d", m.SizeBytes, len(body))
+	// SizeBytes should reflect extracted content size, not compressed upload size.
+	if m.SizeBytes != int64(len("<h1>Hi</h1>")) {
+		t.Errorf("manifest size_bytes = %d, want %d", m.SizeBytes, len("<h1>Hi</h1>"))
 	}
 	if m.CreatedAt.IsZero() {
 		t.Error("manifest created_at is zero")

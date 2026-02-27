@@ -27,6 +27,7 @@ type SiteStatus struct {
 	LastDeployedBy       string `json:"last_deployed_by,omitempty"`
 	LastDeployedByAvatar string `json:"last_deployed_by_avatar,omitempty"`
 	LastDeployedAt       string `json:"last_deployed_at,omitempty"`
+	CanDeploy            bool   `json:"can_deploy,omitempty"`
 }
 
 // SitesResponse is the JSON response for GET /sites.
@@ -67,14 +68,16 @@ func (d *handlerDeps) analyticsEnabled(site string) bool {
 type UserInfo struct {
 	Name          string `json:"name"`
 	ProfilePicURL string `json:"profile_pic_url,omitempty"`
+	Admin         bool   `json:"admin,omitempty"`
+	CanDeploy     bool   `json:"can_deploy,omitempty"`
 }
 
-func userInfo(identity auth.Identity) UserInfo {
+func userInfo(identity auth.Identity, caps []auth.Cap) UserInfo {
 	name := identity.DisplayName
 	if name == "" {
 		name = identity.LoginName
 	}
-	return UserInfo{Name: name, ProfilePicURL: identity.ProfilePicURL}
+	return UserInfo{Name: name, ProfilePicURL: identity.ProfilePicURL, Admin: auth.HasAdminCap(caps), CanDeploy: auth.HasDeployCap(caps)}
 }
 
 // SiteEnsurer is the subset of multihost.Manager needed to start a site server.
@@ -140,7 +143,7 @@ type SitesHandler struct{ handlerDeps }
 func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
-	admin := auth.IsAdmin(caps)
+	admin := auth.HasAdminCap(caps)
 
 	sites, err := h.store.ListSites()
 	if err != nil {
@@ -157,8 +160,9 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ss := SiteStatus{
 			Name:               s.Name,
 			ActiveDeploymentID: s.ActiveDeploymentID,
+			CanDeploy:          auth.CanDeploy(caps, s.Name),
 		}
-		if admin && h.recorder != nil && h.analyticsEnabled(s.Name) {
+		if auth.IsAdmin(caps, s.Name) && h.recorder != nil && h.analyticsEnabled(s.Name) {
 			ss.Requests, _ = h.recorder.TotalRequests(s.Name, time.Time{}, now)
 			ts, _ := h.recorder.RequestsOverTime(s.Name, now.Add(-7*24*time.Hour), now)
 			ss.Sparkline = countsJSON(ts)
@@ -175,7 +179,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		out = append(out, ss)
 	}
 
-	resp := SitesResponse{Admin: admin, User: userInfo(identity), DNSSuffix: *h.dnsSuffix, Sites: out}
+	resp := SitesResponse{Admin: admin, User: userInfo(identity, caps), DNSSuffix: *h.dnsSuffix, Sites: out}
 
 	if wantsJSON(r) {
 		setAlternateLinks(w, [][2]string{
@@ -188,7 +192,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Show "New site" button if user has any admin access (scoped or unscoped).
 	// Server validates the specific name on POST.
-	canCreate := auth.IsAdmin(caps)
+	canCreate := admin
 
 	renderPage(w, r, sitesTmpl, "sites", struct {
 		SitesResponse
@@ -265,9 +269,9 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
-	admin := auth.IsAdmin(caps)
+	admin := auth.IsAdmin(caps, siteName)
 
-	if !admin && !auth.CanView(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -320,7 +324,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	var recentDeliveries []webhook.DeliverySummary
-	if h.notifier != nil {
+	if h.notifier != nil && auth.CanDeploy(caps, siteName) {
 		recentDeliveries, _, _ = h.notifier.ListDeliveries(siteName, "", "", 5, 0)
 	}
 
@@ -359,7 +363,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Sparkline         string
 		RecentDeliveries  []webhook.DeliverySummary
 		TotalDeployments  int
-	}{resp, userInfo(identity), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
+	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, *h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
 }
 
 // --- GET /sites/{site}/deployments/{id} ---
@@ -376,9 +380,9 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
-	admin := auth.IsAdmin(caps)
+	admin := auth.IsAdmin(caps, siteName)
 
-	if !admin && !auth.CanView(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -465,7 +469,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Removed    []string
 		Changed    []string
 	}{
-		userInfo(identity), admin, auth.CanDeploy(caps, siteName),
+		userInfo(identity, caps), admin, auth.CanDeploy(caps, siteName),
 		*h.dnsSuffix, siteName, *dep,
 		files, fileCount, prevID,
 		added, removed, changed,
@@ -494,6 +498,11 @@ const deploymentsPageSize = 50
 func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
+
+	if !auth.HasDeployCap(caps) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
 
 	sites, err := h.store.ListSites()
 	if err != nil {
@@ -557,7 +566,7 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, r, deploymentsTmpl, "deployments", struct {
 		DeploymentsResponse
 		User UserInfo
-	}{resp, userInfo(identity)})
+	}{resp, userInfo(identity, caps)})
 }
 
 // --- analytics shared data ---
@@ -688,9 +697,9 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
-	admin := auth.IsAdmin(caps)
+	admin := auth.IsAdmin(caps, siteName)
 
-	if !admin && !auth.CanView(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -729,7 +738,7 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := AnalyticsData{
-		User: userInfo(identity), Admin: admin, SiteName: siteName,
+		User: userInfo(identity, caps), Admin: admin, SiteName: siteName,
 		Range: rangeParam, Total: total, Visitors: visitors, Pages: pages,
 		TimeSeries: timeSeries, StatusTimeSeries: statusTS, TopPages: topPages,
 		TopVisitors: topVisitors, StatusCodes: statusCodes,
@@ -751,7 +760,12 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
-	admin := auth.IsAdmin(caps)
+	admin := auth.HasAdminCap(caps)
+
+	if !auth.HasDeployCap(caps) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
 
 	sites, err := h.store.ListSites()
 	if err != nil {
@@ -760,7 +774,7 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	var viewable []string
 	for _, s := range sites {
-		if (admin || auth.CanView(caps, s.Name)) && h.analyticsEnabled(s.Name) {
+		if auth.CanDeploy(caps, s.Name) && h.analyticsEnabled(s.Name) {
 			viewable = append(viewable, s.Name)
 		}
 	}
@@ -793,7 +807,7 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	data := AnalyticsData{
-		User: userInfo(identity), Admin: admin,
+		User: userInfo(identity, caps), Admin: admin,
 		Range: rangeParam, Total: total, Visitors: visitors, SiteCount: len(viewable),
 		TimeSeries: timeSeries, StatusTimeSeries: statusTS, Sites: siteBreakdown,
 		TopVisitors: topVisitors, StatusCodes: statusCodes,
@@ -818,7 +832,7 @@ func (h *PurgeAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps) {
+	if !auth.IsAdmin(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -847,7 +861,7 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
 
-	if !auth.IsAdmin(caps) {
+	if !auth.HasDeployCap(caps) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -924,7 +938,7 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Events       []webhook.EventCount
 		Latency      []webhook.LatencyTimeBucket
 		LatencyStats webhook.LatencyStats
-	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity), "/webhooks",
+	}{deliveries, page, totalPages, "", true, event, status, userInfo(identity, caps), "/webhooks",
 		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 
@@ -945,7 +959,7 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
 
-	if !auth.IsAdmin(caps) && !auth.CanView(caps, siteName) && !auth.CanDeploy(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -1023,7 +1037,7 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		Events       []webhook.EventCount
 		Latency      []webhook.LatencyTimeBucket
 		LatencyStats webhook.LatencyStats
-	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity), basePath,
+	}{deliveries, page, totalPages, siteName, false, event, status, userInfo(identity, caps), basePath,
 		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 
@@ -1044,7 +1058,7 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
 
-	if !auth.IsAdmin(caps) {
+	if !auth.HasDeployCap(caps) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -1080,7 +1094,7 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		Delivery webhook.DeliverySummary
 		Attempts []webhook.DeliveryAttempt
 		User     UserInfo
-	}{delivery, attempts, userInfo(identity)})
+	}{delivery, attempts, userInfo(identity, caps)})
 }
 
 // --- POST /webhooks/{id}/retry ---
@@ -1098,7 +1112,7 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps) {
+	if !auth.HasAdminCap(caps) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -1120,6 +1134,8 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	status, err := h.notifier.Resend(webhookID, merged.WebhookSecret)
 	if err != nil {
 		log.Printf("webhook retry %s: %v", webhookID, err)
+		RenderError(w, r, http.StatusBadGateway, "retry failed")
+		return
 	}
 
 	if wantsJSON(r) {
@@ -1142,9 +1158,9 @@ func (h *SiteDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
-	admin := auth.IsAdmin(caps)
+	admin := auth.IsAdmin(caps, siteName)
 
-	if !admin && !auth.CanView(caps, siteName) && !auth.CanDeploy(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -1206,7 +1222,7 @@ func (h *SiteDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		CanDeploy   bool
 		HasInactive bool
 		User        UserInfo
-	}{pageItems, page, totalPages, siteName, admin, auth.CanDeploy(caps, siteName), hasInactive, userInfo(identity)})
+	}{pageItems, page, totalPages, siteName, admin, auth.CanDeploy(caps, siteName), hasInactive, userInfo(identity, caps)})
 }
 
 // countsJSON returns a JSON array of counts from the given time buckets,
@@ -1216,7 +1232,7 @@ func countsJSON(buckets []analytics.TimeBucket) string {
 	if len(buckets) < 2 {
 		return ""
 	}
-	var any bool
+	var hasData bool
 	var sb strings.Builder
 	sb.WriteByte('[')
 	for i, b := range buckets {
@@ -1225,11 +1241,11 @@ func countsJSON(buckets []analytics.TimeBucket) string {
 		}
 		sb.WriteString(strconv.FormatInt(b.Count, 10))
 		if b.Count > 0 {
-			any = true
+			hasData = true
 		}
 	}
 	sb.WriteByte(']')
-	if !any {
+	if !hasData {
 		return ""
 	}
 	return sb.String()
@@ -1240,17 +1256,20 @@ func countsJSON(buckets []analytics.TimeBucket) string {
 type HelpHandler struct{}
 
 func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
+
+	pages := DocPages()
 
 	slug := r.PathValue("page")
 	if slug == "" {
-		slug = DocPages()[0].Slug
+		slug = pages[0].Slug
 	}
 
 	var current *DocPage
-	for i := range DocPages() {
-		if DocPages()[i].Slug == slug {
-			current = &DocPages()[i]
+	for i := range pages {
+		if pages[i].Slug == slug {
+			current = &pages[i]
 			break
 		}
 	}
@@ -1270,7 +1289,7 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Pages   []DocPage
 		Current DocPage
 		Content template.HTML
-	}{userInfo(identity), DocPages(), *current, content})
+	}{userInfo(identity, caps), pages, *current, content})
 }
 
 // --- GET /api ---
@@ -1278,10 +1297,11 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type APIHandler struct{}
 
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	caps := auth.CapsFromContext(r.Context())
 	identity := auth.IdentityFromContext(r.Context())
 	renderPage(w, r, apiTmpl, "api", struct {
 		User UserInfo
-	}{userInfo(identity)})
+	}{userInfo(identity, caps)})
 }
 
 // --- GET /healthz ---
@@ -1350,7 +1370,7 @@ func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps) && !auth.CanView(caps, siteName) {
+	if !auth.CanView(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}

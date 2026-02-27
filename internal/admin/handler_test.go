@@ -1032,14 +1032,33 @@ func TestAllAnalyticsHandler_AdminHTML(t *testing.T) {
 	}
 }
 
+func TestAllAnalyticsHandler_ViewOnlyForbidden(t *testing.T) {
+	store := setupStore(t)
+	recorder := setupMultiSiteRecorder(t)
+	dnsSuffix := "test.ts.net"
+	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+
+	// viewerCaps only grants view — analytics requires deploy
+	req := reqWithAuth("GET", "/analytics?range=all", viewerCaps, viewerID)
+	req.Header.Set("Accept", "application/json")
+
+	rec := httptest.NewRecorder()
+	hs.AllAnalytics.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
 func TestAllAnalyticsHandler_FilteredByAccess(t *testing.T) {
 	store := setupStore(t)
 	recorder := setupMultiSiteRecorder(t)
 	dnsSuffix := "test.ts.net"
 	hs := NewHandlers(store, recorder, &dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
 
-	// viewerCaps only grants view on "docs"
-	req := reqWithAuth("GET", "/analytics?range=all", viewerCaps, viewerID)
+	// Deploy caps for "docs" only — should see docs data but not demo
+	deployCaps := []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}}
+	req := reqWithAuth("GET", "/analytics?range=all", deployCaps, viewerID)
 	req.Header.Set("Accept", "application/json")
 
 	rec := httptest.NewRecorder()

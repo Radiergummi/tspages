@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -243,7 +244,7 @@ func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storag
 // with content hashes in their filenames are cached immutably. Everything
 // else gets a moderate 1-hour cache.
 func defaultCacheControl(filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
+	ext := strings.ToLower(path.Ext(filePath))
 	switch ext {
 	case ".html", ".htm":
 		return "public, no-cache, stale-while-revalidate=60"
@@ -261,8 +262,8 @@ func defaultCacheControl(filePath string) string {
 // the first segment of the basename. Matches patterns like
 // "main.a1b2c3d4.js" or "index-BdH3bPq2.css".
 func hasContentHash(name string) bool {
-	base := filepath.Base(name)
-	ext := filepath.Ext(base)
+	base := path.Base(name)
+	ext := path.Ext(base)
 	if ext == "" {
 		return false
 	}
@@ -301,6 +302,11 @@ func isMixedAlphanumeric(s string) bool {
 // serveFileCompressed serves a file, preferring a precompressed variant on
 // disk (.br, .gz) before falling back to on-the-fly gzip compression.
 func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
+	// Set Vary unconditionally for compressible types so caches know the
+	// response can differ by encoding, even when served uncompressed.
+	if ct := mime.TypeByExtension(filepath.Ext(path)); isCompressible(ct) {
+		w.Header().Set("Vary", "Accept-Encoding")
+	}
 	if acceptsBrotli(r) {
 		if servePrecompressed(w, r, path, ".br", "br") {
 			return
@@ -312,10 +318,29 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, pa
 		}
 		cw := &compressWriter{ResponseWriter: w}
 		defer cw.Close()
-		http.ServeFile(cw, r, path)
+		serveFileContent(cw, r, path)
 		return
 	}
-	http.ServeFile(w, r, path)
+	serveFileContent(w, r, path)
+}
+
+// serveFileContent opens a file and serves it with http.ServeContent.
+// Unlike http.ServeFile, it does not perform internal redirects, so
+// caller-set headers (ETag, Cache-Control) are never leaked into a
+// redirect response.
+func serveFileContent(w http.ResponseWriter, r *http.Request, name string) {
+	f, err := os.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	stat, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeContent(w, r, filepath.Base(name), stat.ModTime(), f)
 }
 
 // servePrecompressed tries to serve a precompressed variant of origPath
@@ -471,7 +496,7 @@ func (h *Handler) serveDirectoryListing(w http.ResponseWriter, dirPath, reqPath 
 
 	parent := ""
 	if reqPath != "/" {
-		parent = filepath.Dir(strings.TrimRight(reqPath, "/"))
+		parent = path.Dir(strings.TrimRight(reqPath, "/"))
 		if parent != "/" {
 			parent += "/"
 		}
@@ -511,13 +536,13 @@ func checkTrailingSlash(reqPath, mode string) (string, bool) {
 		return "", false
 	}
 	if mode == "add" {
-		if !strings.HasSuffix(reqPath, "/") && filepath.Ext(reqPath) == "" {
+		if !strings.HasSuffix(reqPath, "/") && path.Ext(reqPath) == "" {
 			return reqPath + "/", true
 		}
 	}
 	if mode == "remove" {
 		if strings.HasSuffix(reqPath, "/") {
-			return strings.TrimRight(reqPath, "/"), true
+			return strings.TrimSuffix(reqPath, "/"), true
 		}
 	}
 	return "", false
@@ -527,16 +552,16 @@ func checkTrailingSlash(reqPath, mode string) (string, bool) {
 // .htm extension that should be stripped for clean URLs. Index files are not
 // redirected (they're served at their directory path already).
 func cleanURLRedirect(reqPath string) (string, bool) {
-	ext := strings.ToLower(filepath.Ext(reqPath))
+	ext := strings.ToLower(path.Ext(reqPath))
 	if ext != ".html" && ext != ".htm" {
 		return "", false
 	}
-	base := filepath.Base(reqPath)
+	base := path.Base(reqPath)
 	baseLower := strings.ToLower(base)
 	if baseLower == "index.html" || baseLower == "index.htm" {
 		return "", false
 	}
-	return strings.TrimSuffix(reqPath, filepath.Ext(reqPath)), true
+	return strings.TrimSuffix(reqPath, path.Ext(reqPath)), true
 }
 
 func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg storage.SiteConfig) {
@@ -549,6 +574,7 @@ func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg
 		if strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) {
 			if content, err := os.ReadFile(resolved); err == nil {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
 				w.WriteHeader(http.StatusNotFound)
 				_, _ = w.Write(content)
 				return

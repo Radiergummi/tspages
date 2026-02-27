@@ -278,7 +278,8 @@ paths:
               properties:
                 name:
                   type: string
-                  description: Site name (DNS label, lowercase alphanumeric + hyphens, max 63 chars).
+                  description:
+                    Site name (DNS label, lowercase alphanumeric + hyphens, max 63 chars).
               required: [name]
       responses:
         "200":

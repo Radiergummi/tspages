@@ -9,14 +9,33 @@ import (
 
 const compressMinBytes = 256
 
+// acceptsEncoding reports whether the request accepts the given encoding
+// (e.g. "gzip", "br"), respecting q=0 to explicitly refuse an encoding.
+func acceptsEncoding(r *http.Request, encoding string) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
+		if strings.TrimSpace(name) != encoding {
+			continue
+		}
+		if _, qval, ok := strings.Cut(params, "q="); ok {
+			q := strings.TrimSpace(qval)
+			if q == "0" || q == "0.0" || q == "0.00" || q == "0.000" {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 // acceptsGzip reports whether the request accepts gzip encoding.
 func acceptsGzip(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
+	return acceptsEncoding(r, "gzip")
 }
 
 // acceptsBrotli reports whether the request accepts brotli encoding.
 func acceptsBrotli(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Accept-Encoding"), "br")
+	return acceptsEncoding(r, "br")
 }
 
 // isCompressible reports whether the given Content-Type benefits from compression.
@@ -71,8 +90,9 @@ func (cw *compressWriter) Write(b []byte) (int, error) {
 		ct := cw.Header().Get("Content-Type")
 		if isCompressible(ct) {
 			cw.Header().Set("Vary", "Accept-Encoding")
-			cl, _ := strconv.ParseInt(cw.Header().Get("Content-Length"), 10, 64)
-			if cl >= compressMinBytes {
+			clStr := cw.Header().Get("Content-Length")
+			cl, err := strconv.ParseInt(clStr, 10, 64)
+			if err != nil || cl >= compressMinBytes {
 				cw.gw = gzip.NewWriter(cw.ResponseWriter)
 				cw.Header().Del("Content-Length")
 				cw.Header().Set("Content-Encoding", "gzip")

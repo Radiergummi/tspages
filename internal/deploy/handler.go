@@ -60,7 +60,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "upload too large", http.StatusRequestEntityTooLarge)
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "upload too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "reading upload", http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -89,6 +94,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	contentDir := filepath.Join(deployDir, "content")
 	if err := os.MkdirAll(contentDir, 0755); err != nil {
+		os.RemoveAll(deployDir)
 		http.Error(w, "creating content dir", http.StatusInternalServerError)
 		return
 	}
@@ -100,7 +106,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ContentDisposition: r.Header.Get("Content-Disposition"),
 		Filename: r.PathValue("filename"),
 	}
-	_, err = Extract(req, contentDir, maxBytes)
+	extractedBytes, err := Extract(req, contentDir, maxBytes)
 	if err != nil {
 		os.RemoveAll(deployDir)
 		h.fireDeployFailed(site, err)
@@ -189,14 +195,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:       time.Now(),
 		CreatedBy:       deployedBy,
 		CreatedByAvatar: identity.ProfilePicURL,
-		SizeBytes:       int64(len(body)),
+		SizeBytes:       extractedBytes,
 	}
 	if err := h.store.WriteManifest(site, id, manifest); err != nil {
+		os.RemoveAll(deployDir)
 		http.Error(w, "writing manifest", http.StatusInternalServerError)
 		return
 	}
 
 	if err := h.store.MarkComplete(site, id); err != nil {
+		os.RemoveAll(deployDir)
 		http.Error(w, "finalizing deployment", http.StatusInternalServerError)
 		return
 	}
@@ -220,7 +228,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	metrics.CountDeploy(site, int64(len(body)))
+	metrics.CountDeploy(site, extractedBytes)
 
 	resp := DeployResponse{
 		DeploymentID: id,
@@ -236,7 +244,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"deployment_id": id,
 			"created_by":    deployedBy,
 			"url":           resp.URL,
-			"size_bytes":    int64(len(body)),
+			"size_bytes":    extractedBytes,
 		})
 	}
 }
@@ -245,7 +253,8 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 	if h.notifier == nil {
 		return
 	}
-	resolvedCfg := storage.SiteConfig{}.Merge(h.defaults)
+	cfg, _ := h.store.ReadCurrentSiteConfig(site)
+	resolvedCfg := cfg.Merge(h.defaults)
 	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
 		"site":  site,
 		"error": err.Error(),

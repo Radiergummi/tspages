@@ -20,6 +20,22 @@ import (
 	"github.com/yuin/goldmark/extension"
 )
 
+// safePath validates an archive entry name against path traversal and returns
+// the cleaned destination path within destDir. It rejects absolute paths,
+// ".." components, and any name that would escape destDir after joining.
+func safePath(destDir, entryName string) (string, error) {
+	name := filepath.Clean(entryName)
+	if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
+		return "", fmt.Errorf("path traversal detected: %q", entryName)
+	}
+	dest := filepath.Join(destDir, name)
+	cleanBase := filepath.Clean(destDir) + string(os.PathSeparator)
+	if !strings.HasPrefix(dest, cleanBase) && dest != filepath.Clean(destDir) {
+		return "", fmt.Errorf("path traversal detected: %q", entryName)
+	}
+	return dest, nil
+}
+
 //go:embed templates/markdown.html
 var markdownTmplStr string
 
@@ -89,7 +105,7 @@ func isXz(b []byte) bool {
 
 func isTar(b []byte) bool {
 	// The "ustar" magic appears at offset 257 in a tar file.
-	return len(b) >= 263 && string(b[257:262]) == "ustar"
+	return len(b) >= 262 && string(b[257:262]) == "ustar"
 }
 
 // Format resolution for non-archive uploads.
@@ -181,13 +197,9 @@ func extractTar(r io.Reader, destDir string, maxBytes int64) (int64, error) {
 			return totalWritten, fmt.Errorf("reading tar: %w", err)
 		}
 
-		name := filepath.Clean(hdr.Name)
-		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
-			return totalWritten, fmt.Errorf("path traversal detected: %q", hdr.Name)
-		}
-		dest := filepath.Join(destDir, name)
-		if !strings.HasPrefix(dest, filepath.Clean(destDir)+string(os.PathSeparator)) && dest != filepath.Clean(destDir) {
-			return totalWritten, fmt.Errorf("path traversal detected: %q", hdr.Name)
+		dest, err := safePath(destDir, hdr.Name)
+		if err != nil {
+			return totalWritten, err
 		}
 
 		switch hdr.Typeflag {
@@ -216,6 +228,8 @@ func extractTar(r io.Reader, destDir string, maxBytes int64) (int64, error) {
 			if totalWritten > maxBytes {
 				return totalWritten, fmt.Errorf("extracted size exceeds limit of %d bytes", maxBytes)
 			}
+		default:
+			return totalWritten, fmt.Errorf("unsupported tar entry type %d: %q", hdr.Typeflag, hdr.Name)
 		}
 	}
 	return totalWritten, nil
@@ -274,13 +288,9 @@ func ExtractZip(r io.ReaderAt, size int64, destDir string, maxBytes int64) (int6
 
 	var totalWritten int64
 	for _, f := range zr.File {
-		name := filepath.Clean(f.Name)
-		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
-			return totalWritten, fmt.Errorf("zip-slip detected: %q", f.Name)
-		}
-		dest := filepath.Join(destDir, name)
-		if !strings.HasPrefix(dest, filepath.Clean(destDir)+string(os.PathSeparator)) && dest != filepath.Clean(destDir) {
-			return totalWritten, fmt.Errorf("zip-slip detected: %q", f.Name)
+		dest, err := safePath(destDir, f.Name)
+		if err != nil {
+			return totalWritten, err
 		}
 
 		if f.FileInfo().IsDir() {
