@@ -623,6 +623,43 @@ func (n *Notifier) GetDeliveryAttempts(webhookID string) ([]DeliveryAttempt, err
 	return attempts, nil
 }
 
+// Resend re-delivers the original payload for a webhook delivery, recording
+// a new attempt. It returns the HTTP status code or an error.
+func (n *Notifier) Resend(webhookID, secret string) (int, error) {
+	var url, event, site, payload string
+	err := n.db.QueryRow(
+		`SELECT url, event, site, payload FROM webhook_deliveries WHERE webhook_id = ? ORDER BY attempt LIMIT 1`,
+		webhookID,
+	).Scan(&url, &event, &site, &payload)
+	if err != nil {
+		return 0, fmt.Errorf("resend: lookup original delivery: %w", err)
+	}
+
+	var maxAttempt int
+	err = n.db.QueryRow(
+		`SELECT MAX(attempt) FROM webhook_deliveries WHERE webhook_id = ?`,
+		webhookID,
+	).Scan(&maxAttempt)
+	if err != nil {
+		return 0, fmt.Errorf("resend: lookup max attempt: %w", err)
+	}
+	attempt := maxAttempt + 1
+
+	ts := time.Now().UTC()
+	status, dur, sendErr := n.send(url, secret, webhookID, ts, []byte(payload))
+
+	errStr := ""
+	if sendErr != nil {
+		errStr = sendErr.Error()
+	}
+	n.logDelivery(webhookID, event, site, url, payload, attempt, status, errStr, secret != "", dur.Milliseconds())
+
+	if sendErr != nil {
+		return 0, sendErr
+	}
+	return status, nil
+}
+
 func randomHex(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {

@@ -99,6 +99,7 @@ type Handlers struct {
 	AllAnalytics   *AllAnalyticsHandler
 	Webhooks        *WebhooksHandler
 	WebhookDetail   *WebhookDetailHandler
+	WebhookRetry    *WebhookRetryHandler
 	SiteWebhooks    *SiteWebhooksHandler
 	SiteDeployments *SiteDeploymentsHandler
 	Help            *HelpHandler
@@ -121,6 +122,7 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		AllAnalytics:   &AllAnalyticsHandler{d},
 		Webhooks:        &WebhooksHandler{handlerDeps: d, notifier: notifier},
 		WebhookDetail:   &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
+		WebhookRetry:    &WebhookRetryHandler{handlerDeps: d, notifier: notifier},
 		SiteWebhooks:    &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
 		SiteDeployments: &SiteDeploymentsHandler{d},
 		Help:           &HelpHandler{},
@@ -1079,6 +1081,52 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		Attempts []webhook.DeliveryAttempt
 		User     UserInfo
 	}{delivery, attempts, userInfo(identity)})
+}
+
+// --- POST /webhooks/{id}/retry ---
+
+type WebhookRetryHandler struct {
+	handlerDeps
+	notifier *webhook.Notifier
+}
+
+func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	webhookID := trimSuffix(r.PathValue("id"))
+	if webhookID == "" {
+		RenderError(w, r, http.StatusBadRequest, "missing webhook ID")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.IsAdmin(caps) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	if h.notifier == nil {
+		RenderError(w, r, http.StatusNotFound, "webhooks not configured")
+		return
+	}
+
+	delivery, err := h.notifier.GetDelivery(webhookID)
+	if err != nil {
+		RenderError(w, r, http.StatusNotFound, "delivery not found")
+		return
+	}
+
+	cfg, _ := h.store.ReadCurrentSiteConfig(delivery.Site)
+	merged := cfg.Merge(h.defaults)
+
+	status, err := h.notifier.Resend(webhookID, merged.WebhookSecret)
+	if err != nil {
+		log.Printf("webhook retry %s: %v", webhookID, err)
+	}
+
+	if wantsJSON(r) {
+		writeJSON(w, map[string]int{"status": status})
+		return
+	}
+	http.Redirect(w, r, "/webhooks/"+webhookID, http.StatusSeeOther)
 }
 
 // --- GET /sites/{site}/deployments ---

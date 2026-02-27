@@ -4,7 +4,7 @@
     <article class="flex flex-col gap-8">
         <nav>
             <a
-                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
+                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200"
                     href="/webhooks"
             >
                 <svg
@@ -26,11 +26,17 @@
             </a>
         </nav>
 
-        <header>
+        <header class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold tracking-tight">
                 Webhook
                 <code>{{.Delivery.WebhookID}}</code>
             </h1>
+            <form
+                    method="POST" action="/webhooks/{{.Delivery.WebhookID}}/retry"
+                    onsubmit="return confirm('Retry this webhook delivery?')"
+            >
+                <button type="submit" class="btn btn-outline">Retry</button>
+            </form>
         </header>
 
         <section class="grid gap-4 grid-cols-12">
@@ -100,7 +106,7 @@
                 <header class="mb-4">
                     <h2 class="text-sm font-semibold uppercase tracking-wide text-muted flex items-center gap-2">
                         <span>Delivery attempts</span>
-                        <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                        <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted tabular-nums slashed-zero">
                             {{len .Attempts}}
                         </span>
                     </h2>
@@ -115,9 +121,21 @@
                                 </span>
 
                                 {{if and (ge .Status 200) (lt .Status 300)}}
-                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">{{.Status}}</span>
+                                    <span
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2
+                                            py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400
+                                            slashed-zero font-mono"
+                                    >
+                                        {{.Status}}
+                                    </span>
                                 {{else if gt .Status 0}}
-                                    <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">{{.Status}}</span>
+                                    <span
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2
+                                            py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400
+                                            slashed-zero font-mono"
+                                    >
+                                        {{.Status}}
+                                    </span>
                                 {{end}}
 
                                 {{if .Error}}
@@ -127,14 +145,13 @@
                                 {{end}}
 
                                 {{if gt .DurationMs 0}}
-                                    <span class="ms-auto text-xs font-mono text-muted">{{.DurationMs}}ms</span>
+                                    <span class="ms-auto inline-flex items-center text-xs text-muted">
+                                        <code class="font-mono">{{.DurationMs}}</code>
+                                        <span>&thinsp;ms</span>
+                                    </span>
                                 {{end}}
 
-                                <time
-                                        datetime="{{.CreatedAt}}"
-                                        title="{{.CreatedAt}}"
-                                        class="text-xs text-muted"
-                                >
+                                <time datetime="{{.CreatedAt}}" title="{{.CreatedAt}}" class="text-xs text-muted">
                                     {{reltime .CreatedAt}}
                                 </time>
                             </header>
