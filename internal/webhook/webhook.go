@@ -690,6 +690,9 @@ func newSafeClient() *http.Client {
 	}
 	return &http.Client{
 		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			DialContext: dialer.DialContext,
 		},

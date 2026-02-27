@@ -3,8 +3,12 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -96,5 +100,41 @@ func TestPrepareBody_NotFound(t *testing.T) {
 	_, _, err := prepareBody("/nonexistent/path")
 	if err == nil {
 		t.Error("expected error for missing path")
+	}
+}
+
+func TestDeploy_EscapesSpecialCharsInFilename(t *testing.T) {
+	var mu sync.Mutex
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotPath = r.RequestURI
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"deployment_id": "test-123",
+			"site":          "mysite",
+			"url":           "https://mysite.example.com",
+		})
+	}))
+	defer srv.Close()
+
+	// Create a file with a # in the name, which would corrupt the URL
+	// if not percent-encoded (# starts a fragment, truncating the path).
+	dir := t.TempDir()
+	p := filepath.Join(dir, "data#1.md")
+	os.WriteFile(p, []byte("# Test"), 0644)
+
+	err := Deploy([]string{"--server", srv.URL, p, "mysite"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	want := "/deploy/mysite/data%231.md"
+	if gotPath != want {
+		t.Errorf("request URI = %q, want %q", gotPath, want)
 	}
 }

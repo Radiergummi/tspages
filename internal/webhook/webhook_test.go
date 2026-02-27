@@ -582,6 +582,47 @@ func TestEventBreakdown(t *testing.T) {
 	}
 }
 
+func TestNewSafeClient_DoesNotFollowRedirects(t *testing.T) {
+	var targetHit atomic.Int32
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetHit.Add(1)
+		w.WriteHeader(200)
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	// newSafeClient blocks private IPs (including localhost), so we can't
+	// hit httptest servers directly. Instead, verify the CheckRedirect policy
+	// is set by extracting it and testing the redirect behavior with a
+	// localhost-capable client that preserves the same CheckRedirect func.
+	safeClient := newSafeClient()
+	if safeClient.CheckRedirect == nil {
+		t.Fatal("newSafeClient().CheckRedirect is nil; redirects would be followed")
+	}
+
+	// Apply the same CheckRedirect to a plain client that can reach localhost.
+	client := &http.Client{
+		CheckRedirect: safeClient.CheckRedirect,
+	}
+	resp, err := client.Get(redirector.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("expected status %d, got %d", http.StatusFound, resp.StatusCode)
+	}
+	if targetHit.Load() != 0 {
+		t.Error("safe client followed redirect to target server")
+	}
+}
+
 func TestNotifier_RejectsPrivateIP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)

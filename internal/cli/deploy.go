@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,19 +81,19 @@ func Deploy(args []string) error {
 		return err
 	}
 
-	url := server + "/deploy/" + site
+	deployURL := server + "/deploy/" + url.PathEscape(site)
 	if filename != "" {
-		url += "/" + filename
+		deployURL += "/" + url.PathEscape(filename)
 	}
 	if *noActivate {
-		if strings.Contains(url, "?") {
-			url += "&activate=false"
+		if strings.Contains(deployURL, "?") {
+			deployURL += "&activate=false"
 		} else {
-			url += "?activate=false"
+			deployURL += "?activate=false"
 		}
 	}
 
-	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
+	req, err := http.NewRequest("PUT", deployURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
