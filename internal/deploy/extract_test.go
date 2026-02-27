@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"os"
+
+	"github.com/ulikunitz/xz"
 	"path/filepath"
 	"testing"
 )
@@ -370,16 +372,35 @@ func TestExtract_Empty(t *testing.T) {
 	}
 }
 
-func TestExtract_Xz_Unsupported(t *testing.T) {
-	// xz magic bytes
-	body := []byte{0xfd, '7', 'z', 'X', 'Z', 0x00, 0, 0, 0, 0}
-	dir := t.TempDir()
-	_, err := Extract(ExtractRequest{Body: body}, dir, 10<<20)
-	if err == nil {
-		t.Fatal("expected error for xz")
+func TestExtract_TarXz(t *testing.T) {
+	// Build a tar archive with one file.
+	var tarBuf bytes.Buffer
+	tw := tar.NewWriter(&tarBuf)
+	content := []byte("hello from xz")
+	tw.WriteHeader(&tar.Header{Name: "index.html", Mode: 0644, Size: int64(len(content))})
+	tw.Write(content)
+	tw.Close()
+
+	// Compress with xz.
+	var xzBuf bytes.Buffer
+	xw, err := xz.NewWriter(&xzBuf)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("not supported")) {
-		t.Errorf("error = %q, want mention of not supported", err)
+	xw.Write(tarBuf.Bytes())
+	xw.Close()
+
+	dir := t.TempDir()
+	n, err := Extract(ExtractRequest{Body: xzBuf.Bytes()}, dir, 10<<20)
+	if err != nil {
+		t.Fatalf("Extract tar.xz: %v", err)
+	}
+	if n != int64(len(content)) {
+		t.Errorf("wrote %d bytes, want %d", n, len(content))
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, "index.html"))
+	if string(got) != "hello from xz" {
+		t.Errorf("content = %q, want %q", got, "hello from xz")
 	}
 }
 

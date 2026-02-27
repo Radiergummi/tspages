@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ulikunitz/xz"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 )
@@ -319,10 +320,18 @@ func ExtractZip(r io.ReaderAt, size int64, destDir string, maxBytes int64) (int6
 	return totalWritten, nil
 }
 
-// decompressXz is a minimal xz decompressor. Go's stdlib doesn't include xz
-// support, so we detect the format but return a clear error directing the user
-// to use gzip or tar.gz instead. This avoids adding a heavy C dependency.
-func decompressXz(_ io.Reader, _ int64) ([]byte, error) {
-	return nil, fmt.Errorf("xz decompression is not supported; use gzip (.tar.gz) instead")
+func decompressXz(r io.Reader, maxBytes int64) ([]byte, error) {
+	xr, err := xz.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("reading xz: %w", err)
+	}
+	inner, err := io.ReadAll(io.LimitReader(xr, maxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("decompressing xz: %w", err)
+	}
+	if int64(len(inner)) > maxBytes {
+		return nil, fmt.Errorf("decompressed size exceeds limit of %d bytes", maxBytes)
+	}
+	return inner, nil
 }
 
