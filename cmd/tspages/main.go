@@ -141,6 +141,7 @@ func main() {
 	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
 	mux.Handle("GET /webhooks", withAuth(h.Webhooks))
 	mux.Handle("GET /webhooks.json", withAuth(h.Webhooks))
+	mux.Handle("GET /webhooks/{id}", withAuth(h.WebhookDetail))
 	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
 	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
 	mux.Handle("GET /feed.atom", withAuth(h.Feed))

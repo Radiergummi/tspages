@@ -96,7 +96,8 @@ type Handlers struct {
 	Analytics      *AnalyticsHandler
 	PurgeAnalytics *PurgeAnalyticsHandler
 	AllAnalytics   *AllAnalyticsHandler
-	Webhooks       *WebhooksHandler
+	Webhooks        *WebhooksHandler
+	WebhookDetail   *WebhookDetailHandler
 	SiteWebhooks    *SiteWebhooksHandler
 	SiteDeployments *SiteDeploymentsHandler
 	Help            *HelpHandler
@@ -117,7 +118,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix *
 		Analytics:      &AnalyticsHandler{d},
 		PurgeAnalytics: &PurgeAnalyticsHandler{d},
 		AllAnalytics:   &AllAnalyticsHandler{d},
-		Webhooks:       &WebhooksHandler{handlerDeps: d, notifier: notifier},
+		Webhooks:        &WebhooksHandler{handlerDeps: d, notifier: notifier},
+		WebhookDetail:   &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
 		SiteWebhooks:    &SiteWebhooksHandler{handlerDeps: d, notifier: notifier},
 		SiteDeployments: &SiteDeploymentsHandler{d},
 		Help:           &HelpHandler{},
@@ -1006,6 +1008,56 @@ func (h *SiteWebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events})
 }
 
+// --- GET /webhooks/{id} ---
+
+type WebhookDetailHandler struct {
+	handlerDeps
+	notifier *webhook.Notifier
+}
+
+func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	webhookID := trimSuffix(r.PathValue("id"))
+	if webhookID == "" {
+		RenderError(w, r, http.StatusBadRequest, "missing webhook ID")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	identity := auth.IdentityFromContext(r.Context())
+
+	if !auth.IsAdmin(caps) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	if h.notifier == nil {
+		RenderError(w, r, http.StatusNotFound, "webhooks not configured")
+		return
+	}
+
+	delivery, err := h.notifier.GetDelivery(webhookID)
+	if err != nil {
+		RenderError(w, r, http.StatusNotFound, "delivery not found")
+		return
+	}
+
+	attempts, _ := h.notifier.GetDeliveryAttempts(webhookID)
+
+	if wantsJSON(r) {
+		writeJSON(w, map[string]any{
+			"delivery": delivery,
+			"attempts": attempts,
+		})
+		return
+	}
+
+	renderPage(w, r, webhookDetailTmpl, "webhooks", struct {
+		Delivery webhook.DeliverySummary
+		Attempts []webhook.DeliveryAttempt
+		User     UserInfo
+	}{delivery, attempts, userInfo(identity)})
+}
+
 // --- GET /sites/{site}/deployments ---
 
 type SiteDeploymentsHandler struct{ handlerDeps }
@@ -1261,17 +1313,17 @@ func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // diffFiles compares two file lists and returns added, removed, and changed paths.
-// A file is considered "changed" if its size differs; same-size modifications are not detected.
+// A file is considered "changed" if its content hash differs.
 func diffFiles(current, previous []storage.FileInfo) (added, removed, changed []string) {
-	prevMap := make(map[string]int64, len(previous))
+	prevMap := make(map[string]string, len(previous))
 	for _, f := range previous {
-		prevMap[f.Path] = f.Size
+		prevMap[f.Path] = f.Hash
 	}
-	currMap := make(map[string]int64, len(current))
+	currMap := make(map[string]struct{}, len(current))
 	for _, f := range current {
-		currMap[f.Path] = f.Size
-		if prevSize, ok := prevMap[f.Path]; ok {
-			if f.Size != prevSize {
+		currMap[f.Path] = struct{}{}
+		if prevHash, ok := prevMap[f.Path]; ok {
+			if f.Hash != prevHash {
 				changed = append(changed, f.Path)
 			}
 		} else {
