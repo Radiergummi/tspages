@@ -229,6 +229,33 @@ func ParseHeadersFile(data []byte) (map[string]map[string]string, error) {
 	return result, nil
 }
 
+// ReadSiteConfig reads site-level config overrides from data/sites/{site}/config.toml.
+// Returns a zero SiteConfig if the file does not exist.
+func (s *Store) ReadSiteConfig(site string) (SiteConfig, error) {
+	path := filepath.Join(s.dataDir, "sites", site, siteConfigFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return SiteConfig{}, nil
+		}
+		return SiteConfig{}, err
+	}
+	return ParseSiteConfig(data)
+}
+
+// WriteSiteConfig validates and writes site-level config overrides to data/sites/{site}/config.toml.
+func (s *Store) WriteSiteConfig(site string, cfg SiteConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal site config: %w", err)
+	}
+	path := filepath.Join(s.dataDir, "sites", site, siteConfigFile)
+	return os.WriteFile(path, data, 0644)
+}
+
 // WriteDeploymentConfig writes per-deployment config to the deployment directory.
 func (s *Store) WriteDeploymentConfig(site, id string, cfg SiteConfig) error {
 	data, err := toml.Marshal(cfg)

@@ -4,6 +4,66 @@ import (
 	"testing"
 )
 
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	return New(t.TempDir())
+}
+
+func TestWriteReadSiteLevelConfig(t *testing.T) {
+	store := newTestStore(t)
+	site := "mysite"
+	if err := store.CreateSite(site); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := true
+	cfg := SiteConfig{Analytics: &tr, IndexPage: "home.html"}
+	if err := store.WriteSiteConfig(site, cfg); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := store.ReadSiteConfig(site)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.Analytics == nil || !*got.Analytics {
+		t.Error("expected analytics=true")
+	}
+	if got.IndexPage != "home.html" {
+		t.Errorf("index_page = %q, want home.html", got.IndexPage)
+	}
+}
+
+func TestReadSiteLevelConfig_Missing(t *testing.T) {
+	store := newTestStore(t)
+	site := "noconfig"
+	if err := store.CreateSite(site); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := store.ReadSiteConfig(site)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if cfg.Analytics != nil {
+		t.Error("expected nil analytics for missing config")
+	}
+}
+
+func TestWriteSiteLevelConfig_Validates(t *testing.T) {
+	store := newTestStore(t)
+	site := "badconfig"
+	if err := store.CreateSite(site); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := true
+	cfg := SiteConfig{SPARouting: &tr, DirectoryListing: &tr}
+	if err := store.WriteSiteConfig(site, cfg); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestParseSiteConfig_Full(t *testing.T) {
 	input := `
 spa_routing = true
