@@ -1663,6 +1663,25 @@ func TestWebhookDetailHandler_Forbidden(t *testing.T) {
 	}
 }
 
+func TestWebhookDetailHandler_ForbiddenWrongSite(t *testing.T) {
+	hs, _, _, db := setupHandlersWithNotifier(t)
+	// Delivery belongs to "demo", but caller only has deploy caps for "docs".
+	webhookID := insertDelivery(t, db, "demo", 200)
+
+	h := hs.WebhookDetail
+	deployCaps := []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}}
+	req := reqWithAuth("GET", "/webhooks/"+webhookID, deployCaps, viewerID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("id", webhookID)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestWebhookDetailHandler_NotFound(t *testing.T) {
 	hs, _, _, _ := setupHandlersWithNotifier(t)
 	h := hs.WebhookDetail

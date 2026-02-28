@@ -127,7 +127,7 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type SiteFeedHandler struct{ handlerDeps }
 
 func (h *SiteFeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := r.PathValue("site")
+	siteName := trimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
 		return

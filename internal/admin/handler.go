@@ -1096,7 +1096,15 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	attempts, _ := h.notifier.GetDeliveryAttempts(webhookID)
+	if !auth.CanDeploy(caps, delivery.Site) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	attempts, err := h.notifier.GetDeliveryAttempts(webhookID)
+	if err != nil {
+		log.Printf("webhooks: get delivery attempts %s: %v", webhookID, err)
+	}
 	for i, a := range attempts {
 		var buf bytes.Buffer
 		if json.Indent(&buf, []byte(a.Payload), "", "  ") == nil {
@@ -1376,10 +1384,12 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"status": status,
 		"checks": checks,
-	})
+	}); err != nil {
+		log.Printf("warning: encoding health response: %v", err)
+	}
 }
 
 // --- GET /sites/{site}/healthz ---
@@ -1423,12 +1433,14 @@ func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"status":            status,
 		"site":              siteName,
 		"server":            map[bool]string{true: "running", false: "stopped"}[running],
 		"active_deployment": site.ActiveDeploymentID,
-	})
+	}); err != nil {
+		log.Printf("warning: encoding health response: %v", err)
+	}
 }
 
 // diffFiles compares two file lists and returns added, removed, and changed paths.
