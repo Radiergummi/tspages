@@ -62,7 +62,7 @@ func (h *Handler) SetPublic(b bool) { h.public.Store(b) }
 
 // resolve returns the cached deployment state, resolving it on first call or
 // after InvalidateConfig. All filesystem lookups (Readlink, EvalSymlinks,
-// ReadSiteConfig) happen here and are cached until the next invalidation.
+// ReadDeploymentConfig) happen here and are cached until the next invalidation.
 func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConfig, ok bool) {
 	h.mu.RLock()
 	if h.resolved {
@@ -94,7 +94,7 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 		return "", "", storage.SiteConfig{}, false
 	}
 
-	raw, err := h.store.ReadSiteConfig(h.site, id)
+	raw, err := h.store.ReadDeploymentConfig(h.site, id)
 	if err != nil {
 		slog.Error("reading site config", "site", h.site, "deployment", id, "err", err)
 	}

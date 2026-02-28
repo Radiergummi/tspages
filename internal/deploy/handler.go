@@ -234,7 +234,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusBadRequest)
 			return
 		}
-		if err := h.store.WriteSiteConfig(site, id, siteCfg); err != nil {
+		if err := h.store.WriteDeploymentConfig(site, id, siteCfg); err != nil {
 			markFailed(extractedBytes, fmt.Sprintf("writing site config: %v", err))
 			http.Error(w, "writing site config", http.StatusInternalServerError)
 			return
@@ -298,7 +298,7 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 	if h.notifier == nil {
 		return
 	}
-	cfg, _ := h.store.ReadCurrentSiteConfig(site)
+	cfg, _ := h.store.ReadCurrentDeploymentConfig(site)
 	resolvedCfg := cfg.Merge(h.defaults)
 	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
 		"site":  site,

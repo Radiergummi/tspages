@@ -48,7 +48,7 @@ type handlerDeps struct {
 // analyticsEnabled reports whether analytics are enabled for the given site
 // by reading the current deployment's config and merging with server defaults.
 func (d *handlerDeps) analyticsEnabled(site string) bool {
-	cfg, _ := d.store.ReadCurrentSiteConfig(site)
+	cfg, _ := d.store.ReadCurrentDeploymentConfig(site)
 	merged := cfg.Merge(d.defaults)
 	if merged.Analytics == nil {
 		return true

@@ -70,7 +70,7 @@ func TestParseSiteConfig_Invalid(t *testing.T) {
 
 func boolPtr(b bool) *bool { return &b }
 
-func TestWriteReadSiteConfig(t *testing.T) {
+func TestWriteReadDeploymentConfig(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")
 
@@ -83,11 +83,11 @@ func TestWriteReadSiteConfig(t *testing.T) {
 			"/*": {"Cache-Control": "public, max-age=3600"},
 		},
 	}
-	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
+	if err := s.WriteDeploymentConfig("docs", "aaa11111", cfg); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	got, err := s.ReadSiteConfig("docs", "aaa11111")
+	got, err := s.ReadDeploymentConfig("docs", "aaa11111")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -105,11 +105,11 @@ func TestWriteReadSiteConfig(t *testing.T) {
 	}
 }
 
-func TestReadSiteConfig_Missing(t *testing.T) {
+func TestReadDeploymentConfig_Missing(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")
 
-	cfg, err := s.ReadSiteConfig("docs", "aaa11111")
+	cfg, err := s.ReadDeploymentConfig("docs", "aaa11111")
 	if err != nil {
 		t.Fatalf("missing config should not error: %v", err)
 	}
@@ -121,18 +121,18 @@ func TestReadSiteConfig_Missing(t *testing.T) {
 	}
 }
 
-func TestReadCurrentSiteConfig(t *testing.T) {
+func TestReadCurrentDeploymentConfig(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")
 	s.MarkComplete("docs", "aaa11111")
 	s.ActivateDeployment("docs", "aaa11111")
 
 	cfg := SiteConfig{SPARouting: boolPtr(true)}
-	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
+	if err := s.WriteDeploymentConfig("docs", "aaa11111", cfg); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	got, err := s.ReadCurrentSiteConfig("docs")
+	got, err := s.ReadCurrentDeploymentConfig("docs")
 	if err != nil {
 		t.Fatalf("read current: %v", err)
 	}
@@ -141,10 +141,10 @@ func TestReadCurrentSiteConfig(t *testing.T) {
 	}
 }
 
-func TestReadCurrentSiteConfig_NoDeployment(t *testing.T) {
+func TestReadCurrentDeploymentConfig_NoDeployment(t *testing.T) {
 	s := New(t.TempDir())
 
-	cfg, err := s.ReadCurrentSiteConfig("docs")
+	cfg, err := s.ReadCurrentDeploymentConfig("docs")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}

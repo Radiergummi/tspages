@@ -106,7 +106,7 @@ func (m *Manager) EnsureServer(site string) error {
 
 	var old *siteServer
 	if existing, ok := m.servers[site]; ok {
-		cfg, _ := m.store.ReadCurrentSiteConfig(site)
+		cfg, _ := m.store.ReadCurrentDeploymentConfig(site)
 		merged := cfg.Merge(m.defaults)
 		wantPublic := merged.Public != nil && *merged.Public
 		if existing.isPublic == wantPublic {
@@ -159,7 +159,7 @@ func (m *Manager) EnsureServer(site string) error {
 }
 
 func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
-	cfg, _ := m.store.ReadCurrentSiteConfig(site)
+	cfg, _ := m.store.ReadCurrentDeploymentConfig(site)
 	merged := cfg.Merge(m.defaults)
 	public := merged.Public != nil && *merged.Public
 

@@ -175,7 +175,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Read the merged config for the active deployment.
 	var siteConfig storage.SiteConfig
 	if found.ActiveDeploymentID != "" {
-		cfg, _ := h.store.ReadSiteConfig(siteName, found.ActiveDeploymentID)
+		cfg, _ := h.store.ReadDeploymentConfig(siteName, found.ActiveDeploymentID)
 		siteConfig = cfg.Merge(h.defaults)
 	}
 

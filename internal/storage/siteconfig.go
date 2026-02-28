@@ -216,7 +216,8 @@ func ParseHeadersFile(data []byte) (map[string]map[string]string, error) {
 	return result, nil
 }
 
-func (s *Store) WriteSiteConfig(site, id string, cfg SiteConfig) error {
+// WriteDeploymentConfig writes per-deployment config to the deployment directory.
+func (s *Store) WriteDeploymentConfig(site, id string, cfg SiteConfig) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal site config: %w", err)
@@ -225,7 +226,8 @@ func (s *Store) WriteSiteConfig(site, id string, cfg SiteConfig) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-func (s *Store) ReadSiteConfig(site, id string) (SiteConfig, error) {
+// ReadDeploymentConfig reads per-deployment config from the deployment directory.
+func (s *Store) ReadDeploymentConfig(site, id string) (SiteConfig, error) {
 	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, siteConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -301,10 +303,11 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 	return merged
 }
 
-func (s *Store) ReadCurrentSiteConfig(site string) (SiteConfig, error) {
+// ReadCurrentDeploymentConfig reads per-deployment config for the currently active deployment.
+func (s *Store) ReadCurrentDeploymentConfig(site string) (SiteConfig, error) {
 	id, err := s.CurrentDeployment(site)
 	if err != nil {
 		return SiteConfig{}, nil //nolint:nilerr // no deployment → zero config (use defaults)
 	}
-	return s.ReadSiteConfig(site, id)
+	return s.ReadDeploymentConfig(site, id)
 }
