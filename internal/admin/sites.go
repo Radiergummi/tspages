@@ -180,6 +180,8 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		siteConfig = deployCfg.Merge(siteLevelCfg).Merge(h.defaults)
 	}
 
+	siteOverrides, _ := h.store.ReadSiteConfig(siteName)
+
 	analyticsOn := siteConfig.Analytics == nil || *siteConfig.Analytics
 	var sparkline string
 	if admin && h.recorder != nil && analyticsOn {
@@ -256,12 +258,13 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		HasInactive      bool
 		AnalyticsEnabled bool
 		Config           storage.SiteConfig
+		SiteOverrides    storage.SiteConfig
 		DNSSuffix        string
 		Host             string
 		Sparkline        string
 		RecentDeliveries []webhook.DeliverySummary
 		TotalDeployments int
-	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
+	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, siteOverrides, h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
 }
 
 // countsJSON returns a JSON array of counts from the given time buckets,

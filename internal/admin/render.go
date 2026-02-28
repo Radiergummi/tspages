@@ -493,6 +493,14 @@ var funcs = template.FuncMap{
 			template.HTMLEscapeString(slug), template.HTMLEscapeString(title), template.HTMLEscapeString(title),
 		))
 	},
+	"containsStr": func(slice []string, s string) bool {
+		for _, v := range slice {
+			if v == s {
+				return true
+			}
+		}
+		return false
+	},
 	"first": func(n int, items []storage.DeploymentInfo) []storage.DeploymentInfo {
 		if n >= len(items) {
 			return items
