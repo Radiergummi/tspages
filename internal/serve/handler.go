@@ -37,10 +37,12 @@ type Handler struct {
 	defaults  storage.SiteConfig
 	public    bool
 
-	mu        sync.RWMutex
-	cachedID  string
-	cachedCfg storage.SiteConfig
-	hintCache map[string][]string
+	mu         sync.RWMutex
+	resolved   bool // true once resolve() has run; cleared by InvalidateConfig
+	cachedID   string
+	cachedRoot string // resolved content root (no symlinks)
+	cachedCfg  storage.SiteConfig
+	hintCache  map[string][]string
 }
 
 // isUnderRoot reports whether resolved is equal to resolvedRoot or a child of it.
@@ -57,28 +59,65 @@ func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.S
 // When public, anonymous requests bypass the CanView check.
 func (h *Handler) SetPublic(b bool) { h.public = b }
 
-func (h *Handler) loadConfig(deploymentID string) storage.SiteConfig {
+// resolve returns the cached deployment state, resolving it on first call or
+// after InvalidateConfig. All filesystem lookups (Readlink, EvalSymlinks,
+// ReadSiteConfig) happen here and are cached until the next invalidation.
+func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConfig, ok bool) {
 	h.mu.RLock()
-	if h.cachedID == deploymentID {
-		cfg := h.cachedCfg
+	if h.resolved {
+		id, root, c := h.cachedID, h.cachedRoot, h.cachedCfg
 		h.mu.RUnlock()
-		return cfg
+		return id, root, c, id != ""
 	}
 	h.mu.RUnlock()
 
-	cfg, err := h.store.ReadSiteConfig(h.site, deploymentID)
-	if err != nil {
-		slog.Error("reading site config", "site", h.site, "deployment", deploymentID, "err", err)
-	}
-	merged := cfg.Merge(h.defaults)
-
 	h.mu.Lock()
-	h.cachedID = deploymentID
+	defer h.mu.Unlock()
+	if h.resolved {
+		return h.cachedID, h.cachedRoot, h.cachedCfg, h.cachedID != ""
+	}
+
+	id, err := h.store.CurrentDeployment(h.site)
+	if err != nil {
+		h.resolved = true
+		h.cachedID = ""
+		return "", "", storage.SiteConfig{}, false
+	}
+
+	root := h.store.SiteRoot(h.site)
+	rr, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		slog.Error("resolving site root", "site", h.site, "err", err)
+		h.resolved = true
+		h.cachedID = ""
+		return "", "", storage.SiteConfig{}, false
+	}
+
+	raw, err := h.store.ReadSiteConfig(h.site, id)
+	if err != nil {
+		slog.Error("reading site config", "site", h.site, "deployment", id, "err", err)
+	}
+	merged := raw.Merge(h.defaults)
+
+	h.cachedID = id
+	h.cachedRoot = rr
 	h.cachedCfg = merged
 	h.hintCache = nil
-	h.mu.Unlock()
+	h.resolved = true
+	return id, rr, merged, true
+}
 
-	return merged
+// InvalidateConfig clears the cached deployment state so the next request
+// re-reads the deployment ID, content root, and config from disk.
+// Called by the multihost manager after a deployment is activated.
+func (h *Handler) InvalidateConfig() {
+	h.mu.Lock()
+	h.resolved = false
+	h.cachedID = ""
+	h.cachedRoot = ""
+	h.cachedCfg = storage.SiteConfig{}.Merge(h.defaults)
+	h.hintCache = nil
+	h.mu.Unlock()
 }
 
 // AnalyticsEnabled reports whether analytics recording is enabled for the
@@ -99,13 +138,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deploymentID, err := h.store.CurrentDeployment(h.site)
-	if err != nil {
+	deploymentID, resolvedRoot, cfg, ok := h.resolve()
+	if !ok {
 		h.servePlaceholder(w)
 		return
 	}
-
-	cfg := h.loadConfig(deploymentID)
 
 	// Check redirects before file resolution (first match wins).
 	if target, status, ok := h.checkRedirects(r.URL.Path, cfg); ok {
@@ -134,7 +171,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		indexPage = "index.html"
 	}
 
-	root := h.store.SiteRoot(h.site)
 	filePath := filepath.Clean(r.PathValue("path"))
 	if filePath == "" || filePath == "." {
 		filePath = indexPage
@@ -144,15 +180,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullPath := filepath.Join(root, filePath)
+	fullPath := filepath.Join(resolvedRoot, filePath)
 
-	// Resolve symlinks before the containment check so http.ServeFile
-	// cannot follow a symlink that escapes the site root.
-	resolvedRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
+	// Resolve symlinks on the target file to ensure it doesn't escape
+	// the content root via a symlink within the deployment.
 	resolved, err := filepath.EvalSymlinks(fullPath)
 	if err != nil {
 		// Clean URL fallback: try path + ".html" before SPA/404.
@@ -172,10 +203,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// SPA fallback or 404
 		if cfg.SPARouting != nil && *cfg.SPARouting {
-			h.serveSPAFallback(w, r, root, resolvedRoot, deploymentID, indexPage, cfg)
+			h.serveSPAFallback(w, r, resolvedRoot, deploymentID, indexPage, cfg)
 			return
 		}
-		h.serve404(w, root, resolvedRoot, cfg)
+		h.serve404(w, resolvedRoot, cfg)
 		return
 	}
 	if !isUnderRoot(resolved, resolvedRoot) {
@@ -203,10 +234,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// No index, no listing — SPA fallback or 404
 		if cfg.SPARouting != nil && *cfg.SPARouting {
-			h.serveSPAFallback(w, r, root, resolvedRoot, deploymentID, indexPage, cfg)
+			h.serveSPAFallback(w, r, resolvedRoot, deploymentID, indexPage, cfg)
 			return
 		}
-		h.serve404(w, root, resolvedRoot, cfg)
+		h.serve404(w, resolvedRoot, cfg)
 		return
 	}
 
@@ -221,8 +252,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveFileCompressed(w, r, fullPath)
 }
 
-func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, root, resolvedRoot, deploymentID, indexPage string, cfg storage.SiteConfig) {
-	indexPath := filepath.Join(root, indexPage)
+func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resolvedRoot, deploymentID, indexPage string, cfg storage.SiteConfig) {
+	indexPath := filepath.Join(resolvedRoot, indexPage)
 	resolved, err := filepath.EvalSymlinks(indexPath)
 	if err != nil {
 		h.serveDefault404(w)
@@ -349,7 +380,7 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, pa
 			encoding = "br"
 		}
 		cw := &compressWriter{ResponseWriter: w, encoding: encoding}
-		defer cw.Close()
+		defer cw.Close() //nolint:errcheck // best-effort flush on response end
 		serveFileContent(cw, r, path)
 		return
 	}
@@ -607,12 +638,12 @@ func cleanURLRedirect(reqPath string) (string, bool) {
 	return strings.TrimSuffix(reqPath, path.Ext(reqPath)), true
 }
 
-func (h *Handler) serve404(w http.ResponseWriter, root, resolvedRoot string, cfg storage.SiteConfig) {
+func (h *Handler) serve404(w http.ResponseWriter, resolvedRoot string, cfg storage.SiteConfig) {
 	notFoundPage := cfg.NotFoundPage
 	if notFoundPage == "" {
 		notFoundPage = "404.html"
 	}
-	custom404 := filepath.Join(root, notFoundPage)
+	custom404 := filepath.Join(resolvedRoot, notFoundPage)
 	if resolved, err := filepath.EvalSymlinks(custom404); err == nil {
 		if isUnderRoot(resolved, resolvedRoot) {
 			if content, err := os.ReadFile(resolved); err == nil {

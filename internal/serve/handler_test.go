@@ -231,10 +231,11 @@ func TestHandler_ETag_ChangesOnNewDeployment(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	etag1 := rec.Header().Get("ETag")
 
-	// Deploy a new version
+	// Deploy a new version and invalidate the handler cache.
 	setupSite(t, store, "docs", "bbb22222", map[string]string{
 		"style.css": "body{color:red}",
 	})
+	h.InvalidateConfig()
 
 	req2 := httptest.NewRequest("GET", "/style.css", nil)
 	req2 = withCaps(req2, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})

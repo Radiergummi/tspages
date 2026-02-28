@@ -25,6 +25,7 @@ import (
 type siteServer struct {
 	ts       *tsnet.Server
 	httpSrv  *http.Server
+	handler  *serve.Handler
 	closer   func() error // if set, used instead of default close logic
 	isPublic bool
 }
@@ -99,6 +100,9 @@ func (m *Manager) EnsureServer(site string) error {
 		merged := cfg.Merge(m.defaults)
 		wantPublic := merged.Public != nil && *merged.Public
 		if existing.isPublic == wantPublic {
+			if existing.handler != nil {
+				existing.handler.InvalidateConfig()
+			}
 			m.mu.Unlock()
 			return nil
 		}
@@ -106,7 +110,7 @@ func (m *Manager) EnsureServer(site string) error {
 		delete(m.servers, site)
 		m.mu.Unlock()
 		log.Printf("restarting site %q: public changed %v → %v", site, existing.isPublic, wantPublic)
-		existing.Close()
+		existing.Close() //nolint:errcheck // best-effort shutdown of old server
 	} else {
 		if len(m.servers) >= m.maxSites {
 			m.mu.Unlock()
@@ -154,7 +158,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 
 	lc, err := srv.LocalClient()
 	if err != nil {
-		srv.Close()
+		srv.Close() //nolint:errcheck // cleanup on error path
 		return nil, fmt.Errorf("local client for site %q: %w", site, err)
 	}
 
@@ -203,7 +207,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 		ln, err = srv.ListenTLS("tcp", ":443")
 	}
 	if err != nil {
-		srv.Close()
+		srv.Close() //nolint:errcheck // cleanup on error path
 		return nil, fmt.Errorf("listen for site %q: %w", site, err)
 	}
 
@@ -219,7 +223,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 		}
 	}()
 
-	return &siteServer{ts: srv, httpSrv: httpSrv, isPublic: public}, nil
+	return &siteServer{ts: srv, httpSrv: httpSrv, handler: handler, isPublic: public}, nil
 }
 
 // StopServer shuts down and removes the tsnet server for the given site.

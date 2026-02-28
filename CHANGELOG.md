@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Site configuration, deployment ID, and content root are now cached in memory instead of
+  re-read from disk on every request. The cache is invalidated automatically on deployment.
+  This eliminates multiple filesystem syscalls (symlink reads, EvalSymlinks) from the serving
+  hot path.
+
 ### Added
 
+- Go linting with golangci-lint. Enabled linters: staticcheck, govet, errcheck, gosec, revive,
+  gocritic, misspell, and others. Run `make lint` locally or see the `lint-go` CI job.
+- `make lint`, `make test` targets with Go and JS sub-targets (`lint-go`, `lint-js`, `test-go`,
+  `test-js`). Tests now run with the race detector enabled.
+
+- `tspages init` subcommand to generate an annotated `tspages.toml` template. Use `--server` for a
+  server config template or run without flags for a per-site deployment config template.
 - Public site access via Tailscale Funnel. Set `public = true` in `tspages.toml` to make a site
   accessible from the internet. Tailnet users retain their identity and capabilities; anonymous
   visitors get read-only access. Requires the `funnel` node attribute in your tailnet policy.

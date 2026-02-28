@@ -162,10 +162,11 @@ func TestLoadHints_InvalidatedOnDeploymentChange(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	// Deploy v2 with a different stylesheet.
+	// Deploy v2 with a different stylesheet and invalidate the handler cache.
 	setupSite(t, store, "docs", "bbb22222", map[string]string{
 		"index.html": `<html><head><link rel="stylesheet" href="/v2.css"></head><body>v2</body></html>`,
 	})
+	h.InvalidateConfig()
 
 	// Second request should use the new deployment's hints.
 	req = httptest.NewRequest("GET", "/", nil)
