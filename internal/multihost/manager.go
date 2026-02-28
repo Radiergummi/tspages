@@ -106,8 +106,9 @@ func (m *Manager) EnsureServer(site string) error {
 
 	var old *siteServer
 	if existing, ok := m.servers[site]; ok {
-		cfg, _ := m.store.ReadCurrentDeploymentConfig(site)
-		merged := cfg.Merge(m.defaults)
+		deployCfg, _ := m.store.ReadCurrentDeploymentConfig(site)
+		siteCfg, _ := m.store.ReadSiteConfig(site)
+		merged := deployCfg.Merge(siteCfg).Merge(m.defaults)
 		wantPublic := merged.Public != nil && *merged.Public
 		if existing.isPublic == wantPublic {
 			if existing.handler != nil {
@@ -159,8 +160,9 @@ func (m *Manager) EnsureServer(site string) error {
 }
 
 func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
-	cfg, _ := m.store.ReadCurrentDeploymentConfig(site)
-	merged := cfg.Merge(m.defaults)
+	deployCfg, _ := m.store.ReadCurrentDeploymentConfig(site)
+	siteCfg, _ := m.store.ReadSiteConfig(site)
+	merged := deployCfg.Merge(siteCfg).Merge(m.defaults)
 	public := merged.Public != nil && *merged.Public
 
 	srv := &tsnet.Server{

@@ -283,7 +283,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 
 	if h.notifier != nil {
-		resolvedCfg := siteCfg.Merge(h.defaults)
+		siteLevelCfg, _ := h.store.ReadSiteConfig(site)
+		resolvedCfg := siteCfg.Merge(siteLevelCfg).Merge(h.defaults)
 		h.notifier.Fire("deploy.success", site, resolvedCfg, map[string]any{
 			"site":          site,
 			"deployment_id": id,
@@ -298,8 +299,9 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 	if h.notifier == nil {
 		return
 	}
-	cfg, _ := h.store.ReadCurrentDeploymentConfig(site)
-	resolvedCfg := cfg.Merge(h.defaults)
+	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(site)
+	siteCfg, _ := h.store.ReadSiteConfig(site)
+	resolvedCfg := deployCfg.Merge(siteCfg).Merge(h.defaults)
 	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
 		"site":  site,
 		"error": err.Error(),
