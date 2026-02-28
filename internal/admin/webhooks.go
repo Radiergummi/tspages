@@ -3,7 +3,7 @@ package admin
 import (
 	"bytes"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -69,7 +69,7 @@ func (h *WebhooksHandler) serveWebhooks(w http.ResponseWriter, r *http.Request, 
 		var err error
 		deliveries, total, err = h.notifier.ListDeliveries(site, event, status, webhooksPageSize, offset)
 		if err != nil {
-			log.Printf("webhooks: list deliveries: %v", err)
+			slog.Error("listing webhook deliveries failed", "err", err)
 		}
 	}
 
@@ -92,23 +92,23 @@ func (h *WebhooksHandler) serveWebhooks(w http.ResponseWriter, r *http.Request, 
 		var err error
 		statsTotal, statsSucceeded, statsFailed, err = h.notifier.DeliveryStats(site, from, now)
 		if err != nil {
-			log.Printf("webhooks: delivery stats: %v", err)
+			slog.Error("webhook query failed", "query", "delivery_stats", "err", err)
 		}
 		timeSeries, err = h.notifier.DeliveriesOverTime(site, from, now)
 		if err != nil {
-			log.Printf("webhooks: deliveries over time: %v", err)
+			slog.Error("webhook query failed", "query", "deliveries_over_time", "err", err)
 		}
 		events, err = h.notifier.EventBreakdown(site, from, now)
 		if err != nil {
-			log.Printf("webhooks: event breakdown: %v", err)
+			slog.Error("webhook query failed", "query", "event_breakdown", "err", err)
 		}
 		latency, err = h.notifier.LatencyOverTime(site, from, now)
 		if err != nil {
-			log.Printf("webhooks: latency over time: %v", err)
+			slog.Error("webhook query failed", "query", "latency_over_time", "err", err)
 		}
 		latencyStats, err = h.notifier.LatencyStats(site, from, now)
 		if err != nil {
-			log.Printf("webhooks: latency stats: %v", err)
+			slog.Error("webhook query failed", "query", "latency_stats", "err", err)
 		}
 	}
 
@@ -191,7 +191,7 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	attempts, err := h.notifier.GetDeliveryAttempts(webhookID)
 	if err != nil {
-		log.Printf("webhooks: get delivery attempts %s: %v", webhookID, err)
+		slog.Error("getting webhook delivery attempts failed", "webhook_id", webhookID, "err", err)
 	}
 	for i, a := range attempts {
 		var buf bytes.Buffer
@@ -257,7 +257,7 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	status, err := h.notifier.Resend(webhookID, merged.WebhookSecret)
 	if err != nil {
-		log.Printf("webhook retry %s: %v", webhookID, err)
+		slog.Error("webhook retry failed", "webhook_id", webhookID, "err", err)
 		RenderError(w, r, http.StatusBadGateway, "retry failed")
 		return
 	}

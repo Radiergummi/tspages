@@ -3,7 +3,7 @@ package admin
 import (
 	"encoding/xml"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"time"
@@ -207,6 +207,6 @@ func writeFeed(w http.ResponseWriter, feed atomXMLFeed) {
 	enc := xml.NewEncoder(w)
 	enc.Indent("", "  ")
 	if err := enc.Encode(feed); err != nil {
-		log.Printf("warning: encoding atom feed: %v", err)
+		slog.Warn("encoding atom feed failed", "err", err)
 	}
 }

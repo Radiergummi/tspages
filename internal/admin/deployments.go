@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -71,7 +71,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	const maxFiles = 250
 	allFiles, err := h.store.ListDeploymentFiles(siteName, depID)
 	if err != nil {
-		log.Printf("warning: listing files for %s/%s: %v", siteName, depID, err)
+		slog.Warn("listing deployment files failed", "site", siteName, "deployment", depID, "err", err)
 	}
 	fileCount := len(allFiles)
 	files := allFiles
@@ -84,7 +84,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if prevID != "" {
 		prevFiles, err := h.store.ListDeploymentFiles(siteName, prevID)
 		if err != nil {
-			log.Printf("warning: listing files for %s/%s: %v", siteName, prevID, err)
+			slog.Warn("listing deployment files failed", "site", siteName, "deployment", prevID, "err", err)
 		}
 		added, removed, changed = diffFiles(allFiles, prevFiles)
 		// Cap diff output to avoid huge tables.

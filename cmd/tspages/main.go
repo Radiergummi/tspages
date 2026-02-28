@@ -174,7 +174,7 @@ func main() {
 
 		// Localhost listener with mock admin auth (no tailscale needed).
 		go func() {
-			log.Printf("dev server: http://localhost:8080 (run 'npx vite' for HMR)")
+			slog.Info("dev server started", "addr", "http://localhost:8080", "hint", "run 'npx vite' for HMR")
 			if err := http.ListenAndServe(":8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
 				ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "dev@localhost", DisplayName: "Developer"})
@@ -202,7 +202,7 @@ func main() {
 		healthMux := http.NewServeMux()
 		healthMux.Handle("GET /healthz", healthHandler)
 		go func() {
-			log.Printf("health check listening on http://%s/healthz", addr)
+			slog.Info("health check listening", "addr", addr)
 			if err := http.ListenAndServe(addr, healthMux); err != nil {
 				listenErr <- fmt.Errorf("health listener: %w", err)
 			}
@@ -211,7 +211,7 @@ func main() {
 
 	// Start servers for all sites with active deployments
 	if err := mgr.StartExistingSites(); err != nil {
-		log.Printf("warning: starting existing sites: %v", err)
+		slog.Warn("starting existing sites", "err", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -224,18 +224,18 @@ func main() {
 		}
 	}()
 
-	log.Printf("tspages control plane listening on https://%s", cfg.Tailscale.Hostname)
+	slog.Info("tspages control plane listening", "hostname", cfg.Tailscale.Hostname)
 	select {
 	case <-ctx.Done():
 	case err := <-listenErr:
-		log.Printf("fatal: %v", err)
+		slog.Error("listener failed", "err", err)
 	}
-	log.Printf("shutting down...")
+	slog.Info("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown: %v", err)
+		slog.Error("shutdown error", "err", err)
 	}
 }
 

@@ -2,7 +2,7 @@ package admin
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"tspages/internal/analytics"
@@ -58,7 +58,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"status": status,
 		"checks": checks,
 	}); err != nil {
-		log.Printf("warning: encoding health response: %v", err)
+		slog.Warn("encoding health response failed", "err", err)
 	}
 }
 
@@ -109,6 +109,6 @@ func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"server":            map[bool]string{true: "running", false: "stopped"}[running],
 		"active_deployment": site.ActiveDeploymentID,
 	}); err != nil {
-		log.Printf("warning: encoding health response: %v", err)
+		slog.Warn("encoding health response failed", "site", siteName, "err", err)
 	}
 }

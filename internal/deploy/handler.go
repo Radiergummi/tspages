@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -137,15 +137,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// markFailed writes a manifest (if possible) and marks the deployment as failed.
 	markFailed := func(size int64, reason string) {
 		if err := writeManifest(size); err != nil {
-			log.Printf("warning: writing manifest for failed deployment %s/%s: %v", site, id, err)
+			slog.Warn("writing manifest for failed deployment", "site", site, "deployment", id, "err", err)
 		}
 		if files, err := h.store.ListDeploymentFiles(site, id); err == nil {
 			if err := h.store.WriteFileIndex(site, id, files); err != nil {
-				log.Printf("warning: writing file index for failed deployment %s/%s: %v", site, id, err)
+				slog.Warn("writing file index for failed deployment", "site", site, "deployment", id, "err", err)
 			}
 		}
 		if err := h.store.MarkFailed(site, id, reason); err != nil {
-			log.Printf("warning: marking deployment %s/%s as failed: %v", site, id, err)
+			slog.Warn("marking deployment as failed", "site", site, "deployment", id, "err", err)
 		}
 	}
 
@@ -188,7 +188,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		siteCfg.Redirects = rules
 		if err := os.Remove(redirectsPath); err != nil && !os.IsNotExist(err) {
-			log.Printf("warning: removing _redirects: %v", err)
+			slog.Warn("removing _redirects", "err", err)
 		}
 		hasConfig = hasConfig || len(rules) > 0
 	}
@@ -205,7 +205,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		siteCfg.Headers = hdrs
 		if err := os.Remove(headersPath); err != nil && !os.IsNotExist(err) {
-			log.Printf("warning: removing _headers: %v", err)
+			slog.Warn("removing _headers", "err", err)
 		}
 		hasConfig = hasConfig || len(hdrs) > 0
 	}
@@ -222,7 +222,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		siteCfg = tomlCfg.Merge(siteCfg)
 		if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
-			log.Printf("warning: removing tspages.toml: %v", err)
+			slog.Warn("removing tspages.toml", "err", err)
 		}
 		hasConfig = true
 	}
@@ -243,9 +243,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Cache the file index so ListDeploymentFiles can skip hashing later.
 	if files, err := h.store.ListDeploymentFiles(site, id); err != nil {
-		log.Printf("warning: listing files for %s/%s: %v", site, id, err)
+		slog.Warn("listing deployment files", "site", site, "deployment", id, "err", err)
 	} else if err := h.store.WriteFileIndex(site, id, files); err != nil {
-		log.Printf("warning: writing file index for %s/%s: %v", site, id, err)
+		slog.Warn("writing file index", "site", site, "deployment", id, "err", err)
 	}
 
 	if err := h.store.MarkComplete(site, id); err != nil {
@@ -260,16 +260,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.manager.EnsureServer(site); err != nil {
-			log.Printf("warning: site %q deployed but server failed to start: %v", site, err)
+			slog.Warn("site deployed but server failed to start", "site", site, "err", err)
 		}
 	}
 
 	// Clean up old deployments, keeping the configured maximum.
 	if h.maxDeployments > 0 {
 		if n, err := h.store.CleanupOldDeployments(site, h.maxDeployments); err != nil {
-			log.Printf("warning: cleaning old deployments for %q: %v", site, err)
+			slog.Warn("cleaning old deployments", "site", site, "err", err)
 		} else if n > 0 {
-			log.Printf("cleaned %d old deployment(s) for %q", n, site)
+			slog.Info("cleaned old deployments", "count", n, "site", site)
 		}
 	}
 
@@ -309,6 +309,6 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("warning: encoding JSON response: %v", err)
+		slog.Warn("encoding JSON response", "err", err)
 	}
 }

@@ -3,7 +3,6 @@ package multihost
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -37,7 +36,7 @@ func (ss *siteServer) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := ss.httpSrv.Shutdown(ctx); err != nil {
-		log.Printf("warning: graceful shutdown: %v", err)
+		slog.Warn("graceful shutdown failed", "err", err)
 	}
 	return ss.ts.Close()
 }
@@ -133,7 +132,7 @@ func (m *Manager) EnsureServer(site string) error {
 	// Close the old server (if restarting) outside the lock.
 	// The starting guard prevents concurrent starts for the same site.
 	if old != nil {
-		log.Printf("restarting site %q", site)
+		slog.Info("restarting site", "site", site)
 		old.Close() //nolint:errcheck // best-effort shutdown of old server
 	}
 
@@ -149,7 +148,7 @@ func (m *Manager) EnsureServer(site string) error {
 	if len(m.servers) >= m.maxSites {
 		m.mu.Unlock()
 		if cerr := ss.Close(); cerr != nil {
-			log.Printf("warning: closing site %q (limit reached): %v", site, cerr)
+			slog.Warn("closing site after limit reached", "site", site, "err", cerr)
 		}
 		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
@@ -228,12 +227,12 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	httpSrv := &http.Server{Handler: mux}
 	go func() {
 		if public {
-			log.Printf("site %q listening on https://%s (public via Funnel)", site, site)
+			slog.Info("site listening", "site", site, "url", "https://"+site, "public", true)
 		} else {
-			log.Printf("site %q listening on https://%s", site, site)
+			slog.Info("site listening", "site", site, "url", "https://"+site)
 		}
 		if err := httpSrv.Serve(ln); err != http.ErrServerClosed {
-			log.Printf("site %q serve error: %v", site, err)
+			slog.Error("site serve error", "site", site, "err", err)
 		}
 	}()
 
@@ -252,7 +251,7 @@ func (m *Manager) StopServer(site string) error {
 	metrics.SetActiveSites(len(m.servers))
 	m.mu.Unlock()
 
-	log.Printf("stopping site %q", site)
+	slog.Info("stopping site", "site", site)
 	return ss.Close()
 }
 
@@ -265,7 +264,7 @@ func (m *Manager) StartExistingSites() error {
 	}
 	for _, s := range sites {
 		if err := m.EnsureServer(s.Name); err != nil {
-			log.Printf("warning: failed to start site %q: %v", s.Name, err)
+			slog.Warn("failed to start site", "site", s.Name, "err", err)
 		}
 	}
 	return nil
@@ -311,9 +310,9 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 
 	for name, ss := range snapshot {
-		log.Printf("stopping site %q", name)
+		slog.Info("stopping site", "site", name)
 		if err := ss.Close(); err != nil {
-			log.Printf("warning: closing site %q: %v", name, err)
+			slog.Warn("closing site", "site", name, "err", err)
 		}
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -540,7 +540,7 @@ func trimSuffix(s string) string {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("warning: encoding JSON response: %v", err)
+		slog.Warn("encoding JSON response failed", "err", err)
 	}
 }
 
@@ -563,7 +563,7 @@ func renderPage(w http.ResponseWriter, r *http.Request, t *tmpl, nav string, dat
 		}
 		parsed, err := template.New("").Funcs(funcs).ParseFiles(paths...)
 		if err != nil {
-			log.Printf("template parse error (%s): %v", nav, err)
+			slog.Error("template parse failed", "nav", nav, "err", err)
 			RenderError(w, r, http.StatusInternalServerError, "template error")
 			return
 		}
@@ -571,14 +571,14 @@ func renderPage(w http.ResponseWriter, r *http.Request, t *tmpl, nav string, dat
 	}
 	tpl, err := tpl.Clone()
 	if err != nil {
-		log.Printf("template clone error (%s): %v", nav, err)
+		slog.Error("template clone failed", "nav", nav, "err", err)
 		RenderError(w, r, http.StatusInternalServerError, "rendering page")
 		return
 	}
 	tpl.Funcs(template.FuncMap{"nav": func() string { return nav }})
 	var buf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&buf, "layout", data); err != nil {
-		log.Printf("template error (%s): %v", nav, err)
+		slog.Error("template execution failed", "nav", nav, "err", err)
 		RenderError(w, r, http.StatusInternalServerError, "rendering page")
 		return
 	}
@@ -594,7 +594,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, code int, msg string) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
 		if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
-			log.Printf("warning: encoding JSON error response: %v", err)
+			slog.Warn("encoding JSON error response failed", "err", err)
 		}
 		return
 	}

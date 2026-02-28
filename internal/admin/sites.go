@@ -2,7 +2,7 @@ package admin
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -45,11 +45,11 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var err error
 			ss.Requests, err = h.recorder.TotalRequests(s.Name, time.Time{}, now)
 			if err != nil {
-				log.Printf("analytics: total requests for %s: %v", s.Name, err)
+				slog.Error("analytics query failed", "query", "total_requests", "site", s.Name, "err", err)
 			}
 			ts, err := h.recorder.RequestsOverTime(s.Name, now.Add(-7*24*time.Hour), now)
 			if err != nil {
-				log.Printf("analytics: requests over time for %s: %v", s.Name, err)
+				slog.Error("analytics query failed", "query", "requests_over_time", "site", s.Name, "err", err)
 			}
 			ss.Sparkline = countsJSON(ts)
 		}
@@ -119,7 +119,7 @@ func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.ensurer.EnsureServer(name); err != nil {
-		log.Printf("warning: site %q created but server failed to start: %v", name, err)
+		slog.Warn("site created but server failed to start", "site", name, "err", err)
 	}
 
 	if h.notifier != nil {
@@ -186,11 +186,11 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var err error
 		ss.Requests, err = h.recorder.TotalRequests(siteName, time.Time{}, now)
 		if err != nil {
-			log.Printf("analytics: total requests for %s: %v", siteName, err)
+			slog.Error("analytics query failed", "query", "total_requests", "site", siteName, "err", err)
 		}
 		ts, err := h.recorder.RequestsOverTime(siteName, now.Add(-7*24*time.Hour), now)
 		if err != nil {
-			log.Printf("analytics: requests over time for %s: %v", siteName, err)
+			slog.Error("analytics query failed", "query", "requests_over_time", "site", siteName, "err", err)
 		}
 		sparkline = countsJSON(ts)
 	}
@@ -221,7 +221,7 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var err error
 		recentDeliveries, _, err = h.notifier.ListDeliveries(siteName, "", "", 5, 0)
 		if err != nil {
-			log.Printf("webhooks: list deliveries for %s: %v", siteName, err)
+			slog.Error("listing webhook deliveries failed", "site", siteName, "err", err)
 		}
 	}
 

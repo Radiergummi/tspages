@@ -2,7 +2,7 @@ package analytics
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -138,12 +138,12 @@ func (r *Recorder) writer() {
 func (r *Recorder) flush(events []Event) {
 	tx, err := r.db.Begin()
 	if err != nil {
-		log.Printf("analytics: begin tx: %v", err)
+		slog.Error("analytics: begin tx failed", "err", err)
 		return
 	}
 	stmt, err := tx.Prepare(`INSERT INTO requests (ts, site, path, status, user_login, user_name, profile_pic_url, node_name, node_ip, os, os_version, device, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		log.Printf("analytics: prepare: %v", err)
+		slog.Error("analytics: prepare failed", "err", err)
 		tx.Rollback()
 		return
 	}
@@ -158,13 +158,13 @@ func (r *Recorder) flush(events []Event) {
 			e.OS, e.OSVersion, e.Device, tags,
 		)
 		if err != nil {
-			log.Printf("analytics: insert: %v", err)
+			slog.Error("analytics: insert failed", "err", err)
 			tx.Rollback()
 			return
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("analytics: commit: %v", err)
+		slog.Error("analytics: commit failed", "err", err)
 	}
 }
 
