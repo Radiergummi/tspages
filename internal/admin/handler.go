@@ -102,7 +102,9 @@ type Handlers struct {
 	API             *APIHandler
 	Feed            *FeedHandler
 	SiteFeed        *SiteFeedHandler
-	SiteHealth      *SiteHealthHandler
+	SiteHealth       *SiteHealthHandler
+	SiteConfig       *SiteConfigHandler
+	UpdateSiteConfig *UpdateSiteConfigHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
@@ -126,7 +128,9 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		API:             &APIHandler{},
 		Feed:            &FeedHandler{d},
 		SiteFeed:        &SiteFeedHandler{d},
-		SiteHealth:      &SiteHealthHandler{handlerDeps: d, checker: checker},
+		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
+		SiteConfig:       &SiteConfigHandler{d},
+		UpdateSiteConfig: &UpdateSiteConfigHandler{d},
 	}
 }
 
