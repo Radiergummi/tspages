@@ -162,6 +162,43 @@ func TestDeploy_NoActivateFlag(t *testing.T) {
 	}
 }
 
+func TestDeploy_CommentFlag(t *testing.T) {
+	var mu sync.Mutex
+	var gotPath string
+	var gotHeader string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotPath = r.RequestURI
+		gotHeader = r.Header.Get("Comment")
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"deployment_id": "test-123",
+			"site":          "mysite",
+		})
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	p := filepath.Join(dir, "index.html")
+	os.WriteFile(p, []byte("<h1>hi</h1>"), 0644)
+
+	err := Deploy([]string{"--server", srv.URL, "-m", "fix nav links", p, "mysite"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(gotPath, "comment=fix+nav+links") {
+		t.Errorf("request URI = %q, want comment query param", gotPath)
+	}
+	if gotHeader != "fix nav links" {
+		t.Errorf("Comment header = %q, want %q", gotHeader, "fix nav links")
+	}
+}
+
 func TestDeploy_EscapesSpecialCharsInFilename(t *testing.T) {
 	var mu sync.Mutex
 	var gotPath string

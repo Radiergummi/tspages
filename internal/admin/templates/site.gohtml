@@ -355,6 +355,9 @@
                                     >
                                         {{.ID}}
                                     </a>
+                                    {{if .Comment}}
+                                        <div class="text-muted text-xs mt-0.5 truncate max-w-60">{{.Comment}}</div>
+                                    {{end}}
                                 </td>
                                 <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-muted">
                                     {{if .CreatedBy}}

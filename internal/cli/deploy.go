@@ -55,6 +55,7 @@ func Deploy(args []string) error {
 	fs := flag.NewFlagSet("deploy", flag.ExitOnError)
 	serverFlag := fs.String("server", "", "control plane URL (default: auto-discover)")
 	noActivate := fs.Bool("no-activate", false, "upload without activating")
+	commentFlag := fs.String("m", "", "deployment comment")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: tspages deploy <path> <site> [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Upload a directory or file to a tspages site.\n\n")
@@ -85,8 +86,15 @@ func Deploy(args []string) error {
 	if filename != "" {
 		deployURL += "/" + url.PathEscape(filename)
 	}
+	qv := url.Values{}
 	if *noActivate {
-		deployURL += "?activate=false"
+		qv.Set("activate", "false")
+	}
+	if *commentFlag != "" {
+		qv.Set("comment", *commentFlag)
+	}
+	if len(qv) > 0 {
+		deployURL += "?" + qv.Encode()
 	}
 
 	req, err := http.NewRequest("PUT", deployURL, bytes.NewReader(body))
@@ -94,6 +102,9 @@ func Deploy(args []string) error {
 		return fmt.Errorf("creating request: %w", err)
 	}
 	req.ContentLength = int64(len(body))
+	if *commentFlag != "" {
+		req.Header.Set("Comment", *commentFlag)
+	}
 
 	fmt.Fprintf(os.Stderr, "Deploying to %s...\n", site)
 	client := &http.Client{Timeout: 10 * time.Minute}

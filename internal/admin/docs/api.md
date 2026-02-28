@@ -19,6 +19,7 @@ The `{filename}` variant is useful for format detection when uploading single fi
 Query parameters:
 
 - `?activate=false` -- upload without switching live traffic (useful for staging)
+- `?comment=...` -- attach a human-readable note to the deployment (falls back to `Comment` header)
 
 Response:
 

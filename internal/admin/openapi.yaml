@@ -29,6 +29,11 @@ paths:
             type: string
             enum: ["false"]
           description: Set to "false" to upload without switching live traffic.
+        - name: comment
+          in: query
+          schema:
+            type: string
+          description: Human-readable note to attach to the deployment.
         - name: format
           in: query
           schema:
@@ -91,6 +96,11 @@ paths:
           schema:
             type: string
             enum: ["false"]
+        - name: comment
+          in: query
+          schema:
+            type: string
+          description: Human-readable note to attach to the deployment.
       requestBody:
         required: true
         content:
@@ -167,6 +177,11 @@ paths:
           schema:
             type: string
             enum: ["false"]
+        - name: comment
+          in: query
+          schema:
+            type: string
+          description: Human-readable note to attach to the deployment.
       requestBody:
         required: true
         content:
@@ -523,6 +538,9 @@ components:
         size_bytes:
           type: integer
           format: int64
+        comment:
+          type: string
+          description: Optional human-readable note attached at deploy time.
       required: [id, active]
 
     SiteStatus:

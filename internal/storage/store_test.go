@@ -391,6 +391,60 @@ func TestWriteReadManifest(t *testing.T) {
 	}
 }
 
+func TestWriteReadManifest_Comment(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "abc12345")
+
+	m := Manifest{
+		Site:      "docs",
+		ID:        "abc12345",
+		CreatedBy: "alice@example.com",
+		Comment:   "fix broken nav links",
+	}
+	if err := s.WriteManifest("docs", "abc12345", m); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := s.ReadManifest("docs", "abc12345")
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.Comment != "fix broken nav links" {
+		t.Errorf("comment = %q, want %q", got.Comment, "fix broken nav links")
+	}
+}
+
+func TestWriteReadManifest_CommentOmittedWhenEmpty(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "abc12345")
+
+	m := Manifest{Site: "docs", ID: "abc12345"}
+	if err := s.WriteManifest("docs", "abc12345", m); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := s.ReadManifest("docs", "abc12345")
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.Comment != "" {
+		t.Errorf("comment = %q, want empty", got.Comment)
+	}
+}
+
+func TestDeploymentInfoFromManifest_CopiesComment(t *testing.T) {
+	m := Manifest{
+		CreatedBy: "alice",
+		SizeBytes: 1024,
+		Comment:   "v2.1.0 release",
+	}
+	var info DeploymentInfo
+	deploymentInfoFromManifest(&info, m)
+	if info.Comment != "v2.1.0 release" {
+		t.Errorf("comment = %q, want %q", info.Comment, "v2.1.0 release")
+	}
+}
+
 func TestReadManifest_Missing(t *testing.T) {
 	s := New(t.TempDir())
 	_, err := s.ReadManifest("docs", "nope")

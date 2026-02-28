@@ -124,6 +124,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if deployedBy == "" {
 		deployedBy = identity.LoginName
 	}
+	comment := r.URL.Query().Get("comment")
+	if comment == "" {
+		comment = r.Header.Get("Comment")
+	}
 	writeManifest := func(size int64) error {
 		return h.store.WriteManifest(site, id, storage.Manifest{
 			Site:            site,
@@ -132,6 +136,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CreatedBy:       deployedBy,
 			CreatedByAvatar: identity.ProfilePicURL,
 			SizeBytes:       size,
+			Comment:         comment,
 		})
 	}
 	// markFailed writes a manifest (if possible) and marks the deployment as failed.
@@ -284,13 +289,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if h.notifier != nil {
 		resolvedCfg := siteCfg.Merge(h.defaults)
-		h.notifier.Fire("deploy.success", site, resolvedCfg, map[string]any{
+		meta := map[string]any{
 			"site":          site,
 			"deployment_id": id,
 			"created_by":    deployedBy,
 			"url":           resp.URL,
 			"size_bytes":    extractedBytes,
-		})
+		}
+		if comment != "" {
+			meta["comment"] = comment
+		}
+		h.notifier.Fire("deploy.success", site, resolvedCfg, meta)
 	}
 }
 

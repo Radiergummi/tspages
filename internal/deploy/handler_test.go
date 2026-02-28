@@ -146,6 +146,98 @@ func TestHandler_WritesManifest(t *testing.T) {
 	}
 }
 
+func TestHandler_CommentQueryParam(t *testing.T) {
+	store := storage.New(t.TempDir())
+	mgr := newMockManager()
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
+
+	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
+	req := httptest.NewRequest("POST", "/deploy/docs?comment=fix+nav+links", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/zip")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp DeployResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+
+	m, err := store.ReadManifest("docs", resp.DeploymentID)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if m.Comment != "fix nav links" {
+		t.Errorf("comment = %q, want %q", m.Comment, "fix nav links")
+	}
+}
+
+func TestHandler_CommentHeaderFallback(t *testing.T) {
+	store := storage.New(t.TempDir())
+	mgr := newMockManager()
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
+
+	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
+	req := httptest.NewRequest("POST", "/deploy/docs", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/zip")
+	req.Header.Set("Comment", "via header")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp DeployResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+
+	m, err := store.ReadManifest("docs", resp.DeploymentID)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if m.Comment != "via header" {
+		t.Errorf("comment = %q, want %q", m.Comment, "via header")
+	}
+}
+
+func TestHandler_CommentQueryParamOverridesHeader(t *testing.T) {
+	store := storage.New(t.TempDir())
+	mgr := newMockManager()
+	h := NewHandler(HandlerConfig{Store: store, Manager: mgr, MaxUploadMB: 10, MaxDeployments: 10, DNSSuffix: testDNSSuffix})
+
+	body := makeZip(t, map[string]string{"index.html": "<h1>Hi</h1>"})
+	req := httptest.NewRequest("POST", "/deploy/docs?comment=from+query", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/zip")
+	req.Header.Set("Comment", "from header")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp DeployResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+
+	m, err := store.ReadManifest("docs", resp.DeploymentID)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if m.Comment != "from query" {
+		t.Errorf("comment = %q, want %q (query param should take priority)", m.Comment, "from query")
+	}
+}
+
 func TestHandler_UploadTooLarge(t *testing.T) {
 	store := storage.New(t.TempDir())
 	// maxUploadMB=1 means 1 MiB limit

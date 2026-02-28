@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,6 +121,60 @@ func TestFeedHandler_EntryContent(t *testing.T) {
 	}
 	if !hasLink {
 		t.Error("entry missing alternate link")
+	}
+}
+
+func TestFeedHandler_EntryContentWithComment(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateDeployment("docs", "aaa11111")
+	store.WriteManifest("docs", "aaa11111", storage.Manifest{
+		Site: "docs", ID: "aaa11111",
+		CreatedBy: "Alice",
+		CreatedAt: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
+		SizeBytes: 1024,
+		Comment:   "fix broken nav links",
+	})
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	recorder := setupRecorder(t)
+	hs := NewHandlers(store, recorder, "test.ts.net", &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+
+	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
+	rec := httptest.NewRecorder()
+	hs.Feed.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+
+	var feed atomFeed
+	if err := xml.Unmarshal(rec.Body.Bytes(), &feed); err != nil {
+		t.Fatalf("invalid XML: %v", err)
+	}
+	if len(feed.Entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(feed.Entries))
+	}
+	if !strings.Contains(feed.Entries[0].Content, "fix broken nav links") {
+		t.Errorf("entry content = %q, want to contain comment", feed.Entries[0].Content)
+	}
+}
+
+func TestFeedHandler_EntryContentWithoutComment(t *testing.T) {
+	hs, _ := setupHandlers(t)
+	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
+
+	rec := httptest.NewRecorder()
+	hs.Feed.ServeHTTP(rec, req)
+
+	var feed atomFeed
+	xml.Unmarshal(rec.Body.Bytes(), &feed)
+
+	// setupStore creates deployments without comments — content should not contain " — "
+	for _, entry := range feed.Entries {
+		if strings.Contains(entry.Content, " — ") {
+			t.Errorf("entry content %q should not contain comment separator", entry.Content)
+		}
 	}
 }
 

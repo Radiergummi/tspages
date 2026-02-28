@@ -166,6 +166,7 @@ type Manifest struct {
 	CreatedBy       string    `json:"created_by"`
 	CreatedByAvatar string    `json:"created_by_avatar,omitempty"`
 	SizeBytes       int64     `json:"size_bytes"`
+	Comment         string    `json:"comment,omitempty"`
 }
 
 func (s *Store) WriteManifest(site, id string, m Manifest) error {
@@ -255,6 +256,7 @@ type DeploymentInfo struct {
 	CreatedBy       string    `json:"created_by,omitempty"`
 	CreatedByAvatar string    `json:"created_by_avatar,omitempty"`
 	SizeBytes       int64     `json:"size_bytes,omitempty"`
+	Comment         string    `json:"comment,omitempty"`
 }
 
 // deploymentInfoFromManifest populates a DeploymentInfo from a Manifest.
@@ -263,6 +265,7 @@ func deploymentInfoFromManifest(d *DeploymentInfo, m Manifest) {
 	d.CreatedBy = m.CreatedBy
 	d.CreatedByAvatar = m.CreatedByAvatar
 	d.SizeBytes = m.SizeBytes
+	d.Comment = m.Comment
 }
 
 // FileInfo describes a single file within a deployment's content directory.

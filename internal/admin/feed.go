@@ -186,6 +186,11 @@ func deploymentToEntry(site string, d storage.DeploymentInfo, dnsSuffix, host st
 		author = "unknown"
 	}
 
+	body := fmt.Sprintf("Deployed to %s.%s by %s (%s)", site, dnsSuffix, author, formatBytes(d.SizeBytes))
+	if d.Comment != "" {
+		body += " — " + d.Comment
+	}
+
 	return atomXMLEntry{
 		Title:   fmt.Sprintf("Deployed %s (%s)", site, d.ID),
 		ID:      fmt.Sprintf("https://%s/sites/%s/deployments/%s", host, site, d.ID),
@@ -196,7 +201,7 @@ func deploymentToEntry(site string, d storage.DeploymentInfo, dnsSuffix, host st
 		},
 		Content: atomXMLContent{
 			Type: "text",
-			Body: fmt.Sprintf("Deployed to %s.%s by %s (%s)", site, dnsSuffix, author, formatBytes(d.SizeBytes)),
+			Body: body,
 		},
 	}
 }

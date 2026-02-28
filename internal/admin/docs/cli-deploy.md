@@ -50,6 +50,7 @@ tailnet's DNS suffix and constructing `https://pages.<suffix>`. Override with:
 | --------------- | --------------------------------------- |
 | `--server`      | Control plane URL (overrides discovery) |
 | `--no-activate` | Upload without switching live traffic   |
+| `-m`            | Deployment comment (e.g. `-m "v2.1.0"`) |
 
 ## Examples
 
@@ -62,6 +63,9 @@ tspages deploy README.md notes
 
 # Deploy without activating
 tspages deploy ./dist staging --no-activate
+
+# Deploy with a comment
+tspages deploy ./dist my-site -m "fix broken nav links"
 
 # Explicit server URL
 tspages deploy ./dist my-site --server https://pages.my-tailnet.ts.net

@@ -121,6 +121,16 @@
                     {{bytes .Deployment.SizeBytes}}
                 </dd>
             </dl>
+            {{if .Deployment.Comment}}
+                <dl class="col-span-12 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                    <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                        Comment
+                    </dt>
+                    <dd class="text-base">
+                        {{.Deployment.Comment}}
+                    </dd>
+                </dl>
+            {{end}}
         </section>
 
         {{if .Deployment.Failed}}
