@@ -647,18 +647,19 @@ func TestValidateSiteConfig_WebhookURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		url     string
+		events  []string
 		wantErr bool
 	}{
-		{"empty", "", false},
-		{"https", "https://example.com/hook", false},
-		{"http", "http://internal.ts.net/hook", false},
-		{"ftp", "ftp://example.com", true},
-		{"no scheme", "example.com/hook", true},
-		{"just text", "not-a-url", true},
+		{"empty", "", nil, false},
+		{"https", "https://example.com/hook", []string{"deploy.success"}, false},
+		{"http", "http://internal.ts.net/hook", []string{"deploy.success"}, false},
+		{"ftp", "ftp://example.com", []string{"deploy.success"}, true},
+		{"no scheme", "example.com/hook", []string{"deploy.success"}, true},
+		{"just text", "not-a-url", []string{"deploy.success"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := SiteConfig{WebhookURL: tt.url}
+			cfg := SiteConfig{WebhookURL: tt.url, WebhookEvents: tt.events}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -670,19 +671,20 @@ func TestValidateSiteConfig_WebhookURL(t *testing.T) {
 func TestValidateSiteConfig_WebhookEvents(t *testing.T) {
 	tests := []struct {
 		name    string
+		url     string
 		events  []string
 		wantErr bool
 	}{
-		{"nil", nil, false},
-		{"empty", []string{}, false},
-		{"valid single", []string{"deploy.success"}, false},
-		{"valid all", []string{"deploy.success", "deploy.failed", "site.created", "site.deleted"}, false},
-		{"unknown event", []string{"deploy.success", "deploy.started"}, true},
-		{"empty string event", []string{""}, true},
+		{"nil", "", nil, false},
+		{"empty", "", []string{}, false},
+		{"valid single", "https://example.com/hook", []string{"deploy.success"}, false},
+		{"valid all", "https://example.com/hook", []string{"deploy.success", "deploy.failed", "site.created", "site.deleted"}, false},
+		{"unknown event", "https://example.com/hook", []string{"deploy.success", "deploy.started"}, true},
+		{"empty string event", "https://example.com/hook", []string{""}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := SiteConfig{WebhookEvents: tt.events}
+			cfg := SiteConfig{WebhookURL: tt.url, WebhookEvents: tt.events}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -711,6 +713,35 @@ func TestSiteConfig_Merge_WebhookOverride(t *testing.T) {
 	}
 	if merged.WebhookSecret != "" {
 		t.Errorf("webhook_secret = %q, want empty (per-site override replaces all)", merged.WebhookSecret)
+	}
+}
+
+func TestValidateSiteConfig_SPAAndDirectoryListingMutuallyExclusive(t *testing.T) {
+	tr := true
+	cfg := SiteConfig{SPARouting: &tr, DirectoryListing: &tr}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for SPA + directory listing")
+	}
+}
+
+func TestValidateSiteConfig_WebhookURLRequiresEvents(t *testing.T) {
+	cfg := SiteConfig{WebhookURL: "https://example.com"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for webhook URL without events")
+	}
+}
+
+func TestValidateSiteConfig_WebhookEventsRequireURL(t *testing.T) {
+	cfg := SiteConfig{WebhookEvents: []string{"deploy.success"}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for webhook events without URL")
+	}
+}
+
+func TestValidateSiteConfig_WebhookSecretRequiresURL(t *testing.T) {
+	cfg := SiteConfig{WebhookSecret: "secret"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for webhook secret without URL")
 	}
 }
 

@@ -110,6 +110,19 @@ func (c SiteConfig) Validate() error {
 		}
 	}
 
+	if c.SPARouting != nil && *c.SPARouting && c.DirectoryListing != nil && *c.DirectoryListing {
+		return fmt.Errorf("spa_routing and directory_listing are mutually exclusive")
+	}
+	if c.WebhookURL != "" && len(c.WebhookEvents) == 0 {
+		return fmt.Errorf("webhook_url requires at least one webhook_events entry")
+	}
+	if c.WebhookURL == "" && len(c.WebhookEvents) > 0 {
+		return fmt.Errorf("webhook_events requires webhook_url")
+	}
+	if c.WebhookURL == "" && c.WebhookSecret != "" {
+		return fmt.Errorf("webhook_secret requires webhook_url")
+	}
+
 	return nil
 }
 
