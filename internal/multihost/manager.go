@@ -70,8 +70,9 @@ type Manager struct {
 	defaults   storage.SiteConfig
 	startSite  siteStarter
 
-	mu      sync.Mutex
-	servers map[string]*siteServer
+	mu       sync.Mutex
+	servers  map[string]*siteServer
+	starting map[string]chan struct{} // closed when startup completes
 }
 
 func New(cfg ManagerConfig) *Manager {
@@ -85,6 +86,7 @@ func New(cfg ManagerConfig) *Manager {
 		dnsSuffix:  cfg.DNSSuffix,
 		defaults:   cfg.Defaults,
 		servers:    make(map[string]*siteServer),
+		starting:   make(map[string]chan struct{}),
 	}
 	m.startSite = m.defaultStartSite
 	return m
@@ -95,6 +97,15 @@ func New(cfg ManagerConfig) *Manager {
 // is stopped and a new one is started with the correct listener type.
 func (m *Manager) EnsureServer(site string) error {
 	m.mu.Lock()
+
+	// If another goroutine is already starting this site, wait for it.
+	if ch, ok := m.starting[site]; ok {
+		m.mu.Unlock()
+		<-ch
+		return nil
+	}
+
+	var old *siteServer
 	if existing, ok := m.servers[site]; ok {
 		cfg, _ := m.store.ReadCurrentSiteConfig(site)
 		merged := cfg.Merge(m.defaults)
@@ -107,41 +118,44 @@ func (m *Manager) EnsureServer(site string) error {
 			return nil
 		}
 		// Public status changed — close old server, fall through to start new one.
+		old = existing
 		delete(m.servers, site)
+	} else if len(m.servers) >= m.maxSites {
 		m.mu.Unlock()
-		log.Printf("restarting site %q: public changed %v → %v", site, existing.isPublic, wantPublic)
-		existing.Close() //nolint:errcheck // best-effort shutdown of old server
-	} else {
-		if len(m.servers) >= m.maxSites {
-			m.mu.Unlock()
-			return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
-		}
-		m.mu.Unlock()
+		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
+	}
+
+	// Mark this site as starting so concurrent callers wait.
+	ch := make(chan struct{})
+	m.starting[site] = ch
+	m.mu.Unlock()
+
+	// Close the old server (if restarting) outside the lock.
+	// The starting guard prevents concurrent starts for the same site.
+	if old != nil {
+		log.Printf("restarting site %q", site)
+		old.Close() //nolint:errcheck // best-effort shutdown of old server
 	}
 
 	ss, err := m.startSite(site)
+
+	m.mu.Lock()
+	delete(m.starting, site)
+	close(ch)
 	if err != nil {
+		m.mu.Unlock()
 		return err
 	}
-
-	// Re-acquire lock and re-check — another goroutine may have started
-	// this site, or the limit may have been reached while we were starting.
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if _, ok := m.servers[site]; ok {
-		if err := ss.Close(); err != nil {
-			log.Printf("warning: closing duplicate site %q: %v", site, err)
-		}
-		return nil
-	}
 	if len(m.servers) >= m.maxSites {
-		if err := ss.Close(); err != nil {
-			log.Printf("warning: closing site %q (limit reached): %v", site, err)
+		m.mu.Unlock()
+		if cerr := ss.Close(); cerr != nil {
+			log.Printf("warning: closing site %q (limit reached): %v", site, cerr)
 		}
 		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
 	m.servers[site] = ss
 	metrics.SetActiveSites(len(m.servers))
+	m.mu.Unlock()
 	return nil
 }
 

@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Listener failures (health check, dev server, main server) now trigger a clean shutdown
   instead of calling `log.Fatalf`, which skipped defers and could lose in-flight analytics data.
+- Concurrent `EnsureServer` calls for the same site no longer race to start duplicate tsnet
+  servers. A per-site guard ensures only one goroutine starts a site at a time; others wait.
 
 ## [0.4.0] - 2026-02-28
 
