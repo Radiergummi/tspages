@@ -283,7 +283,7 @@ func TestDeleteDeployment_InvalidID(t *testing.T) {
 	s.MarkComplete("docs", "aaa11111")
 
 	for _, id := range []string{"", ".", "..", "../other", "a/b", "a\\b"} {
-		if err := s.DeleteDeployment("docs", id); err != ErrDeploymentNotFound {
+		if err := s.DeleteDeployment("docs", id); !errors.Is(err, ErrDeploymentNotFound) {
 			t.Errorf("DeleteDeployment(%q) = %v, want ErrDeploymentNotFound", id, err)
 		}
 	}

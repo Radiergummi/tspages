@@ -17,7 +17,7 @@ lint: lint-go lint-js
 
 lint-go:
 	@which golangci-lint > /dev/null 2>&1 || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-	golangci-lint run ./...
+	$(shell go env GOPATH)/bin/golangci-lint run ./...
 
 lint-js: node_modules
 	npm run lint
