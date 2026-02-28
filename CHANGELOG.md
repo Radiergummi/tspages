@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   steps required regardless of which version created the database.
 - Prometheus histogram buckets for HTTP request duration are now tuned for static file serving
   (sub-millisecond to 1s) instead of using the default buckets.
+- Webhook retries no longer hold a concurrency slot while sleeping between attempts, freeing
+  slots for other deliveries during the retry backoff window.
+- The per-site public/Funnel flag now uses an atomic boolean for explicit concurrency safety.
 
 ### Fixed
 

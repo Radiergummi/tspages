@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
@@ -35,7 +36,7 @@ type Handler struct {
 	site      string
 	dnsSuffix string
 	defaults  storage.SiteConfig
-	public    bool
+	public    atomic.Bool
 
 	mu         sync.RWMutex
 	resolved   bool // true once resolve() has run; cleared by InvalidateConfig
@@ -57,7 +58,7 @@ func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.S
 
 // SetPublic marks this handler as serving a public (Funnel) site.
 // When public, anonymous requests bypass the CanView check.
-func (h *Handler) SetPublic(b bool) { h.public = b }
+func (h *Handler) SetPublic(b bool) { h.public.Store(b) }
 
 // resolve returns the cached deployment state, resolving it on first call or
 // after InvalidateConfig. All filesystem lookups (Readlink, EvalSymlinks,
@@ -133,7 +134,7 @@ func (h *Handler) AnalyticsEnabled() bool {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
-	if !h.public && !auth.CanView(caps, h.site) {
+	if !h.public.Load() && !auth.CanView(caps, h.site) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}

@@ -820,7 +820,7 @@ func TestNotifier_SemaphoreDrop(t *testing.T) {
 	// Give goroutines time to start and fill the semaphore.
 	time.Sleep(100 * time.Millisecond)
 
-	// The 21st event should be dropped (default case in select).
+	// The 21st event should be dropped (semaphore full inside deliver).
 	n.Fire("deploy.success", "docs", cfg, map[string]any{"dropped": true})
 
 	time.Sleep(100 * time.Millisecond)

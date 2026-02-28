@@ -92,15 +92,7 @@ func (n *Notifier) Fire(event string, site string, cfg storage.SiteConfig, data 
 			return
 		}
 	}
-	select {
-	case n.sem <- struct{}{}:
-		go func() {
-			defer func() { <-n.sem }()
-			n.deliver(event, site, cfg, data)
-		}()
-	default:
-		log.Printf("webhook: dropping %s event for %s (too many pending deliveries)", event, site)
-	}
+	go n.deliver(event, site, cfg, data)
 }
 
 func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[string]any) {
@@ -119,7 +111,16 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 
 	maxAttempts := 1 + len(n.retryDelays)
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Acquire a semaphore slot only for the network call so retries
+		// (which sleep up to ~2.5 min total) don't hold a slot idle.
+		select {
+		case n.sem <- struct{}{}:
+		default:
+			log.Printf("webhook: dropping %s attempt %d for %s (too many pending deliveries)", event, attempt, site)
+			return
+		}
 		status, dur, sendErr := n.send(cfg.WebhookURL, cfg.WebhookSecret, msgID, ts, payload)
+		<-n.sem
 
 		errStr := ""
 		if sendErr != nil {
