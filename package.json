@@ -6,7 +6,8 @@
     "build": "vite build",
     "dev": "vite build --watch",
     "fmt": "oxfmt --write ./web/admin/src/**/*.{ts,css}",
-    "lint": "oxlint ./web/admin/src/**/*.{ts,css}"
+    "lint": "oxlint ./web/admin/src/**/*.{ts,css}",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

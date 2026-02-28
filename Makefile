@@ -5,6 +5,7 @@ all: build
 build: frontend go
 
 frontend: node_modules
+	npx tsc --noEmit
 	npx vite build
 
 go: frontend
