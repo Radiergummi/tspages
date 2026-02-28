@@ -2094,6 +2094,53 @@ func TestHandler_Gzip_RefusedWithQZero(t *testing.T) {
 	}
 }
 
+func TestHandler_SiteConfigMerge(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("app", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "index.html"), []byte("<h1>SPA</h1>"), 0644)
+	store.MarkComplete("app", "aaa11111")
+	store.ActivateDeployment("app", "aaa11111")
+
+	// Site-level config enables SPA routing.
+	spa := true
+	store.WriteSiteConfig("app", storage.SiteConfig{SPARouting: &spa})
+
+	h := NewHandler(store, "app", "", storage.SiteConfig{})
+
+	// Request a non-existent path — SPA should serve index.
+	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "nonexistent")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("with site config SPA=true: status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "SPA") {
+		t.Errorf("expected index content, got: %s", rec.Body.String())
+	}
+
+	// Deployment config overrides site config: disable SPA.
+	noSPA := false
+	store.WriteDeploymentConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &noSPA})
+	h.InvalidateConfig()
+
+	req = httptest.NewRequest("GET", "/nonexistent", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "nonexistent")
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("with deployment config SPA=false: status = %d, want 404", rec.Code)
+	}
+}
+
 func TestFormatBytes(t *testing.T) {
 	tests := []struct {
 		input int64

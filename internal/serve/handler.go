@@ -94,11 +94,15 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 		return "", "", storage.SiteConfig{}, false
 	}
 
-	raw, err := h.store.ReadDeploymentConfig(h.site, id)
+	deployCfg, err := h.store.ReadDeploymentConfig(h.site, id)
 	if err != nil {
-		slog.Error("reading site config", "site", h.site, "deployment", id, "err", err)
+		slog.Error("reading deployment config", "site", h.site, "deployment", id, "err", err)
 	}
-	merged := raw.Merge(h.defaults)
+	siteCfg, err := h.store.ReadSiteConfig(h.site)
+	if err != nil {
+		slog.Error("reading site config", "site", h.site, "err", err)
+	}
+	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
 
 	h.cachedID = id
 	h.cachedRoot = rr
