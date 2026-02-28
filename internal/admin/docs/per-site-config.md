@@ -24,15 +24,21 @@ to = "/wiki/*"
 
 ## Fields
 
-| Field             | Type                         | Default        | Description                                                               |
-| ----------------- | ---------------------------- | -------------- | ------------------------------------------------------------------------- |
-| `spa_routing`     | `bool`                       | `false`        | When true, unresolved paths serve the index page instead of 404.          |
-| `html_extensions` | `bool`                       | `false`        | When true, disables clean URLs (keeps `.html` in paths).                  |
-| `analytics`       | `bool`                       | `true`         | When false, disables analytics recording for this site.                   |
-| `index_page`      | `string`                     | `"index.html"` | File served for directory paths.                                          |
-| `not_found_page`  | `string`                     | `"404.html"`   | Custom 404 page. Falls back to a built-in default if the file is missing. |
-| `headers`         | `map[pattern]map[name]value` | --             | Custom response headers keyed by path pattern.                            |
-| `redirects`       | `array`                      | --             | Redirect rules, evaluated first-match.                                    |
+| Field               | Type                         | Default        | Description                                                                                                   |
+| ------------------- | ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `public`            | `bool`                       | `false`        | Make this site publicly accessible via Tailscale Funnel. Requires the `funnel` node attribute in your policy.  |
+| `spa_routing`       | `bool`                       | `false`        | When true, unresolved paths serve the index page instead of 404.                                              |
+| `html_extensions`   | `bool`                       | `false`        | When true, disables clean URLs (keeps `.html` in paths).                                                      |
+| `analytics`         | `bool`                       | `true`         | When false, disables analytics recording for this site.                                                       |
+| `directory_listing` | `bool`                       | `false`        | When true, shows a file listing for directories without an index page.                                        |
+| `index_page`        | `string`                     | `"index.html"` | File served for directory paths.                                                                              |
+| `not_found_page`    | `string`                     | `"404.html"`   | Custom 404 page. Falls back to a built-in default if the file is missing.                                     |
+| `trailing_slash`    | `string`                     | `""`           | Trailing slash behavior: `"add"`, `"remove"`, or `""` (no normalization).                                     |
+| `headers`           | `map[pattern]map[name]value` | --             | Custom response headers keyed by path pattern.                                                                |
+| `redirects`         | `array`                      | --             | Redirect rules, evaluated first-match.                                                                        |
+| `webhook_url`       | `string`                     | `""`           | URL to receive webhook notifications for this site. Must be `http://` or `https://`.                          |
+| `webhook_events`    | `array`                      | `[]`           | Events to notify: `deploy.success`, `deploy.failed`, `site.created`, `site.deleted`.                          |
+| `webhook_secret`    | `string`                     | `""`           | HMAC secret for signing webhook payloads.                                                                     |
 
 ## Header patterns
 
@@ -83,8 +89,10 @@ To disable clean URLs and require `.html` extensions in paths, set `html_extensi
 The server config can define `[defaults]` with the same fields. Per-deployment values override
 defaults:
 
-- `spa_routing`, `html_extensions`, `analytics`: deployment value wins when set; `nil` inherits the
-  default
-- `index_page`, `not_found_page`: deployment value wins when non-empty
+- `public`, `spa_routing`, `html_extensions`, `analytics`, `directory_listing`: deployment value wins
+  when set; `nil` inherits the default
+- `index_page`, `not_found_page`, `trailing_slash`: deployment value wins when non-empty
 - `headers`: deployment path patterns overlay defaults per-path
 - `redirects`: deployment value entirely replaces defaults (no merging)
+- `webhook_url`, `webhook_events`, `webhook_secret`: deployment value replaces defaults when
+  `webhook_url` is non-empty

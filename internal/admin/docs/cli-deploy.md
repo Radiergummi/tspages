@@ -1,4 +1,32 @@
-# CLI Deploy
+# CLI
+
+The `tspages` binary includes subcommands for deploying sites and generating configuration
+templates.
+
+## Init
+
+Generate an annotated `tspages.toml` template in the current directory:
+
+```bash
+tspages init [flags]
+```
+
+| Flag       | Description                                              |
+| ---------- | -------------------------------------------------------- |
+| `--server` | Generate a server config template instead of site config |
+
+By default, `tspages init` writes a per-site deployment config template. Use `--server` for a
+server-level config. The command refuses to overwrite an existing `tspages.toml`.
+
+```bash
+# Generate a site deployment config
+tspages init
+
+# Generate a server config
+tspages init --server
+```
+
+## Deploy
 
 The `tspages` binary doubles as a deploy client:
 

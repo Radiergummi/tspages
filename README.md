@@ -16,8 +16,12 @@ Features include:
   roll back deployments with a click. Drop a folder onto the dashboard to deploy right away.
 - **Fine-grained access control**: Use Tailscale's existing ACL system to control who can view or
   deploy to each site, down to the individual user or group level.
+- **Public access**: Optionally expose sites to the public internet via Tailscale Funnel with
+  `public = true` in `tspages.toml`. Tailnet users keep their identity; anonymous visitors get
+  read-only access.
 - **Per-site configuration**: Customize 404 pages, headers, redirects, and SPA routing on a
-  per-deployment basis with an optional `tspages.toml` included in your upload.
+  per-deployment basis with an optional `tspages.toml` included in your upload. Run `tspages init`
+  to generate an annotated template.
 - **Built-in analytics**: See request counts, top pages, visitor info, and more for each site.
 
 ## Quick Start
@@ -173,7 +177,7 @@ dashboard under Help.
 | Topic                                                            | Description                                         |
 | ---------------------------------------------------------------- | --------------------------------------------------- |
 | [Getting Started](internal/admin/docs/getting-started.md)        | Prerequisites, installation, first deployment       |
-| [CLI Deploy](internal/admin/docs/cli-deploy.md)                  | Deploying from the command line                     |
+| [CLI](internal/admin/docs/cli-deploy.md)                         | Init, deploy, and other CLI subcommands             |
 | [Upload Formats](internal/admin/docs/upload-formats.md)          | ZIP, tar, Markdown, and other supported formats     |
 | [Per-Site Configuration](internal/admin/docs/per-site-config.md) | `tspages.toml` fields, headers, redirects, SPA mode |
 | [Authorization](internal/admin/docs/authorization.md)            | Access levels, capability schema, grant examples    |

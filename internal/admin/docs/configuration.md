@@ -24,11 +24,14 @@ hide_footer = false        # hide the admin UI footer (default: false)
 # Server-wide defaults for per-site config. Deployments can override these
 # via their own tspages.toml included in the archive.
 [defaults]
+public = false
 spa_routing = false
 html_extensions = false
 analytics = true
+directory_listing = false
 index_page = "index.html"
 not_found_page = "404.html"
+trailing_slash = ""
 
 [defaults.headers]
 "/*" = { X-Frame-Options = "DENY" }
@@ -36,13 +39,23 @@ not_found_page = "404.html"
 
 ## Environment variables
 
-| Variable              | Overrides              | Notes                          |
-| --------------------- | ---------------------- | ------------------------------ |
-| `TS_AUTHKEY`          | `tailscale.auth_key`   | Reusable, tagged auth key      |
-| `TSPAGES_CAPABILITY`  | `tailscale.capability` | Capability name for grants     |
-| `TSPAGES_LOG_LEVEL`   | `server.log_level`     | Config file takes precedence   |
-| `TSPAGES_HEALTH_ADDR` | `server.health_addr`   | Local health check listener    |
-| `TSPAGES_SERVER`      | --                     | Used by the CLI deploy command |
+Every `[tailscale]` and `[server]` setting can be set via environment variables. Config file values
+always take precedence over environment variables.
+
+| Variable                 | Overrides                 | Notes                          |
+| ------------------------ | ------------------------- | ------------------------------ |
+| `TS_AUTHKEY`             | `tailscale.auth_key`      | Reusable, tagged auth key      |
+| `TSPAGES_HOSTNAME`       | `tailscale.hostname`      | Control plane tsnet hostname   |
+| `TSPAGES_STATE_DIR`      | `tailscale.state_dir`     | tsnet state directory          |
+| `TSPAGES_CAPABILITY`     | `tailscale.capability`    | Capability name for grants     |
+| `TSPAGES_DATA_DIR`       | `server.data_dir`         | Site storage root              |
+| `TSPAGES_MAX_UPLOAD_MB`  | `server.max_upload_mb`    | Max upload size in MB          |
+| `TSPAGES_MAX_SITES`      | `server.max_sites`        | Max concurrent site servers    |
+| `TSPAGES_MAX_DEPLOYMENTS`| `server.max_deployments`  | Deployments kept per site      |
+| `TSPAGES_LOG_LEVEL`      | `server.log_level`        | Log verbosity level            |
+| `TSPAGES_HEALTH_ADDR`    | `server.health_addr`      | Local health check listener    |
+| `TSPAGES_HIDE_FOOTER`    | `server.hide_footer`      | Hide the admin UI footer       |
+| `TSPAGES_SERVER`         | --                        | Used by the CLI deploy command |
 
 ## Docker
 

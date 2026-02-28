@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-28
+
+### Added
+
+- `tspages init` subcommand to generate an annotated `tspages.toml` template. Use `--server` for a
+  server config template or run without flags for a per-site deployment config template.
+- Public site access via Tailscale Funnel. Set `public = true` in `tspages.toml` to make a site
+  accessible from the internet. Tailnet users retain their identity and capabilities; anonymous
+  visitors get read-only access. Requires the `funnel` node attribute in your tailnet policy.
+- On-the-fly Brotli compression for compressible responses. Previously only precompressed `.br`
+  files were served; now responses are compressed with Brotli dynamically when no precompressed
+  variant exists and the client supports it. Brotli is preferred over gzip when both are accepted.
+- Environment variable overrides for all server configuration fields. Every `[tailscale]` and
+  `[server]` setting can now be set via `TSPAGES_*` environment variables (e.g.
+  `TSPAGES_HOSTNAME`, `TSPAGES_DATA_DIR`, `TSPAGES_MAX_UPLOAD_MB`). Config file values always
+  take precedence over environment variables.
+- Go linting with golangci-lint. Enabled linters: staticcheck, govet, errcheck, gosec, revive,
+  gocritic, misspell, and others. Run `make lint` locally or see the `lint-go` CI job.
+- `make lint`, `make test` targets with Go and JS sub-targets (`lint-go`, `lint-js`, `test-go`,
+  `test-js`). Tests now run with the race detector enabled.
+
 ### Changed
 
 - Site configuration, deployment ID, and content root are now cached in memory instead of
@@ -30,26 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files, preventing a potential path traversal via symlinked precompressed assets.
 - Avatar image URLs in the admin dashboard now only render for `https://` or relative paths,
   rejecting `javascript:` and other dangerous schemes.
-
-### Added
-
-- Go linting with golangci-lint. Enabled linters: staticcheck, govet, errcheck, gosec, revive,
-  gocritic, misspell, and others. Run `make lint` locally or see the `lint-go` CI job.
-- `make lint`, `make test` targets with Go and JS sub-targets (`lint-go`, `lint-js`, `test-go`,
-  `test-js`). Tests now run with the race detector enabled.
-
-- `tspages init` subcommand to generate an annotated `tspages.toml` template. Use `--server` for a
-  server config template or run without flags for a per-site deployment config template.
-- Public site access via Tailscale Funnel. Set `public = true` in `tspages.toml` to make a site
-  accessible from the internet. Tailnet users retain their identity and capabilities; anonymous
-  visitors get read-only access. Requires the `funnel` node attribute in your tailnet policy.
-- On-the-fly Brotli compression for compressible responses. Previously only precompressed `.br`
-  files were served; now responses are compressed with Brotli dynamically when no precompressed
-  variant exists and the client supports it. Brotli is preferred over gzip when both are accepted.
-- Environment variable overrides for all server configuration fields. Every `[tailscale]` and
-  `[server]` setting can now be set via `TSPAGES_*` environment variables (e.g.
-  `TSPAGES_HOSTNAME`, `TSPAGES_DATA_DIR`, `TSPAGES_MAX_UPLOAD_MB`). Config file values always
-  take precedence over environment variables.
 
 ## [0.3.0] - 2026-02-28
 
@@ -115,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tspages deploy` CLI subcommand with server auto-discovery.
 - GitHub Actions deploy action.
 
-[Unreleased]: https://github.com/Radiergummi/tspages/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Radiergummi/tspages/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Radiergummi/tspages/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Radiergummi/tspages/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Radiergummi/tspages/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Radiergummi/tspages/releases/tag/v0.1.0
