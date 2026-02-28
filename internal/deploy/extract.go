@@ -3,10 +3,10 @@ package deploy
 import (
 	"archive/tar"
 	"archive/zip"
-	"errors"
 	"bytes"
 	"compress/gzip"
 	_ "embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -344,4 +344,3 @@ func decompressXz(r io.Reader, maxBytes int64) ([]byte, error) {
 	}
 	return inner, nil
 }
-

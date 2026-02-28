@@ -1065,10 +1065,10 @@ func TestHasContentHash(t *testing.T) {
 		{"assets/main.a1b2c3d4.js", true},
 		{"style.css", false},
 		{"index.html", false},
-		{"dashboard.js", false},     // all letters, no digits
-		{"12345678.js", false},      // all digits, no letters
-		{"ab12.js", false},          // too short
-		{"readme.txt", false},       // no hash segment
+		{"dashboard.js", false},      // all letters, no digits
+		{"12345678.js", false},       // all digits, no letters
+		{"ab12.js", false},           // too short
+		{"readme.txt", false},        // no hash segment
 		{"some-file-name.js", false}, // segments too short
 	}
 	for _, tt := range tests {
@@ -1547,14 +1547,14 @@ func TestCheckTrailingSlash(t *testing.T) {
 		ok   bool
 	}{
 		{"/about", "add", "/about/", true},
-		{"/about/", "add", "", false},            // already has slash
-		{"/style.css", "add", "", false},          // file extension
-		{"/", "add", "", false},                   // root
+		{"/about/", "add", "", false},    // already has slash
+		{"/style.css", "add", "", false}, // file extension
+		{"/", "add", "", false},          // root
 		{"/about/", "remove", "/about", true},
-		{"/about", "remove", "", false},           // no trailing slash
-		{"/", "remove", "", false},                // root
-		{"/about", "", "", false},                 // disabled
-		{"/about/", "", "", false},                // disabled
+		{"/about", "remove", "", false}, // no trailing slash
+		{"/", "remove", "", false},      // root
+		{"/about", "", "", false},       // disabled
+		{"/about/", "", "", false},      // disabled
 		{"/docs/api", "add", "/docs/api/", true},
 		{"/docs/api/", "remove", "/docs/api", true},
 	}
@@ -1850,12 +1850,12 @@ func TestCleanURLRedirect(t *testing.T) {
 		{"/about.htm", "/about", true},
 		{"/docs/setup.html", "/docs/setup", true},
 		{"/About.HTML", "/About", true},
-		{"/index.html", "", false},    // index files excluded
-		{"/index.htm", "", false},     // index files excluded
-		{"/Index.HTML", "", false},    // case insensitive
-		{"/style.css", "", false},     // non-HTML
-		{"/about", "", false},         // no extension
-		{"/", "", false},              // root
+		{"/index.html", "", false}, // index files excluded
+		{"/index.htm", "", false},  // index files excluded
+		{"/Index.HTML", "", false}, // case insensitive
+		{"/style.css", "", false},  // non-HTML
+		{"/about", "", false},      // no extension
+		{"/", "", false},           // root
 	}
 	for _, tt := range tests {
 		got, ok := cleanURLRedirect(tt.path)

@@ -20,10 +20,10 @@ type Cap struct {
 // WhoIsResult is the subset of WhoIs response data we need.
 // This decouples us from the tailscale types for testability.
 type WhoIsResult struct {
-	CapMap         map[string][]json.RawMessage
-	LoginName      string
-	DisplayName    string
-	ProfilePicURL  string
+	CapMap        map[string][]json.RawMessage
+	LoginName     string
+	DisplayName   string
+	ProfilePicURL string
 	// Node metadata for analytics.
 	NodeName  string
 	NodeIP    string
@@ -258,11 +258,11 @@ func Middleware(client WhoIsClient, capName string) func(http.Handler) http.Hand
 				UserName:      result.DisplayName,
 				ProfilePicURL: result.ProfilePicURL,
 				NodeName:      result.NodeName,
-				NodeIP:    result.NodeIP,
-				OS:        result.OS,
-				OSVersion: result.OSVersion,
-				Device:    result.Device,
-				Tags:      result.Tags,
+				NodeIP:        result.NodeIP,
+				OS:            result.OS,
+				OSVersion:     result.OSVersion,
+				Device:        result.Device,
+				Tags:          result.Tags,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

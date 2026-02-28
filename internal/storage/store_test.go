@@ -304,11 +304,11 @@ func TestValidSiteName(t *testing.T) {
 		{"a.b", false},
 		{"a/b", false},
 		{"a\\b", false},
-		{"site_v2", false},    // underscores not allowed
-		{"Docs", false},       // uppercase not allowed
-		{"-leading", false},   // leading hyphen
-		{"trailing-", false},  // trailing hyphen
-		{"has space", false},  // spaces not allowed
+		{"site_v2", false},   // underscores not allowed
+		{"Docs", false},      // uppercase not allowed
+		{"-leading", false},  // leading hyphen
+		{"trailing-", false}, // trailing hyphen
+		{"has space", false}, // spaces not allowed
 		{"a\x00b", false},    // null byte
 	}
 	for _, tt := range tests {
@@ -325,9 +325,9 @@ func TestMaxSiteNameLen(t *testing.T) {
 		suffix string
 		want   int
 	}{
-		{"", 63},                    // no suffix → DNS label max
-		{"tail1234.ts.net", 63},     // short suffix → still capped at 63
-		{"tailnet.ts.net", 63},      // 14 chars → 253-1-14=238, capped at 63
+		{"", 63},                        // no suffix → DNS label max
+		{"tail1234.ts.net", 63},         // short suffix → still capped at 63
+		{"tailnet.ts.net", 63},          // 14 chars → 253-1-14=238, capped at 63
 		{string(make([]byte, 200)), 52}, // 200-char suffix → 253-1-200=52
 		{string(make([]byte, 252)), 1},  // extreme → floor at 1
 	}

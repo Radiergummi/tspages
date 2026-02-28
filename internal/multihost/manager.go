@@ -160,11 +160,11 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 				UserName:      ri.UserName,
 				ProfilePicURL: ri.ProfilePicURL,
 				NodeName:      ri.NodeName,
-				NodeIP:    ri.NodeIP,
-				OS:        ri.OS,
-				OSVersion: ri.OSVersion,
-				Device:    ri.Device,
-				Tags:      ri.Tags,
+				NodeIP:        ri.NodeIP,
+				OS:            ri.OS,
+				OSVersion:     ri.OSVersion,
+				Device:        ri.Device,
+				Tags:          ri.Tags,
 			})
 		}
 	})

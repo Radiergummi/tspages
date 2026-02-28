@@ -76,7 +76,7 @@ func TestWriteReadSiteConfig(t *testing.T) {
 
 	analytics := true
 	cfg := SiteConfig{
-		SPARouting:          boolPtr(true),
+		SPARouting:   boolPtr(true),
 		Analytics:    &analytics,
 		NotFoundPage: "404.html",
 		Headers: map[string]map[string]string{
@@ -155,7 +155,7 @@ func TestReadCurrentSiteConfig_NoDeployment(t *testing.T) {
 
 func TestSiteConfig_Merge(t *testing.T) {
 	defaults := SiteConfig{
-		SPARouting:          boolPtr(true),
+		SPARouting:   boolPtr(true),
 		Analytics:    boolPtr(true),
 		NotFoundPage: "404.html",
 		Headers: map[string]map[string]string{
@@ -165,8 +165,8 @@ func TestSiteConfig_Merge(t *testing.T) {
 
 	// Deployment overrides SPA and analytics, adds a header path
 	deploy := SiteConfig{
-		SPARouting:       boolPtr(false),
-		Analytics: boolPtr(false),
+		SPARouting: boolPtr(false),
+		Analytics:  boolPtr(false),
 		Headers: map[string]map[string]string{
 			"/assets/*": {"Cache-Control": "public, max-age=86400"},
 		},
@@ -193,9 +193,9 @@ func TestSiteConfig_Merge(t *testing.T) {
 
 func TestSiteConfig_Merge_EmptyDeployment(t *testing.T) {
 	defaults := SiteConfig{
-		SPARouting:       boolPtr(true),
-		Analytics: boolPtr(true),
-		IndexPage: "home.html",
+		SPARouting: boolPtr(true),
+		Analytics:  boolPtr(true),
+		IndexPage:  "home.html",
 	}
 	deploy := SiteConfig{} // all zero values
 

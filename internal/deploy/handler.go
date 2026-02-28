@@ -150,11 +150,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	extractReq := ExtractRequest{
-		Body:     body,
-		Query:    r.URL.Query().Get("format"),
+		Body:               body,
+		Query:              r.URL.Query().Get("format"),
 		ContentType:        r.Header.Get("Content-Type"),
 		ContentDisposition: r.Header.Get("Content-Disposition"),
-		Filename: r.PathValue("filename"),
+		Filename:           r.PathValue("filename"),
 	}
 	extractedBytes, err := Extract(extractReq, contentDir, maxBytes)
 	if err != nil {

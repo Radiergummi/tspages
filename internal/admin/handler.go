@@ -40,7 +40,7 @@ type SitesResponse struct {
 
 // SiteDetailResponse is the JSON response for GET /sites/{site}.
 type SiteDetailResponse struct {
-	Site        SiteStatus              `json:"site"`
+	Site        SiteStatus               `json:"site"`
 	Deployments []storage.DeploymentInfo `json:"deployments"`
 }
 
@@ -92,48 +92,48 @@ type SiteHealthChecker interface {
 
 // Handlers groups all admin HTTP handlers.
 type Handlers struct {
-	Sites          *SitesHandler
-	Site           *SiteHandler
-	Deployment     *DeploymentHandler
-	CreateSite     *CreateSiteHandler
-	Deployments    *DeploymentsHandler
-	Analytics      *AnalyticsHandler
-	PurgeAnalytics *PurgeAnalyticsHandler
-	AllAnalytics   *AllAnalyticsHandler
+	Sites           *SitesHandler
+	Site            *SiteHandler
+	Deployment      *DeploymentHandler
+	CreateSite      *CreateSiteHandler
+	Deployments     *DeploymentsHandler
+	Analytics       *AnalyticsHandler
+	PurgeAnalytics  *PurgeAnalyticsHandler
+	AllAnalytics    *AllAnalyticsHandler
 	Webhooks        *WebhooksHandler
 	WebhookDetail   *WebhookDetailHandler
 	WebhookRetry    *WebhookRetryHandler
 	SiteWebhooks    *SiteWebhooksHandler
 	SiteDeployments *SiteDeploymentsHandler
 	Help            *HelpHandler
-	API            *APIHandler
-	Feed           *FeedHandler
-	SiteFeed       *SiteFeedHandler
-	SiteHealth     *SiteHealthHandler
+	API             *APIHandler
+	Feed            *FeedHandler
+	SiteFeed        *SiteFeedHandler
+	SiteHealth      *SiteHealthHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
 	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
 	wh := &WebhooksHandler{handlerDeps: d, notifier: notifier}
 	return &Handlers{
-		Sites:          &SitesHandler{d},
-		Site:           &SiteHandler{handlerDeps: d, notifier: notifier},
-		Deployment:     &DeploymentHandler{d},
-		CreateSite:     &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
-		Deployments:    &DeploymentsHandler{d},
-		Analytics:      &AnalyticsHandler{d},
-		PurgeAnalytics: &PurgeAnalyticsHandler{d},
-		AllAnalytics:   &AllAnalyticsHandler{d},
+		Sites:           &SitesHandler{d},
+		Site:            &SiteHandler{handlerDeps: d, notifier: notifier},
+		Deployment:      &DeploymentHandler{d},
+		CreateSite:      &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
+		Deployments:     &DeploymentsHandler{d},
+		Analytics:       &AnalyticsHandler{d},
+		PurgeAnalytics:  &PurgeAnalyticsHandler{d},
+		AllAnalytics:    &AllAnalyticsHandler{d},
 		Webhooks:        wh,
 		WebhookDetail:   &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
 		WebhookRetry:    &WebhookRetryHandler{handlerDeps: d, notifier: notifier},
 		SiteWebhooks:    &SiteWebhooksHandler{WebhooksHandler: wh},
 		SiteDeployments: &SiteDeploymentsHandler{d},
-		Help:           &HelpHandler{},
-		API:            &APIHandler{},
-		Feed:           &FeedHandler{d},
-		SiteFeed:       &SiteFeedHandler{d},
-		SiteHealth:     &SiteHealthHandler{handlerDeps: d, checker: checker},
+		Help:            &HelpHandler{},
+		API:             &APIHandler{},
+		Feed:            &FeedHandler{d},
+		SiteFeed:        &SiteFeedHandler{d},
+		SiteHealth:      &SiteHealthHandler{handlerDeps: d, checker: checker},
 	}
 }
 
@@ -370,18 +370,18 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	renderPage(w, r, siteTmpl, "sites", struct {
 		SiteDetailResponse
-		User              UserInfo
-		Admin             bool
-		CanDelete         bool
-		CanDeploy         bool
-		HasInactive       bool
-		AnalyticsEnabled  bool
-		Config            storage.SiteConfig
-		DNSSuffix         string
-		Host              string
-		Sparkline         string
-		RecentDeliveries  []webhook.DeliverySummary
-		TotalDeployments  int
+		User             UserInfo
+		Admin            bool
+		CanDelete        bool
+		CanDeploy        bool
+		HasInactive      bool
+		AnalyticsEnabled bool
+		Config           storage.SiteConfig
+		DNSSuffix        string
+		Host             string
+		Sparkline        string
+		RecentDeliveries []webhook.DeliverySummary
+		TotalDeployments int
 	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
 }
 
@@ -607,7 +607,7 @@ type AnalyticsData struct {
 	CountOK          int64
 	Count4xx         int64
 	Count5xx         int64
-	TopPages         []analytics.PathCount   // per-site only
+	TopPages         []analytics.PathCount // per-site only
 	TopVisitors      []analytics.VisitorCount
 	StatusCodes      []analytics.StatusCount
 	OS               []analytics.OSCount

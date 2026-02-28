@@ -279,7 +279,7 @@ func TestExtract_Markdown_ContentDisposition(t *testing.T) {
 	dir := t.TempDir()
 	body := []byte("- item 1\n- item 2")
 	_, err := Extract(ExtractRequest{
-		Body:  body,
+		Body:               body,
 		ContentDisposition: `attachment; filename="readme.md"`,
 	}, dir, 10<<20)
 	if err != nil {

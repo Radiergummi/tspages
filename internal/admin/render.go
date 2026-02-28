@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
-	"sync/atomic"
 	"io/fs"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"tspages/internal/auth"
@@ -508,13 +508,13 @@ var funcs = template.FuncMap{
 }
 
 var (
-	sitesTmpl       = newTmpl("templates/layout.gohtml", "templates/sites.gohtml")
-	siteTmpl        = newTmpl("templates/layout.gohtml", "templates/site.gohtml")
-	deploymentTmpl  = newTmpl("templates/layout.gohtml", "templates/deployment.gohtml")
-	deploymentsTmpl = newTmpl("templates/layout.gohtml", "templates/deployments.gohtml")
-	analyticsTmpl   = newTmpl("templates/layout.gohtml", "templates/analytics.gohtml")
-	helpTmpl        = newTmpl("templates/layout.gohtml", "templates/help.gohtml")
-	apiTmpl         = newTmpl("templates/layout.gohtml", "templates/api.gohtml")
+	sitesTmpl           = newTmpl("templates/layout.gohtml", "templates/sites.gohtml")
+	siteTmpl            = newTmpl("templates/layout.gohtml", "templates/site.gohtml")
+	deploymentTmpl      = newTmpl("templates/layout.gohtml", "templates/deployment.gohtml")
+	deploymentsTmpl     = newTmpl("templates/layout.gohtml", "templates/deployments.gohtml")
+	analyticsTmpl       = newTmpl("templates/layout.gohtml", "templates/analytics.gohtml")
+	helpTmpl            = newTmpl("templates/layout.gohtml", "templates/help.gohtml")
+	apiTmpl             = newTmpl("templates/layout.gohtml", "templates/api.gohtml")
 	webhooksTmpl        = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
 	webhookDetailTmpl   = newTmpl("templates/layout.gohtml", "templates/webhook.gohtml")
 	siteDeploymentsTmpl = newTmpl("templates/layout.gohtml", "templates/site-deployments.gohtml")
