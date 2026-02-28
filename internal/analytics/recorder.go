@@ -165,7 +165,6 @@ func (r *Recorder) flush(events []Event) {
 	}
 	if err := tx.Commit(); err != nil {
 		log.Printf("analytics: commit: %v", err)
-		tx.Rollback()
 	}
 }
 
