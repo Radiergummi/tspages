@@ -105,97 +105,50 @@ func matchesSite(sites []string, site string) bool {
 	return false
 }
 
-// CanView reports whether caps grant view access to the named site.
-func CanView(caps []Cap, site string) bool {
+// hasCap reports whether any cap with one of the given access levels matches
+// the site. Pass site == "" for global (non-site-scoped) checks.
+func hasCap(caps []Cap, site string, levels ...string) bool {
 	for _, c := range caps {
-		switch c.Access {
-		case "admin", "deploy", "view":
-			if matchesSite(c.Sites, site) {
-				return true
+		for _, l := range levels {
+			if c.Access == l {
+				if site == "" || matchesSite(c.Sites, site) {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
+// CanView reports whether caps grant view access to the named site.
+func CanView(caps []Cap, site string) bool { return hasCap(caps, site, "admin", "deploy", "view") }
+
 // CanDeploy reports whether caps grant deploy access to the named site.
-func CanDeploy(caps []Cap, site string) bool {
-	for _, c := range caps {
-		switch c.Access {
-		case "admin", "deploy":
-			if matchesSite(c.Sites, site) {
-				return true
-			}
-		}
-	}
-	return false
-}
+func CanDeploy(caps []Cap, site string) bool { return hasCap(caps, site, "admin", "deploy") }
 
 // CanDeleteSite reports whether caps grant permission to delete a site.
 // Requires an admin cap that covers the site.
-func CanDeleteSite(caps []Cap, site string) bool {
-	for _, c := range caps {
-		if c.Access == "admin" && matchesSite(c.Sites, site) {
-			return true
-		}
-	}
-	return false
-}
+func CanDeleteSite(caps []Cap, site string) bool { return hasCap(caps, site, "admin") }
 
 // CanCreateSite reports whether caps grant permission to create a site
 // with the given name. Requires an admin cap covering that name.
-func CanCreateSite(caps []Cap, name string) bool {
-	for _, c := range caps {
-		if c.Access == "admin" && matchesSite(c.Sites, name) {
-			return true
-		}
-	}
-	return false
-}
+func CanCreateSite(caps []Cap, name string) bool { return hasCap(caps, name, "admin") }
+
+// IsAdmin reports whether any cap grants admin access to the named site.
+func IsAdmin(caps []Cap, site string) bool { return hasCap(caps, site, "admin") }
 
 // CanScrapeMetrics reports whether caps grant access to the metrics endpoint.
 // This is a global (non-site-scoped) capability; the Sites field is ignored.
-func CanScrapeMetrics(caps []Cap) bool {
-	for _, c := range caps {
-		if c.Access == "admin" || c.Access == "metrics" {
-			return true
-		}
-	}
-	return false
-}
-
-// IsAdmin reports whether any cap grants admin access to the named site.
-func IsAdmin(caps []Cap, site string) bool {
-	for _, c := range caps {
-		if c.Access == "admin" && matchesSite(c.Sites, site) {
-			return true
-		}
-	}
-	return false
-}
+func CanScrapeMetrics(caps []Cap) bool { return hasCap(caps, "", "admin", "metrics") }
 
 // HasAdminCap reports whether any cap grants admin access to at least one site.
 // Use this for global pages (webhooks, analytics overview) and UI elements
 // that should appear when the user has any admin access at all.
-func HasAdminCap(caps []Cap) bool {
-	for _, c := range caps {
-		if c.Access == "admin" {
-			return true
-		}
-	}
-	return false
-}
+func HasAdminCap(caps []Cap) bool { return hasCap(caps, "", "admin") }
 
 // HasDeployCap reports whether any cap grants deploy or admin access.
 // Use this for pages that should be accessible to deployers, not just admins.
-func HasDeployCap(caps []Cap) bool {
-	for _, c := range caps {
-		if c.Access == "admin" || c.Access == "deploy" {
-			return true
-		}
-	}
-	return false
-}
+func HasDeployCap(caps []Cap) bool { return hasCap(caps, "", "admin", "deploy") }
 
 // CapsFromContext retrieves parsed caps from the request context.
 func CapsFromContext(ctx context.Context) []Cap {
