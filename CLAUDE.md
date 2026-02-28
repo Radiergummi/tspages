@@ -14,6 +14,15 @@ go test -run TestHandler_ServesFile ./internal/serve/...  # run a single test
 
 No linter, Makefile, or CI configuration exists. The module is `tspages` using Go 1.25.
 
+## Changelog
+
+**Every commit must include a corresponding update to `CHANGELOG.md`.** Add a bullet under the
+`[Unreleased]` section in the appropriate subsection (`Added`, `Changed`, `Fixed`, `Removed`). Write
+entries from the user's perspective — describe the observable effect, not the implementation detail.
+The changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. At release
+time, `[Unreleased]` is renamed to the new version with a date, and the comparison links at the
+bottom are updated.
+
 ## Architecture
 
 tspages is a static site hosting platform for Tailscale networks. It runs multiple tsnet servers —
