@@ -151,55 +151,9 @@ func main() {
 	healthHandler := admin.NewHealthHandler(store, recorder)
 
 	mux := http.NewServeMux()
-	// Health checks
-	mux.Handle("GET /healthz", healthHandler)
-	mux.Handle("GET /sites/{site}/healthz", withAuth(h.SiteHealth))
-	// Deploy API (JSON only)
-	mux.Handle("POST /deploy/{site}", withAuth(deployHandler))
-	mux.Handle("POST /deploy/{site}/{filename}", withAuth(deployHandler))
-	mux.Handle("PUT /deploy/{site}", withAuth(deployHandler))
-	mux.Handle("PUT /deploy/{site}/{filename}", withAuth(deployHandler))
-	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
-	mux.Handle("DELETE /deploy/{site}", withAuth(deleteHandler))
-	mux.Handle("DELETE /deploy/{site}/deployments", withAuth(cleanupDeploymentsHandler))
-	mux.Handle("DELETE /deploy/{site}/{id}", withAuth(deleteDeploymentHandler))
-	mux.Handle("POST /deploy/{site}/{id}/activate", withAuth(activateHandler))
-	// Browse routes (HTML + JSON via Accept header or .json suffix)
-	mux.Handle("POST /sites", withAuth(h.CreateSite))
-	mux.Handle("GET /sites", withAuth(h.Sites))
-	mux.Handle("GET /sites.json", withAuth(h.Sites))
-	mux.Handle("GET /sites/{site}", withAuth(h.Site))
-	mux.Handle("GET /sites/{site}/deployments", withAuth(h.SiteDeployments))
-	mux.Handle("GET /sites/{site}/deployments.json", withAuth(h.SiteDeployments))
-	mux.Handle("GET /sites/{site}/deployments/{id}", withAuth(h.Deployment))
-	mux.Handle("GET /sites/{site}/analytics", withAuth(h.Analytics))
-	mux.Handle("GET /sites/{site}/analytics.json", withAuth(h.Analytics))
-	mux.Handle("POST /sites/{site}/analytics/purge", withAuth(h.PurgeAnalytics))
-	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /deployments", withAuth(h.Deployments))
-	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
-	mux.Handle("GET /webhooks", withAuth(h.Webhooks))
-	mux.Handle("GET /webhooks.json", withAuth(h.Webhooks))
-	mux.Handle("GET /webhooks/{id}", withAuth(h.WebhookDetail))
-	mux.Handle("POST /webhooks/{id}/retry", withAuth(h.WebhookRetry))
-	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
-	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
-	mux.Handle("GET /feed.atom", withAuth(h.Feed))
-	mux.Handle("GET /sites/{site}/feed.atom", withAuth(h.SiteFeed))
-	mux.Handle("GET /help", withAuth(h.Help))
-	mux.Handle("GET /help/{page...}", withAuth(h.Help))
-	mux.Handle("GET /assets/dist/{file...}", admin.AssetHandler())
-	mux.Handle("GET /api", withAuth(h.API))
-	mux.Handle("GET /openapi.yaml", admin.OpenAPIHandler())
-	mux.Handle("GET /openapi", admin.SwaggerUIHandler())
-	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		metrics.Handler().ServeHTTP(w, r)
-	})))
+	registerRoutes(mux, withAuth, h, healthHandler,
+		deployHandler, listHandler, deleteHandler,
+		deleteDeploymentHandler, cleanupDeploymentsHandler, activateHandler)
 
 	var devWSProxy http.Handler
 	if *dev {
@@ -277,4 +231,67 @@ func main() {
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+func registerRoutes(
+	mux *http.ServeMux,
+	withAuth func(http.Handler) http.Handler,
+	h *admin.Handlers,
+	healthHandler http.Handler,
+	deployHandler http.Handler,
+	listHandler http.Handler,
+	deleteHandler http.Handler,
+	deleteDeploymentHandler http.Handler,
+	cleanupDeploymentsHandler http.Handler,
+	activateHandler http.Handler,
+) {
+	// Health checks
+	mux.Handle("GET /healthz", healthHandler)
+	mux.Handle("GET /sites/{site}/healthz", withAuth(h.SiteHealth))
+	// Deploy API (JSON only)
+	mux.Handle("POST /deploy/{site}", withAuth(deployHandler))
+	mux.Handle("POST /deploy/{site}/{filename}", withAuth(deployHandler))
+	mux.Handle("PUT /deploy/{site}", withAuth(deployHandler))
+	mux.Handle("PUT /deploy/{site}/{filename}", withAuth(deployHandler))
+	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
+	mux.Handle("DELETE /deploy/{site}", withAuth(deleteHandler))
+	mux.Handle("DELETE /deploy/{site}/deployments", withAuth(cleanupDeploymentsHandler))
+	mux.Handle("DELETE /deploy/{site}/{id}", withAuth(deleteDeploymentHandler))
+	mux.Handle("POST /deploy/{site}/{id}/activate", withAuth(activateHandler))
+	// Browse routes (HTML + JSON via Accept header or .json suffix)
+	mux.Handle("POST /sites", withAuth(h.CreateSite))
+	mux.Handle("GET /sites", withAuth(h.Sites))
+	mux.Handle("GET /sites.json", withAuth(h.Sites))
+	mux.Handle("GET /sites/{site}", withAuth(h.Site))
+	mux.Handle("GET /sites/{site}/deployments", withAuth(h.SiteDeployments))
+	mux.Handle("GET /sites/{site}/deployments.json", withAuth(h.SiteDeployments))
+	mux.Handle("GET /sites/{site}/deployments/{id}", withAuth(h.Deployment))
+	mux.Handle("GET /sites/{site}/analytics", withAuth(h.Analytics))
+	mux.Handle("GET /sites/{site}/analytics.json", withAuth(h.Analytics))
+	mux.Handle("POST /sites/{site}/analytics/purge", withAuth(h.PurgeAnalytics))
+	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
+	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))
+	mux.Handle("GET /deployments", withAuth(h.Deployments))
+	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
+	mux.Handle("GET /webhooks", withAuth(h.Webhooks))
+	mux.Handle("GET /webhooks.json", withAuth(h.Webhooks))
+	mux.Handle("GET /webhooks/{id}", withAuth(h.WebhookDetail))
+	mux.Handle("POST /webhooks/{id}/retry", withAuth(h.WebhookRetry))
+	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
+	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
+	mux.Handle("GET /feed.atom", withAuth(h.Feed))
+	mux.Handle("GET /sites/{site}/feed.atom", withAuth(h.SiteFeed))
+	mux.Handle("GET /help", withAuth(h.Help))
+	mux.Handle("GET /help/{page...}", withAuth(h.Help))
+	mux.Handle("GET /assets/dist/{file...}", admin.AssetHandler())
+	mux.Handle("GET /api", withAuth(h.API))
+	mux.Handle("GET /openapi.yaml", admin.OpenAPIHandler())
+	mux.Handle("GET /openapi", admin.SwaggerUIHandler())
+	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		metrics.Handler().ServeHTTP(w, r)
+	})))
 }

@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Webhook retries no longer hold a concurrency slot while sleeping between attempts, freeing
   slots for other deliveries during the retry backoff window.
 - The per-site public/Funnel flag now uses an atomic boolean for explicit concurrency safety.
+- Route registration in `main.go` is extracted to a dedicated function, keeping `main` focused on
+  lifecycle (config, init, start, shutdown).
 
 ### Fixed
 
