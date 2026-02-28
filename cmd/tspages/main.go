@@ -155,6 +155,8 @@ func main() {
 		deployHandler, listHandler, deleteHandler,
 		deleteDeploymentHandler, cleanupDeploymentsHandler, activateHandler)
 
+	listenErr := make(chan error, 3)
+
 	var devWSProxy http.Handler
 	if *dev {
 		tmplDir, err := filepath.Abs("internal/admin/templates")
@@ -178,7 +180,7 @@ func main() {
 				ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "dev@localhost", DisplayName: "Developer"})
 				mux.ServeHTTP(w, r.WithContext(ctx))
 			})); err != nil {
-				log.Fatalf("dev server: %v", err)
+				listenErr <- fmt.Errorf("dev server: %w", err)
 			}
 		}()
 	}
@@ -202,7 +204,7 @@ func main() {
 		go func() {
 			log.Printf("health check listening on http://%s/healthz", addr)
 			if err := http.ListenAndServe(addr, healthMux); err != nil {
-				log.Fatalf("health listener: %v", err)
+				listenErr <- fmt.Errorf("health listener: %w", err)
 			}
 		}()
 	}
@@ -218,12 +220,16 @@ func main() {
 	httpSrv := &http.Server{Handler: httplog.Wrap(mux)}
 	go func() {
 		if err := httpSrv.Serve(ln); err != http.ErrServerClosed {
-			log.Fatalf("serve: %v", err)
+			listenErr <- fmt.Errorf("serve: %w", err)
 		}
 	}()
 
 	log.Printf("tspages control plane listening on https://%s", cfg.Tailscale.Hostname)
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case err := <-listenErr:
+		log.Printf("fatal: %v", err)
+	}
 	log.Printf("shutting down...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

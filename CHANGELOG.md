@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Listener failures (health check, dev server, main server) now trigger a clean shutdown
+  instead of calling `log.Fatalf`, which skipped defers and could lose in-flight analytics data.
+
 ## [0.4.0] - 2026-02-28
 
 ### Added

@@ -265,8 +265,8 @@ func DevWebSocketProxy() http.Handler {
 		// Flush any buffered client data to Vite.
 		if n := clientBuf.Reader.Buffered(); n > 0 {
 			buf := make([]byte, n)
-			clientBuf.Read(buf)   //nolint:errcheck // WebSocket proxy; errors handled by close
-			backConn.Write(buf)   //nolint:errcheck // WebSocket proxy; errors handled by close
+			clientBuf.Read(buf) //nolint:errcheck // WebSocket proxy; errors handled by close
+			backConn.Write(buf) //nolint:errcheck // WebSocket proxy; errors handled by close
 		}
 
 		// Bidirectional tunnel: Vite's 101 response and subsequent
