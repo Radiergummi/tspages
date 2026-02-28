@@ -196,7 +196,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
 					h.applyHeaders(w, htmlFilePath, cfg)
 					w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, htmlFilePath))
-					h.serveFileCompressed(w, r, htmlPath)
+					h.serveFileCompressed(w, r, resolvedRoot, htmlPath)
 					return
 				}
 			}
@@ -224,7 +224,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
 			h.applyHeaders(w, indexFilePath, cfg)
 			w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexFilePath))
-			h.serveFileCompressed(w, r, dirIndexPath)
+			h.serveFileCompressed(w, r, resolvedRoot, dirIndexPath)
 			return
 		}
 		// No index file — try directory listing
@@ -249,7 +249,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Deployments are immutable, so deploymentID:filePath is a stable ETag.
 	// http.ServeFile checks If-None-Match and returns 304 when it matches.
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, filePath))
-	h.serveFileCompressed(w, r, fullPath)
+	h.serveFileCompressed(w, r, resolvedRoot, fullPath)
 }
 
 func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resolvedRoot, deploymentID, indexPage string, cfg storage.SiteConfig) {
@@ -267,7 +267,7 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resol
 	w.Header().Set("Cache-Control", defaultCacheControl(indexPage))
 	h.applyHeaders(w, indexPage, cfg)
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexPage))
-	h.serveFileCompressed(w, r, indexPath)
+	h.serveFileCompressed(w, r, resolvedRoot, indexPath)
 }
 
 func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storage.SiteConfig) {
@@ -351,7 +351,7 @@ func isMixedAlphanumeric(s string) bool {
 // serveFileCompressed serves a file, preferring a precompressed variant on
 // disk (.br, .gz) before falling back to on-the-fly compression.
 // Priority: precompressed .br > precompressed .gz > on-the-fly br > on-the-fly gzip.
-func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
+func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, resolvedRoot, path string) {
 	// Set Vary unconditionally for compressible types so caches know the
 	// response can differ by encoding, even when served uncompressed.
 	if ct := mime.TypeByExtension(filepath.Ext(path)); isCompressible(ct) {
@@ -363,12 +363,12 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, pa
 
 	// Prefer precompressed files (higher compression quality than on-the-fly).
 	if br {
-		if servePrecompressed(w, r, path, ".br", "br") {
+		if servePrecompressed(w, r, resolvedRoot, path, ".br", "br") {
 			return
 		}
 	}
 	if gz {
-		if servePrecompressed(w, r, path, ".gz", "gzip") {
+		if servePrecompressed(w, r, resolvedRoot, path, ".gz", "gzip") {
 			return
 		}
 	}
@@ -410,8 +410,16 @@ func serveFileContent(w http.ResponseWriter, r *http.Request, name string) {
 // servePrecompressed tries to serve a precompressed variant of origPath
 // (e.g. style.css.br for style.css). Returns true if the file existed
 // and was served.
-func servePrecompressed(w http.ResponseWriter, r *http.Request, origPath, ext, encoding string) bool {
-	f, err := os.Open(origPath + ext)
+func servePrecompressed(w http.ResponseWriter, r *http.Request, resolvedRoot, origPath, ext, encoding string) bool {
+	compPath := origPath + ext
+	resolved, err := filepath.EvalSymlinks(compPath)
+	if err != nil {
+		return false
+	}
+	if !isUnderRoot(resolved, resolvedRoot) {
+		return false
+	}
+	f, err := os.Open(compPath)
 	if err != nil {
 		return false
 	}

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"tspages/internal/sqlmigrate"
 )
 
 // Event represents a single recorded request.
@@ -41,7 +43,7 @@ func NewRecorder(dbPath string) (*Recorder, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := migrate(db); err != nil {
+	if err := sqlmigrate.Apply(db, migrations); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -54,56 +56,37 @@ func NewRecorder(dbPath string) (*Recorder, error) {
 	return r, nil
 }
 
-func migrate(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS requests (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			ts              TEXT NOT NULL,
-			site            TEXT NOT NULL,
-			path            TEXT NOT NULL,
-			status          INTEGER NOT NULL,
-			user_login      TEXT NOT NULL DEFAULT '',
-			user_name       TEXT NOT NULL DEFAULT '',
-			profile_pic_url TEXT NOT NULL DEFAULT '',
-			node_name       TEXT NOT NULL DEFAULT '',
-			node_ip         TEXT NOT NULL DEFAULT '',
-			os              TEXT NOT NULL DEFAULT '',
-			os_version      TEXT NOT NULL DEFAULT '',
-			device          TEXT NOT NULL DEFAULT '',
-			tags            TEXT NOT NULL DEFAULT ''
-		);
-		CREATE INDEX IF NOT EXISTS idx_requests_site_ts ON requests(site, ts);
-	`)
-	if err != nil {
-		return err
-	}
-	// For existing databases: add profile_pic_url if missing.
-	var hasCol bool
-	rows, err := db.Query(`PRAGMA table_info(requests)`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var cid int
-		var name, typ string
-		var notnull int
-		var dflt sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+var migrations = []func(*sql.Tx) error{
+	// 1: baseline schema with all current columns.
+	func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`
+			CREATE TABLE IF NOT EXISTS requests (
+				id              INTEGER PRIMARY KEY AUTOINCREMENT,
+				ts              TEXT NOT NULL,
+				site            TEXT NOT NULL,
+				path            TEXT NOT NULL,
+				status          INTEGER NOT NULL,
+				user_login      TEXT NOT NULL DEFAULT '',
+				user_name       TEXT NOT NULL DEFAULT '',
+				profile_pic_url TEXT NOT NULL DEFAULT '',
+				node_name       TEXT NOT NULL DEFAULT '',
+				node_ip         TEXT NOT NULL DEFAULT '',
+				os              TEXT NOT NULL DEFAULT '',
+				os_version      TEXT NOT NULL DEFAULT '',
+				device          TEXT NOT NULL DEFAULT '',
+				tags            TEXT NOT NULL DEFAULT ''
+			);
+		`); err != nil {
 			return err
 		}
-		if name == "profile_pic_url" {
-			hasCol = true
-		}
-	}
-	if !hasCol {
-		_, err = db.Exec(`ALTER TABLE requests ADD COLUMN profile_pic_url TEXT NOT NULL DEFAULT ''`)
-		if err != nil {
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_requests_site_ts ON requests(site, ts)`); err != nil {
 			return err
 		}
-	}
-	return nil
+		// For pre-existing databases: add profile_pic_url if missing.
+		// Ignore "duplicate column" errors for DBs that already have it.
+		_, _ = tx.Exec(`ALTER TABLE requests ADD COLUMN profile_pic_url TEXT NOT NULL DEFAULT ''`)
+		return nil
+	},
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full

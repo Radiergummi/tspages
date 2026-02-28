@@ -5,8 +5,11 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
+	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/storage"
 	"tspages/internal/webhook"
@@ -258,4 +261,30 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RecentDeliveries []webhook.DeliverySummary
 		TotalDeployments int
 	}{resp, userInfo(identity, caps), admin, auth.CanDeleteSite(caps, siteName), auth.CanDeploy(caps, siteName), hasInactive, analyticsOn, siteConfig, h.dnsSuffix, r.Host, sparkline, recentDeliveries, totalDeployments})
+}
+
+// countsJSON returns a JSON array of counts from the given time buckets,
+// e.g. "[4,7,2,9]". Returns an empty string if there are fewer than 2 buckets
+// or all counts are zero.
+func countsJSON(buckets []analytics.TimeBucket) string {
+	if len(buckets) < 2 {
+		return ""
+	}
+	var hasData bool
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, b := range buckets {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString(strconv.FormatInt(b.Count, 10))
+		if b.Count > 0 {
+			hasData = true
+		}
+	}
+	sb.WriteByte(']')
+	if !hasData {
+		return ""
+	}
+	return sb.String()
 }

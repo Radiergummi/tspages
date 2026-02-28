@@ -18,7 +18,7 @@ var (
 	httpDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "tspages_http_request_duration_seconds",
 		Help:    "HTTP request duration in seconds by site.",
-		Buckets: prometheus.DefBuckets,
+		Buckets: []float64{.0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1},
 	}, []string{"site"})
 
 	deploymentsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{

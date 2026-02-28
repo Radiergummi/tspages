@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-read from disk on every request. The cache is invalidated automatically on deployment.
   This eliminates multiple filesystem syscalls (symlink reads, EvalSymlinks) from the serving
   hot path.
+- SQLite databases now use versioned migrations (`PRAGMA user_version`). Upgrading the tspages
+  binary automatically migrates analytics and webhook databases to the latest schema — no manual
+  steps required regardless of which version created the database.
+- Prometheus histogram buckets for HTTP request duration are now tuned for static file serving
+  (sub-millisecond to 1s) instead of using the default buckets.
+
+### Fixed
+
+- Precompressed files (`.br`, `.gz`) now undergo the same symlink containment check as regular
+  files, preventing a potential path traversal via symlinked precompressed assets.
 
 ### Added
 

@@ -17,6 +17,7 @@ import (
 
 	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
 
+	"tspages/internal/sqlmigrate"
 	"tspages/internal/storage"
 )
 
@@ -30,7 +31,7 @@ type Notifier struct {
 
 // NewNotifier creates a Notifier and runs the delivery log migration.
 func NewNotifier(db *sql.DB) (*Notifier, error) {
-	if err := migrate(db); err != nil {
+	if err := sqlmigrate.Apply(db, migrations); err != nil {
 		return nil, fmt.Errorf("webhook migration: %w", err)
 	}
 	return &Notifier{
@@ -41,24 +42,33 @@ func NewNotifier(db *sql.DB) (*Notifier, error) {
 	}, nil
 }
 
-func migrate(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS webhook_deliveries (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
-			webhook_id TEXT NOT NULL,
-			event      TEXT NOT NULL,
-			site       TEXT NOT NULL,
-			url        TEXT NOT NULL,
-			payload    TEXT NOT NULL,
-			attempt    INTEGER NOT NULL,
-			status     INTEGER,
-			error      TEXT NOT NULL DEFAULT '',
-			created_at  TEXT NOT NULL,
-			signed      INTEGER NOT NULL DEFAULT 0,
-			duration_ms INTEGER NOT NULL DEFAULT 0
-		);
-	`)
-	return err
+var migrations = []func(*sql.Tx) error{
+	// 1: baseline schema with all current columns.
+	func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`
+			CREATE TABLE IF NOT EXISTS webhook_deliveries (
+				id         INTEGER PRIMARY KEY AUTOINCREMENT,
+				webhook_id TEXT NOT NULL,
+				event      TEXT NOT NULL,
+				site       TEXT NOT NULL,
+				url        TEXT NOT NULL,
+				payload    TEXT NOT NULL,
+				attempt    INTEGER NOT NULL,
+				status     INTEGER,
+				error      TEXT NOT NULL DEFAULT '',
+				created_at  TEXT NOT NULL,
+				signed      INTEGER NOT NULL DEFAULT 0,
+				duration_ms INTEGER NOT NULL DEFAULT 0
+			);
+		`); err != nil {
+			return err
+		}
+		// For pre-existing databases: add columns that may be missing.
+		// Ignore "duplicate column" errors for DBs that already have them.
+		_, _ = tx.Exec(`ALTER TABLE webhook_deliveries ADD COLUMN signed INTEGER NOT NULL DEFAULT 0`)
+		_, _ = tx.Exec(`ALTER TABLE webhook_deliveries ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0`)
+		return nil
+	},
 }
 
 // SetClient overrides the HTTP client used for webhook delivery.
