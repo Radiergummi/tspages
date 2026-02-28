@@ -173,14 +173,13 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ActiveDeploymentID: found.ActiveDeploymentID,
 	}
 	// Read the merged config for the active deployment.
+	siteOverrides, _ := h.store.ReadSiteConfig(siteName)
+
 	var siteConfig storage.SiteConfig
 	if found.ActiveDeploymentID != "" {
 		deployCfg, _ := h.store.ReadDeploymentConfig(siteName, found.ActiveDeploymentID)
-		siteLevelCfg, _ := h.store.ReadSiteConfig(siteName)
-		siteConfig = deployCfg.Merge(siteLevelCfg).Merge(h.defaults)
+		siteConfig = deployCfg.Merge(siteOverrides).Merge(h.defaults)
 	}
-
-	siteOverrides, _ := h.store.ReadSiteConfig(siteName)
 
 	analyticsOn := siteConfig.Analytics == nil || *siteConfig.Analytics
 	var sparkline string

@@ -10,7 +10,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// SiteConfig holds per-deployment configuration parsed from tspages.toml.
+// SiteConfig holds configuration for a site, used for both per-deployment
+// config (tspages.toml) and site-level overrides (data/sites/{site}/config.toml).
 type SiteConfig struct {
 	Public           *bool                        `toml:"public" json:"public,omitempty"`
 	SPARouting       *bool                        `toml:"spa_routing" json:"spa_routing,omitempty"`
