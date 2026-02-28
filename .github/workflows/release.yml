@@ -103,6 +103,11 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -110,9 +115,22 @@ jobs:
       - name: Generate checksums
         run: sha256sum tspages-* > checksums.txt
 
+      - name: Extract changelog for this version
+        id: changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          # Extract the section between this version's heading and the next heading
+          awk -v ver="$VERSION" '
+            /^## \[/ { if (found) exit; if (index($0, ver)) found=1; next }
+            /^\[.*\]: / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" --generate-notes tspages-* checksums.txt
+        run: gh release create "$TAG" --notes-file release-notes.md tspages-* checksums.txt
