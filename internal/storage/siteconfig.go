@@ -304,7 +304,7 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 func (s *Store) ReadCurrentSiteConfig(site string) (SiteConfig, error) {
 	id, err := s.CurrentDeployment(site)
 	if err != nil {
-		return SiteConfig{}, nil
+		return SiteConfig{}, nil //nolint:nilerr // no deployment → zero config (use defaults)
 	}
 	return s.ReadSiteConfig(site, id)
 }

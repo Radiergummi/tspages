@@ -40,6 +40,11 @@ func main() {
 				log.Fatal(err)
 			}
 			return
+		case "init":
+			if err := cli.Init(os.Args[2:]); err != nil {
+				log.Fatal(err)
+			}
+			return
 		case "version":
 			fmt.Println(version)
 			return
@@ -74,11 +79,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("opening analytics db: %v", err)
 	}
-	defer recorder.Close()
+	defer recorder.Close() //nolint:errcheck // best-effort cleanup on shutdown
 
 	notifier, err := webhook.NewNotifier(recorder.DB())
 	if err != nil {
-		log.Fatalf("creating webhook notifier: %v", err)
+		log.Fatalf("creating webhook notifier: %v", err) //nolint:gocritic // exitAfterDefer is intentional — process is dying
 	}
 
 	admin.SetHideFooter(cfg.Server.HideFooter)
@@ -90,7 +95,7 @@ func main() {
 		Dir:      cfg.Tailscale.StateDir,
 		AuthKey:  cfg.Tailscale.AuthKey,
 	}
-	defer srv.Close()
+	defer srv.Close() //nolint:errcheck // best-effort cleanup on shutdown
 
 	lc, err := srv.LocalClient()
 	if err != nil {

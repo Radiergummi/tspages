@@ -43,14 +43,15 @@ func testNotifier(t *testing.T) (*Notifier, *sql.DB) {
 }
 
 func TestNotifier_FiresWebhook(t *testing.T) {
-	var called atomic.Int32
-	var gotBody []byte
-	var gotHeaders http.Header
+	type result struct {
+		body    []byte
+		headers http.Header
+	}
+	ch := make(chan result, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called.Add(1)
-		gotHeaders = r.Header.Clone()
-		gotBody, _ = io.ReadAll(r.Body)
+		body, _ := io.ReadAll(r.Body)
+		ch <- result{body: body, headers: r.Header.Clone()}
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
@@ -60,14 +61,15 @@ func TestNotifier_FiresWebhook(t *testing.T) {
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
 	n.Fire("deploy.success", "mysite", cfg, map[string]any{"id": "abc123"})
 
-	time.Sleep(500 * time.Millisecond)
-
-	if called.Load() != 1 {
-		t.Fatalf("expected 1 call, got %d", called.Load())
+	var got result
+	select {
+	case got = <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for webhook")
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal(gotBody, &payload); err != nil {
+	if err := json.Unmarshal(got.body, &payload); err != nil {
 		t.Fatal(err)
 	}
 	if payload["type"] != "deploy.success" {
@@ -84,10 +86,10 @@ func TestNotifier_FiresWebhook(t *testing.T) {
 		t.Errorf("data.id = %v, want abc123", data["id"])
 	}
 
-	if gotHeaders.Get("webhook-id") == "" {
+	if got.headers.Get("webhook-id") == "" {
 		t.Error("missing webhook-id header")
 	}
-	if gotHeaders.Get("webhook-timestamp") == "" {
+	if got.headers.Get("webhook-timestamp") == "" {
 		t.Error("missing webhook-timestamp header")
 	}
 }
@@ -145,10 +147,10 @@ func TestNotifier_NoURL_Noop(t *testing.T) {
 }
 
 func TestNotifier_SignsWithSecret(t *testing.T) {
-	var gotSig string
+	ch := make(chan string, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotSig = r.Header.Get("webhook-signature")
+		ch <- r.Header.Get("webhook-signature")
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
@@ -162,7 +164,12 @@ func TestNotifier_SignsWithSecret(t *testing.T) {
 	}
 	n.Fire("deploy.success", "mysite", cfg, nil)
 
-	time.Sleep(500 * time.Millisecond)
+	var gotSig string
+	select {
+	case gotSig = <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for webhook")
+	}
 
 	if gotSig == "" {
 		t.Fatal("expected webhook-signature header to be set")
@@ -173,12 +180,16 @@ func TestNotifier_SignsWithSecret(t *testing.T) {
 }
 
 func TestNotifier_NoSignatureWithoutSecret(t *testing.T) {
-	var gotSig string
-	var headerPresent bool
+	type result struct {
+		sig           string
+		headerPresent bool
+	}
+	ch := make(chan result, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotSig = r.Header.Get("webhook-signature")
-		_, headerPresent = r.Header["Webhook-Signature"]
+		sig := r.Header.Get("webhook-signature")
+		_, present := r.Header["Webhook-Signature"]
+		ch <- result{sig: sig, headerPresent: present}
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
@@ -188,10 +199,15 @@ func TestNotifier_NoSignatureWithoutSecret(t *testing.T) {
 	cfg := storage.SiteConfig{WebhookURL: srv.URL}
 	n.Fire("deploy.success", "mysite", cfg, nil)
 
-	time.Sleep(500 * time.Millisecond)
+	var got result
+	select {
+	case got = <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for webhook")
+	}
 
-	if headerPresent || gotSig != "" {
-		t.Errorf("expected no webhook-signature header, got %q", gotSig)
+	if got.headerPresent || got.sig != "" {
+		t.Errorf("expected no webhook-signature header, got %q", got.sig)
 	}
 }
 

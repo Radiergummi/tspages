@@ -24,7 +24,18 @@ jobs:
       - run: npm ci
       - run: npx vite build
       - run: go build ./cmd/tspages
-      - run: go test ./...
+      - run: go test -race ./...
+
+  lint-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2
 
   lint-frontend:
     runs-on: ubuntu-latest

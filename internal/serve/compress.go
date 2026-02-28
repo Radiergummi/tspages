@@ -137,7 +137,7 @@ func (cw *compressWriter) Close() error {
 func (cw *compressWriter) Flush() {
 	type flusher interface{ Flush() error }
 	if f, ok := cw.enc.(flusher); ok {
-		f.Flush()
+		f.Flush() //nolint:errcheck // flush errors surface on next Write or Close
 	}
 	if f, ok := cw.ResponseWriter.(http.Flusher); ok {
 		f.Flush()

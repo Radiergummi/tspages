@@ -1,0 +1,84 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - errcheck
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - revive
+    - staticcheck
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        # Read-only close — error is unactionable.
+        - (*os.File).Close
+        - (io.Closer).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*compress/gzip.Reader).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        # Best-effort cleanup.
+        - os.Remove
+        - os.RemoveAll
+        - (*database/sql.Tx).Rollback
+        - (*database/sql.DB).Close
+        # Discard-and-close on HTTP responses.
+        - io.Copy
+        # HTTP response writes — errors mean client disconnected.
+        - (net/http.ResponseWriter).Write
+        # FlagSet.Parse with ExitOnError — errors exit the process.
+        - (*flag.FlagSet).Parse
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+    gosec:
+      excludes:
+        # Standard Unix permissions for a local file server.
+        - G301 # directory permissions > 0750
+        - G306 # file permissions > 0600
+        # Duplicate of errcheck with less precision.
+        - G104 # errors unhandled
+        # Tailnet-internal servers; Slowloris is not a practical risk.
+        - G112 # no ReadHeaderTimeout
+        - G114 # no timeouts on ListenAndServe
+        # Paths are validated before use (zip-slip checks, safePath, ValidSiteName).
+        - G703 # path traversal via taint
+        # SQL is constructed from trusted internal code, not user input.
+        - G201 # SQL string formatting
+        - G202 # SQL string concatenation
+        # Webhook URLs are from operator config; static files are served intentionally.
+        - G704 # SSRF via taint
+        - G705 # XSS via taint
+        # Markdown rendering to HTML is intentional.
+        - G203 # unescaped HTML
+        # Log messages use validated site names; not user-controlled.
+        - G706 # log injection via taint
+        # AuthKey fields are intentionally named — they hold secrets by design.
+        - G117 # field name matches secret pattern
+  exclusions:
+    paths:
+      - node_modules
+      - internal/admin/assets
+    rules:
+      # Tests: relax errcheck and gosec.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+      # Intentional: race-safe channel close guard with empty recover.
+      - path: internal/analytics/recorder\.go
+        text: SA9003
+      # The existing form is more readable than De Morgan's rewrite.
+      - path: internal/storage/store\.go
+        text: QF1001
+    presets:
+      - common-false-positives
