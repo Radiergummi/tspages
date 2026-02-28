@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andybalholm/brotli"
+
 	"tspages/internal/auth"
 	"tspages/internal/storage"
 )
@@ -117,6 +119,46 @@ func TestHandler_Forbidden(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestHandler_Public_AnonymousAllowed(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "hi",
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+	h.SetPublic(true)
+	req := httptest.NewRequest("GET", "/index.html", nil)
+	req = withCaps(req, []auth.Cap{}) // empty caps — anonymous
+	req.SetPathValue("path", "index.html")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestHandler_Public_AuthenticatedStillWorks(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": "hi",
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+	h.SetPublic(true)
+	req := httptest.NewRequest("GET", "/index.html", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "index.html")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
 	}
 }
 
@@ -1257,6 +1299,87 @@ func TestHandler_Gzip_CompressesCSS(t *testing.T) {
 	body, _ := io.ReadAll(gr)
 	if string(body) != content {
 		t.Errorf("decompressed length = %d, want %d", len(body), len(content))
+	}
+}
+
+// --- On-the-fly Brotli ---
+
+func TestHandler_Brotli_CompressesHTML(t *testing.T) {
+	store := storage.New(t.TempDir())
+	content := strings.Repeat("<p>Hello world</p>\n", 30)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": content,
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+	req.Header.Set("Accept-Encoding", "br")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "br" {
+		t.Fatalf("Content-Encoding = %q, want br", ce)
+	}
+	if rec.Header().Get("Content-Length") != "" {
+		t.Error("Content-Length should be removed when compressing")
+	}
+	if rec.Header().Get("Vary") != "Accept-Encoding" {
+		t.Errorf("Vary = %q, want Accept-Encoding", rec.Header().Get("Vary"))
+	}
+
+	body, err := io.ReadAll(brotli.NewReader(rec.Body))
+	if err != nil {
+		t.Fatalf("reading brotli body: %v", err)
+	}
+	if string(body) != content {
+		t.Errorf("decompressed body length = %d, want %d", len(body), len(content))
+	}
+}
+
+func TestHandler_Brotli_SkipsSmallFiles(t *testing.T) {
+	store := storage.New(t.TempDir())
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"tiny.txt": "<p>hi</p>",
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/tiny.txt", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "tiny.txt")
+	req.Header.Set("Accept-Encoding", "br")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Content-Encoding") == "br" {
+		t.Error("files < 256 bytes should not be compressed")
+	}
+}
+
+func TestHandler_Brotli_PreferredOverGzip(t *testing.T) {
+	store := storage.New(t.TempDir())
+	content := strings.Repeat("<p>Hello world</p>\n", 30)
+	setupSite(t, store, "docs", "aaa11111", map[string]string{
+		"index.html": content,
+	})
+
+	h := NewHandler(store, "docs", "", storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view", Sites: []string{"docs"}}})
+	req.SetPathValue("path", "")
+	req.Header.Set("Accept-Encoding", "gzip, br")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if ce := rec.Header().Get("Content-Encoding"); ce != "br" {
+		t.Errorf("Content-Encoding = %q, want br (brotli preferred over gzip)", ce)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"path/filepath"
 	"sync"
@@ -22,9 +23,10 @@ import (
 )
 
 type siteServer struct {
-	ts      *tsnet.Server
-	httpSrv *http.Server
-	closer  func() error // if set, used instead of default close logic
+	ts       *tsnet.Server
+	httpSrv  *http.Server
+	closer   func() error // if set, used instead of default close logic
+	isPublic bool
 }
 
 func (ss *siteServer) Close() error {
@@ -88,17 +90,30 @@ func New(cfg ManagerConfig) *Manager {
 }
 
 // EnsureServer starts a tsnet server for the given site if one isn't already running.
+// If the site's public status has changed since it was started, the old server
+// is stopped and a new one is started with the correct listener type.
 func (m *Manager) EnsureServer(site string) error {
 	m.mu.Lock()
-	if _, ok := m.servers[site]; ok {
+	if existing, ok := m.servers[site]; ok {
+		cfg, _ := m.store.ReadCurrentSiteConfig(site)
+		merged := cfg.Merge(m.defaults)
+		wantPublic := merged.Public != nil && *merged.Public
+		if existing.isPublic == wantPublic {
+			m.mu.Unlock()
+			return nil
+		}
+		// Public status changed — close old server, fall through to start new one.
+		delete(m.servers, site)
 		m.mu.Unlock()
-		return nil
-	}
-	if len(m.servers) >= m.maxSites {
+		log.Printf("restarting site %q: public changed %v → %v", site, existing.isPublic, wantPublic)
+		existing.Close()
+	} else {
+		if len(m.servers) >= m.maxSites {
+			m.mu.Unlock()
+			return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
+		}
 		m.mu.Unlock()
-		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
-	m.mu.Unlock()
 
 	ss, err := m.startSite(site)
 	if err != nil {
@@ -127,6 +142,10 @@ func (m *Manager) EnsureServer(site string) error {
 }
 
 func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
+	cfg, _ := m.store.ReadCurrentSiteConfig(site)
+	merged := cfg.Merge(m.defaults)
+	public := merged.Public != nil && *merged.Public
+
 	srv := &tsnet.Server{
 		Hostname: site,
 		Dir:      filepath.Join(m.stateDir, "sites", site),
@@ -140,9 +159,15 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	}
 
 	whoIsClient := tsadapter.New(lc)
-	withAuth := auth.Middleware(whoIsClient, m.capability)
+	var withAuth func(http.Handler) http.Handler
+	if public {
+		withAuth = auth.MiddlewareAllowAnonymous(whoIsClient, m.capability)
+	} else {
+		withAuth = auth.Middleware(whoIsClient, m.capability)
+	}
 
 	handler := serve.NewHandler(m.store, site, m.dnsSuffix, m.defaults)
+	handler.SetPublic(public)
 	logged := httplog.Wrap(handler, slog.String("site", site))
 	recorded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, status: 200}
@@ -171,7 +196,12 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /{path...}", withAuth(recorded))
 
-	ln, err := srv.ListenTLS("tcp", ":443")
+	var ln net.Listener
+	if public {
+		ln, err = srv.ListenFunnel("tcp", ":443")
+	} else {
+		ln, err = srv.ListenTLS("tcp", ":443")
+	}
 	if err != nil {
 		srv.Close()
 		return nil, fmt.Errorf("listen for site %q: %w", site, err)
@@ -179,13 +209,17 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 
 	httpSrv := &http.Server{Handler: mux}
 	go func() {
-		log.Printf("site %q listening on https://%s", site, site)
+		if public {
+			log.Printf("site %q listening on https://%s (public via Funnel)", site, site)
+		} else {
+			log.Printf("site %q listening on https://%s", site, site)
+		}
 		if err := httpSrv.Serve(ln); err != http.ErrServerClosed {
 			log.Printf("site %q serve error: %v", site, err)
 		}
 	}()
 
-	return &siteServer{ts: srv, httpSrv: httpSrv}, nil
+	return &siteServer{ts: srv, httpSrv: httpSrv, isPublic: public}, nil
 }
 
 // StopServer shuts down and removes the tsnet server for the given site.

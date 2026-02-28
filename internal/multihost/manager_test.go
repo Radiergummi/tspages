@@ -297,6 +297,93 @@ func TestStartExistingSites_ListError(t *testing.T) {
 	}
 }
 
+func TestEnsureServer_PublicToggle_Restart(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   t.TempDir(),
+		Capability: "test/cap",
+		MaxSites:   10,
+	})
+
+	var startCount atomic.Int32
+	var closeCalls atomic.Int32
+	m.startSite = func(site string) (*siteServer, error) {
+		startCount.Add(1)
+		// Read config to determine public status, mirroring defaultStartSite.
+		cfg, _ := store.ReadCurrentSiteConfig(site)
+		merged := cfg.Merge(m.defaults)
+		public := merged.Public != nil && *merged.Public
+		return &siteServer{
+			isPublic: public,
+			closer:   func() error { closeCalls.Add(1); return nil },
+		}, nil
+	}
+
+	// Create site with public=true
+	store.CreateSite("docs")
+	depDir, _ := store.CreateDeployment("docs", "d1")
+	writeFile(t, depDir, "index.html", "hi")
+	store.MarkComplete("docs", "d1")
+	store.ActivateDeployment("docs", "d1")
+	boolTrue := true
+	store.WriteSiteConfig("docs", "d1", storage.SiteConfig{Public: &boolTrue})
+
+	if err := m.EnsureServer("docs"); err != nil {
+		t.Fatal(err)
+	}
+	if startCount.Load() != 1 {
+		t.Fatalf("startSite called %d times, want 1", startCount.Load())
+	}
+
+	// Update config to public=false
+	boolFalse := false
+	store.WriteSiteConfig("docs", "d1", storage.SiteConfig{Public: &boolFalse})
+
+	if err := m.EnsureServer("docs"); err != nil {
+		t.Fatal(err)
+	}
+	if startCount.Load() != 2 {
+		t.Errorf("startSite called %d times, want 2 (restart)", startCount.Load())
+	}
+	if closeCalls.Load() != 1 {
+		t.Errorf("close called %d times, want 1", closeCalls.Load())
+	}
+}
+
+func TestEnsureServer_PublicUnchanged_NoRestart(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	m := New(ManagerConfig{
+		Store:      store,
+		StateDir:   t.TempDir(),
+		Capability: "test/cap",
+		MaxSites:   10,
+	})
+
+	var startCount atomic.Int32
+	m.startSite = func(site string) (*siteServer, error) {
+		startCount.Add(1)
+		return &siteServer{
+			isPublic: false,
+			closer:   func() error { return nil },
+		}, nil
+	}
+
+	store.CreateSite("docs")
+
+	if err := m.EnsureServer("docs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.EnsureServer("docs"); err != nil {
+		t.Fatal(err)
+	}
+	if startCount.Load() != 1 {
+		t.Errorf("startSite called %d times, want 1 (no restart)", startCount.Load())
+	}
+}
+
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {

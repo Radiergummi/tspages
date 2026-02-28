@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Public site access via Tailscale Funnel. Set `public = true` in `tspages.toml` to make a site
+  accessible from the internet. Tailnet users retain their identity and capabilities; anonymous
+  visitors get read-only access. Requires the `funnel` node attribute in your tailnet policy.
+- On-the-fly Brotli compression for compressible responses. Previously only precompressed `.br`
+  files were served; now responses are compressed with Brotli dynamically when no precompressed
+  variant exists and the client supports it. Brotli is preferred over gzip when both are accepted.
+- Environment variable overrides for all server configuration fields. Every `[tailscale]` and
+  `[server]` setting can now be set via `TSPAGES_*` environment variables (e.g.
+  `TSPAGES_HOSTNAME`, `TSPAGES_DATA_DIR`, `TSPAGES_MAX_UPLOAD_MB`). Config file values always
+  take precedence over environment variables.
+
 ## [0.3.0] - 2026-02-28
 
 ### Added

@@ -373,6 +373,64 @@ func TestMiddleware_StoresIdentity(t *testing.T) {
 	}
 }
 
+func TestMiddlewareAllowAnonymous_WhoIsError(t *testing.T) {
+	client := &mockWhoIs{err: fmt.Errorf("connection refused")}
+	var gotCaps []Cap
+	handler := MiddlewareAllowAnonymous(client, "example.com/cap/pages")(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotCaps = CapsFromContext(r.Context())
+			w.WriteHeader(200)
+		}),
+	)
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "100.64.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if gotCaps == nil {
+		t.Error("expected non-nil empty caps")
+	}
+	if len(gotCaps) != 0 {
+		t.Errorf("expected empty caps, got %d", len(gotCaps))
+	}
+}
+
+func TestMiddlewareAllowAnonymous_WhoIsSuccess(t *testing.T) {
+	raw := []json.RawMessage{json.RawMessage(`{"access":"view"}`)}
+	client := &mockWhoIs{
+		caps:        raw,
+		loginName:   "alice@example.com",
+		displayName: "Alice",
+	}
+
+	var gotCaps []Cap
+	var gotIdentity Identity
+	handler := MiddlewareAllowAnonymous(client, "example.com/cap/pages")(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotCaps = CapsFromContext(r.Context())
+			gotIdentity = IdentityFromContext(r.Context())
+			w.WriteHeader(200)
+		}),
+	)
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "100.64.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if len(gotCaps) != 1 || !CanView(gotCaps, "anything") {
+		t.Errorf("expected view cap, got %v", gotCaps)
+	}
+	if gotIdentity.LoginName != "alice@example.com" {
+		t.Errorf("LoginName = %q, want alice@example.com", gotIdentity.LoginName)
+	}
+}
+
 // mockWhoIs implements WhoIsClient for testing
 type mockWhoIs struct {
 	caps        []json.RawMessage

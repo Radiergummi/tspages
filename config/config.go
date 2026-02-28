@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -49,43 +50,26 @@ func Load(path string) (*Config, error) {
 		slog.Warn("unknown keys in config file (check for typos)", "keys", strings.Join(keys, ", "))
 	}
 
-	if cfg.Tailscale.Hostname == "" {
-		cfg.Tailscale.Hostname = "pages"
+	// All fields follow TOML > env var > default precedence.
+	strDefault(&cfg.Tailscale.Hostname, "TSPAGES_HOSTNAME", "pages")
+	strDefault(&cfg.Tailscale.StateDir, "TSPAGES_STATE_DIR", "./state")
+	strDefault(&cfg.Tailscale.AuthKey, "TS_AUTHKEY", "")
+	strDefault(&cfg.Tailscale.Capability, "TSPAGES_CAPABILITY", "tspages.mazetti.me/cap/pages")
+	strDefault(&cfg.Server.DataDir, "TSPAGES_DATA_DIR", "./data")
+	strDefault(&cfg.Server.LogLevel, "TSPAGES_LOG_LEVEL", "warn")
+	strDefault(&cfg.Server.HealthAddr, "TSPAGES_HEALTH_ADDR", "")
+
+	if err := intDefault(md, &cfg.Server.MaxUploadMB, "TSPAGES_MAX_UPLOAD_MB", 500, "server", "max_upload_mb"); err != nil {
+		return nil, err
 	}
-	if cfg.Server.DataDir == "" {
-		cfg.Server.DataDir = "./data"
+	if err := intDefault(md, &cfg.Server.MaxSites, "TSPAGES_MAX_SITES", 100, "server", "max_sites"); err != nil {
+		return nil, err
 	}
-	// Only apply defaults for fields not explicitly set in the config file.
-	if !md.IsDefined("server", "max_upload_mb") {
-		cfg.Server.MaxUploadMB = 500
+	if err := intDefault(md, &cfg.Server.MaxDeployments, "TSPAGES_MAX_DEPLOYMENTS", 10, "server", "max_deployments"); err != nil {
+		return nil, err
 	}
-	if !md.IsDefined("server", "max_sites") {
-		cfg.Server.MaxSites = 100
-	}
-	if !md.IsDefined("server", "max_deployments") {
-		cfg.Server.MaxDeployments = 10
-	}
-	if cfg.Server.LogLevel == "" {
-		cfg.Server.LogLevel = os.Getenv("TSPAGES_LOG_LEVEL")
-	}
-	if cfg.Server.LogLevel == "" {
-		cfg.Server.LogLevel = "warn"
-	}
-	if cfg.Tailscale.StateDir == "" {
-		cfg.Tailscale.StateDir = "./state"
-	}
-	if cfg.Tailscale.AuthKey == "" {
-		cfg.Tailscale.AuthKey = os.Getenv("TS_AUTHKEY")
-	}
-	if cfg.Tailscale.Capability == "" {
-		cfg.Tailscale.Capability = os.Getenv("TSPAGES_CAPABILITY")
-	}
-	if cfg.Tailscale.Capability == "" {
-		cfg.Tailscale.Capability = "tspages.mazetti.me/cap/pages"
-	}
-	if cfg.Server.HealthAddr == "" {
-		cfg.Server.HealthAddr = os.Getenv("TSPAGES_HEALTH_ADDR")
-	}
+
+	boolDefault(md, &cfg.Server.HideFooter, "TSPAGES_HIDE_FOOTER", false, "server", "hide_footer")
 
 	if cfg.Server.MaxUploadMB < 0 {
 		return nil, fmt.Errorf("max_upload_mb must be non-negative, got %d", cfg.Server.MaxUploadMB)
@@ -98,4 +82,46 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// strDefault fills *dst from envKey if *dst is empty (not set in TOML),
+// then falls back to def.
+func strDefault(dst *string, envKey, def string) {
+	if *dst == "" {
+		*dst = os.Getenv(envKey)
+	}
+	if *dst == "" {
+		*dst = def
+	}
+}
+
+// intDefault fills *dst from envKey if the TOML key was not defined,
+// then falls back to def.
+func intDefault(md toml.MetaData, dst *int, envKey string, def int, tomlPath ...string) error {
+	if md.IsDefined(tomlPath...) {
+		return nil
+	}
+	if v := os.Getenv(envKey); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("%s: %w", envKey, err)
+		}
+		*dst = n
+		return nil
+	}
+	*dst = def
+	return nil
+}
+
+// boolDefault fills *dst from envKey if the TOML key was not defined,
+// then falls back to def. Accepts "true" and "1" as truthy values.
+func boolDefault(md toml.MetaData, dst *bool, envKey string, def bool, tomlPath ...string) {
+	if md.IsDefined(tomlPath...) {
+		return
+	}
+	if v := os.Getenv(envKey); v != "" {
+		*dst = v == "true" || v == "1"
+		return
+	}
+	*dst = def
 }

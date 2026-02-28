@@ -127,6 +127,15 @@
                     {{helpicon "per-site-config" "How to configure"}}
                 </h2>
                 <div class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
+                    {{if deref .Config.Public}}
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Public access</span>
+                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                                on
+                            </span>
+                        </div>
+                    {{end}}
+
                     <div class="flex items-center justify-between px-5 py-3">
                         <span class="text-sm text-muted">SPA routing</span>
                         {{if deref .Config.SPARouting}}

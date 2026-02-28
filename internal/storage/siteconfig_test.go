@@ -714,6 +714,41 @@ func TestSiteConfig_Merge_WebhookOverride(t *testing.T) {
 	}
 }
 
+func TestParseSiteConfig_Public(t *testing.T) {
+	cfg, err := ParseSiteConfig([]byte(`public = true`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.Public == nil || *cfg.Public != true {
+		t.Error("public should be true")
+	}
+}
+
+func TestParseSiteConfig_PublicEmpty(t *testing.T) {
+	cfg, err := ParseSiteConfig([]byte(""))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.Public != nil {
+		t.Error("public should default to nil")
+	}
+}
+
+func TestSiteConfig_Merge_Public(t *testing.T) {
+	defaults := SiteConfig{Public: boolPtr(false)}
+	deploy := SiteConfig{}
+	merged := deploy.Merge(defaults)
+	if merged.Public == nil || *merged.Public != false {
+		t.Error("should inherit public from defaults")
+	}
+
+	deploy2 := SiteConfig{Public: boolPtr(true)}
+	merged2 := deploy2.Merge(defaults)
+	if merged2.Public == nil || *merged2.Public != true {
+		t.Error("deployment should override public")
+	}
+}
+
 func TestSiteConfig_Merge_WebhookInherit(t *testing.T) {
 	defaults := SiteConfig{
 		WebhookURL:    "https://global.example.com/hook",

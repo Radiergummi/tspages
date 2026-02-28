@@ -223,6 +223,17 @@ func ContextWithIdentity(ctx context.Context, id Identity) context.Context {
 // and attaches them to the request context. It does NOT enforce permissions --
 // individual handlers decide what access level is required.
 func Middleware(client WhoIsClient, capName string) func(http.Handler) http.Handler {
+	return middleware(client, capName, false)
+}
+
+// MiddlewareAllowAnonymous is like Middleware but allows anonymous requests
+// through when WhoIs fails (e.g. public Funnel traffic). Anonymous requests
+// get empty caps and no identity in context.
+func MiddlewareAllowAnonymous(client WhoIsClient, capName string) func(http.Handler) http.Handler {
+	return middleware(client, capName, true)
+}
+
+func middleware(client WhoIsClient, capName string, allowAnonymous bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// If caps are already in context (e.g. dev mode), skip WhoIs.
@@ -233,6 +244,11 @@ func Middleware(client WhoIsClient, capName string) func(http.Handler) http.Hand
 
 			result, err := client.WhoIs(r.Context(), r.RemoteAddr)
 			if err != nil {
+				if allowAnonymous {
+					ctx := context.WithValue(r.Context(), capsKey{}, []Cap{})
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
 				http.Error(w, "identity check failed", http.StatusForbidden)
 				return
 			}

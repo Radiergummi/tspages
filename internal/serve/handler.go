@@ -35,6 +35,7 @@ type Handler struct {
 	site      string
 	dnsSuffix string
 	defaults  storage.SiteConfig
+	public    bool
 
 	mu        sync.RWMutex
 	cachedID  string
@@ -51,6 +52,10 @@ func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.S
 	return &Handler{store: store, site: site, dnsSuffix: dnsSuffix, defaults: defaults,
 		cachedCfg: storage.SiteConfig{}.Merge(defaults)}
 }
+
+// SetPublic marks this handler as serving a public (Funnel) site.
+// When public, anonymous requests bypass the CanView check.
+func (h *Handler) SetPublic(b bool) { h.public = b }
 
 func (h *Handler) loadConfig(deploymentID string) storage.SiteConfig {
 	h.mu.RLock()
@@ -89,7 +94,7 @@ func (h *Handler) AnalyticsEnabled() bool {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.CanView(caps, h.site) {
+	if !h.public && !auth.CanView(caps, h.site) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -313,27 +318,42 @@ func isMixedAlphanumeric(s string) bool {
 }
 
 // serveFileCompressed serves a file, preferring a precompressed variant on
-// disk (.br, .gz) before falling back to on-the-fly gzip compression.
+// disk (.br, .gz) before falling back to on-the-fly compression.
+// Priority: precompressed .br > precompressed .gz > on-the-fly br > on-the-fly gzip.
 func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
 	// Set Vary unconditionally for compressible types so caches know the
 	// response can differ by encoding, even when served uncompressed.
 	if ct := mime.TypeByExtension(filepath.Ext(path)); isCompressible(ct) {
 		w.Header().Set("Vary", "Accept-Encoding")
 	}
-	if acceptsBrotli(r) {
+
+	br := acceptsBrotli(r)
+	gz := acceptsGzip(r)
+
+	// Prefer precompressed files (higher compression quality than on-the-fly).
+	if br {
 		if servePrecompressed(w, r, path, ".br", "br") {
 			return
 		}
 	}
-	if acceptsGzip(r) {
+	if gz {
 		if servePrecompressed(w, r, path, ".gz", "gzip") {
 			return
 		}
-		cw := &compressWriter{ResponseWriter: w}
+	}
+
+	// Fall back to on-the-fly compression.
+	if br || gz {
+		encoding := "gzip"
+		if br {
+			encoding = "br"
+		}
+		cw := &compressWriter{ResponseWriter: w, encoding: encoding}
 		defer cw.Close()
 		serveFileContent(cw, r, path)
 		return
 	}
+
 	serveFileContent(w, r, path)
 }
 

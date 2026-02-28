@@ -2,9 +2,12 @@ package serve
 
 import (
 	"compress/gzip"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/andybalholm/brotli"
 )
 
 const compressMinBytes = 256
@@ -56,12 +59,17 @@ func isCompressible(contentType string) bool {
 	return false
 }
 
-// compressWriter wraps an http.ResponseWriter to transparently gzip
-// responses when the content type is compressible and the body is
-// large enough to benefit.
+// brotliLevel is the compression level for on-the-fly brotli.
+// Level 4 balances compression ratio with CPU cost for dynamic content.
+const brotliLevel = 4
+
+// compressWriter wraps an http.ResponseWriter to transparently compress
+// responses (gzip or brotli) when the content type is compressible and
+// the body is large enough to benefit.
 type compressWriter struct {
 	http.ResponseWriter
-	gw            *gzip.Writer
+	enc           io.WriteCloser // gzip or brotli writer, nil until first compressible Write
+	encoding      string         // "gzip" or "br"
 	headerWritten bool
 	statusCode    int
 }
@@ -93,20 +101,25 @@ func (cw *compressWriter) Write(b []byte) (int, error) {
 			clStr := cw.Header().Get("Content-Length")
 			cl, err := strconv.ParseInt(clStr, 10, 64)
 			if err != nil || cl >= compressMinBytes {
-				cw.gw = gzip.NewWriter(cw.ResponseWriter)
+				switch cw.encoding {
+				case "br":
+					cw.enc = brotli.NewWriterLevel(cw.ResponseWriter, brotliLevel)
+				default:
+					cw.enc = gzip.NewWriter(cw.ResponseWriter)
+				}
 				cw.Header().Del("Content-Length")
-				cw.Header().Set("Content-Encoding", "gzip")
+				cw.Header().Set("Content-Encoding", cw.encoding)
 			}
 		}
 		cw.ResponseWriter.WriteHeader(cw.statusCode)
 	}
-	if cw.gw != nil {
-		return cw.gw.Write(b)
+	if cw.enc != nil {
+		return cw.enc.Write(b)
 	}
 	return cw.ResponseWriter.Write(b)
 }
 
-// Close flushes the gzip stream. Must be called via defer.
+// Close flushes the compressed stream. Must be called via defer.
 func (cw *compressWriter) Close() error {
 	if !cw.headerWritten {
 		cw.headerWritten = true
@@ -115,15 +128,16 @@ func (cw *compressWriter) Close() error {
 		}
 		cw.ResponseWriter.WriteHeader(cw.statusCode)
 	}
-	if cw.gw != nil {
-		return cw.gw.Close()
+	if cw.enc != nil {
+		return cw.enc.Close()
 	}
 	return nil
 }
 
 func (cw *compressWriter) Flush() {
-	if cw.gw != nil {
-		cw.gw.Flush()
+	type flusher interface{ Flush() error }
+	if f, ok := cw.enc.(flusher); ok {
+		f.Flush()
 	}
 	if f, ok := cw.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
