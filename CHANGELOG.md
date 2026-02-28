@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Precompressed files (`.br`, `.gz`) now undergo the same symlink containment check as regular
   files, preventing a potential path traversal via symlinked precompressed assets.
+- Avatar image URLs in the admin dashboard now only render for `https://` or relative paths,
+  rejecting `javascript:` and other dangerous schemes.
 
 ### Added
 

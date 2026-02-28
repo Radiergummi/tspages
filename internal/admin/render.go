@@ -451,7 +451,7 @@ var funcs = template.FuncMap{
 			initial = string(r)
 			break
 		}
-		if picURL != "" {
+		if picURL != "" && (strings.HasPrefix(picURL, "https://") || strings.HasPrefix(picURL, "/")) {
 			return template.HTML(fmt.Sprintf(
 				`<img class="w-6 h-6 rounded-full shrink-0 object-cover" src="%s" alt="">`,
 				template.HTMLEscapeString(picURL),

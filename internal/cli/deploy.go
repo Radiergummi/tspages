@@ -86,11 +86,7 @@ func Deploy(args []string) error {
 		deployURL += "/" + url.PathEscape(filename)
 	}
 	if *noActivate {
-		if strings.Contains(deployURL, "?") {
-			deployURL += "&activate=false"
-		} else {
-			deployURL += "?activate=false"
-		}
+		deployURL += "?activate=false"
 	}
 
 	req, err := http.NewRequest("PUT", deployURL, bytes.NewReader(body))
