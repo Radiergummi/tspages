@@ -12,26 +12,26 @@ import (
 
 // SiteConfig holds per-deployment configuration parsed from tspages.toml.
 type SiteConfig struct {
-	Public           *bool                        `toml:"public"`
-	SPARouting       *bool                        `toml:"spa_routing"`
-	HTMLExtensions   *bool                        `toml:"html_extensions"`
-	Analytics        *bool                        `toml:"analytics"`
-	DirectoryListing *bool                        `toml:"directory_listing"`
-	IndexPage        string                       `toml:"index_page"`
-	NotFoundPage     string                       `toml:"not_found_page"`
-	TrailingSlash    string                       `toml:"trailing_slash"`
-	Headers          map[string]map[string]string `toml:"headers"`
-	Redirects        []RedirectRule               `toml:"redirects"`
-	WebhookURL       string                       `toml:"webhook_url"`
-	WebhookEvents    []string                     `toml:"webhook_events"`
-	WebhookSecret    string                       `toml:"webhook_secret"`
+	Public           *bool                        `toml:"public" json:"public,omitempty"`
+	SPARouting       *bool                        `toml:"spa_routing" json:"spa_routing,omitempty"`
+	HTMLExtensions   *bool                        `toml:"html_extensions" json:"html_extensions,omitempty"`
+	Analytics        *bool                        `toml:"analytics" json:"analytics,omitempty"`
+	DirectoryListing *bool                        `toml:"directory_listing" json:"directory_listing,omitempty"`
+	IndexPage        string                       `toml:"index_page" json:"index_page,omitempty"`
+	NotFoundPage     string                       `toml:"not_found_page" json:"not_found_page,omitempty"`
+	TrailingSlash    string                       `toml:"trailing_slash" json:"trailing_slash,omitempty"`
+	Headers          map[string]map[string]string `toml:"headers" json:"headers,omitempty"`
+	Redirects        []RedirectRule               `toml:"redirects" json:"redirects,omitempty"`
+	WebhookURL       string                       `toml:"webhook_url" json:"webhook_url,omitempty"`
+	WebhookEvents    []string                     `toml:"webhook_events" json:"webhook_events,omitempty"`
+	WebhookSecret    string                       `toml:"webhook_secret" json:"webhook_secret,omitempty"`
 }
 
 // RedirectRule defines a single redirect from one path pattern to another.
 type RedirectRule struct {
-	From   string `toml:"from"`
-	To     string `toml:"to"`
-	Status int    `toml:"status,omitempty"`
+	From   string `toml:"from" json:"from"`
+	To     string `toml:"to" json:"to"`
+	Status int    `toml:"status,omitempty" json:"status,omitempty"`
 }
 
 const siteConfigFile = "config.toml"
