@@ -39,37 +39,37 @@
                     <tr>
                         <th
                                 scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-default"
                         >
                             Site
                         </th>
                         <th
                                 scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-default"
                         >
                             ID
                         </th>
                         <th
                                 scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-default"
                         >
                             Deployed by
                         </th>
                         <th
                                 scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-end pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-default"
                         >
                             Deployed
                         </th>
                         <th
                                 scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-end pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-default"
                         >
                             Size
                         </th>
                         <th
                                 scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b-2 border-default"
                         >
                             Status
                         </th>
@@ -79,7 +79,7 @@
                     <tbody class="[&>tr:last-child>td]:border-b-0">
                     {{range .Deployments}}
                         <tr>
-                            <td class="px-4 py-3 text-sm border-b border-default">
+                            <td class="pe-4 py-3 text-sm border-b border-default">
                                 <a
                                         class="text-blue-500 no-underline hover:underline whitespace-nowrap"
                                         href="/sites/{{.Site}}"
@@ -87,7 +87,7 @@
                                     {{.Site}}
                                 </a>
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-default">
+                            <td class="pe-4 py-3 text-sm border-b border-default">
                                 <a
                                         class="font-mono text-sm text-blue-500 no-underline hover:underline"
                                         href="/sites/{{.Site}}/deployments/{{.ID}}"
@@ -95,7 +95,7 @@
                                     {{.ID}}
                                 </a>
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-default text-muted">
+                            <td class="pe-4 py-3 text-sm border-b border-default text-muted">
                                 {{if .CreatedBy}}
                                     <span class="flex items-center gap-2">
                                         {{avatarHTML .CreatedBy .CreatedByAvatar}} {{.CreatedBy}}
@@ -104,7 +104,7 @@
                                     <span>&mdash;</span>
                                 {{end}}
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-default text-end">
+                            <td class="pe-4 py-3 text-sm border-b border-default text-end">
                                 <time
                                         class="text-muted"
                                         datetime="{{abstime .CreatedAt}}"
@@ -114,12 +114,12 @@
                                 </time>
                             </td>
                             <td
-                                    class="px-4 py-3 text-sm border-b border-default tabular-nums slashed-zero text-end
+                                    class="pe-4 py-3 text-sm border-b border-default tabular-nums slashed-zero text-end
                                 text-muted whitespace-nowrap"
                             >
                                 {{bytes .SizeBytes}}
                             </td>
-                            <td class="px-4 py-3 text-sm border-b border-default">
+                            <td class="py-3 text-sm border-b border-default">
                                 {{if .Active}}
                                     <span
                                             class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
