@@ -8,6 +8,18 @@ import (
 	"tspages/internal/storage"
 )
 
+// formBool returns true if the last value for name is "true".
+// Works with the hidden+checkbox pattern: unchecked = ["false"], checked = ["false", "true"].
+func formBool(form map[string][]string, name string) bool {
+	vals := form[name]
+	if len(vals) == 0 {
+		return false
+	}
+	return vals[len(vals)-1] == "true"
+}
+
+func boolPtr(b bool) *bool { return &b }
+
 // --- GET /sites/{site}/config ---
 
 type SiteConfigHandler struct{ handlerDeps }
@@ -63,4 +75,58 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, cfg)
+}
+
+// --- POST /sites/{site}/config ---
+
+type PostSiteConfigHandler struct{ handlerDeps }
+
+func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
+	form := r.Form
+	var events []string
+	for _, v := range form["webhook_events"] {
+		if v != "" {
+			events = append(events, v)
+		}
+	}
+	return storage.SiteConfig{
+		Public:           boolPtr(formBool(form, "public")),
+		SPARouting:       boolPtr(formBool(form, "spa_routing")),
+		HTMLExtensions:   boolPtr(!formBool(form, "clean_urls")),
+		Analytics:        boolPtr(formBool(form, "analytics")),
+		DirectoryListing: boolPtr(formBool(form, "directory_listing")),
+		IndexPage:        r.FormValue("index_page"),
+		NotFoundPage:     r.FormValue("not_found_page"),
+		TrailingSlash:    r.FormValue("trailing_slash"),
+		WebhookURL:       r.FormValue("webhook_url"),
+		WebhookEvents:    events,
+		WebhookSecret:    r.FormValue("webhook_secret"),
+	}
+}
+
+func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	siteName := trimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		http.Error(w, "invalid site name", http.StatusBadRequest)
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.IsAdmin(caps, siteName) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	cfg := parseSiteConfigForm(r)
+	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/sites/"+siteName, http.StatusSeeOther)
 }

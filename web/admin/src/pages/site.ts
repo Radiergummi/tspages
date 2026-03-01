@@ -159,85 +159,39 @@ function main(): void {
 
   // endregion
 
-  // region Config editing
+  // region Config editing (progressive enhancement)
 
-  const configView = document.getElementById("config-view");
-  const configEdit = document.getElementById("config-edit");
-  const editBtn = document.querySelector<HTMLButtonElement>("[data-action='edit-config']");
-  const cancelBtn = document.querySelector<HTMLButtonElement>("[data-action='cancel-config']");
-  const saveBtn = document.querySelector<HTMLButtonElement>("[data-action='save-config']");
+  const configDialog = document.getElementById("config-dialog");
+  if (configDialog) {
+    const spaToggle = configDialog.querySelector<HTMLInputElement>("[name='spa_routing'][type='checkbox']");
+    const dirToggle = configDialog.querySelector<HTMLInputElement>("[name='directory_listing'][type='checkbox']");
 
-  editBtn?.addEventListener("click", () => {
-    configView?.classList.add("hidden");
-    configEdit?.classList.remove("hidden");
-    editBtn.classList.add("hidden");
-  });
-
-  cancelBtn?.addEventListener("click", () => {
-    configEdit?.classList.add("hidden");
-    configView?.classList.remove("hidden");
-    editBtn?.classList.remove("hidden");
-  });
-
-  const spaToggle = document.getElementById("cfg-spa") as HTMLInputElement | null;
-  const dirToggle = document.getElementById("cfg-dirlist") as HTMLInputElement | null;
-
-  spaToggle?.addEventListener("change", () => {
-    if (dirToggle) dirToggle.disabled = spaToggle.checked;
-  });
-  dirToggle?.addEventListener("change", () => {
-    if (spaToggle) spaToggle.disabled = dirToggle.checked;
-  });
-
-  // Set initial disabled state
-  if (spaToggle?.checked && dirToggle) dirToggle.disabled = true;
-  if (dirToggle?.checked && spaToggle) spaToggle.disabled = true;
-
-  const webhookURL = document.getElementById("cfg-webhook-url") as HTMLInputElement | null;
-  const webhookEvents = document.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
-  const webhookSecret = document.getElementById("cfg-webhook-secret") as HTMLInputElement | null;
-
-  function updateWebhookFields(): void {
-    const hasURL = !!webhookURL?.value.trim();
-    webhookEvents.forEach((cb) => (cb.disabled = !hasURL));
-    if (webhookSecret) webhookSecret.disabled = !hasURL;
-    // If URL just got a value and no events are checked, check all
-    if (hasURL && !Array.from(webhookEvents).some((cb) => cb.checked)) {
-      webhookEvents.forEach((cb) => (cb.checked = true));
-    }
-  }
-
-  webhookURL?.addEventListener("input", updateWebhookFields);
-  updateWebhookFields(); // set initial state
-
-  saveBtn?.addEventListener("click", async () => {
-    const body: Record<string, unknown> = {
-      public: (document.getElementById("cfg-public") as HTMLInputElement)?.checked ?? false,
-      spa_routing: spaToggle?.checked ?? false,
-      html_extensions: !((document.getElementById("cfg-cleanurls") as HTMLInputElement)?.checked ?? false),
-      analytics: (document.getElementById("cfg-analytics") as HTMLInputElement)?.checked ?? false,
-      directory_listing: dirToggle?.checked ?? false,
-      index_page: (document.getElementById("cfg-index") as HTMLInputElement)?.value.trim() ?? "",
-      not_found_page: (document.getElementById("cfg-notfound") as HTMLInputElement)?.value.trim() ?? "",
-      trailing_slash: (document.getElementById("cfg-trailing") as HTMLSelectElement)?.value ?? "",
-      webhook_url: webhookURL?.value.trim() ?? "",
-      webhook_events: Array.from(webhookEvents).filter((cb) => cb.checked).map((cb) => cb.value),
-      webhook_secret: webhookSecret?.value ?? "",
-    };
-
-    const response = await fetch(`/sites/${encodeURIComponent(siteName)}/config`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+    spaToggle?.addEventListener("change", () => {
+      if (dirToggle) dirToggle.disabled = spaToggle.checked;
+    });
+    dirToggle?.addEventListener("change", () => {
+      if (spaToggle) spaToggle.disabled = dirToggle.checked;
     });
 
-    if (response.ok) {
-      location.reload();
-    } else {
-      const text = await response.text();
-      alert(`Failed to save: ${text.trim()}`);
+    if (spaToggle?.checked && dirToggle) dirToggle.disabled = true;
+    if (dirToggle?.checked && spaToggle) spaToggle.disabled = true;
+
+    const webhookURL = configDialog.querySelector<HTMLInputElement>("[name='webhook_url']");
+    const webhookEvents = configDialog.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
+    const webhookSecret = configDialog.querySelector<HTMLInputElement>("[name='webhook_secret']");
+
+    function updateWebhookFields(): void {
+      const hasURL = !!webhookURL?.value.trim();
+      webhookEvents.forEach((cb) => (cb.disabled = !hasURL));
+      if (webhookSecret) webhookSecret.disabled = !hasURL;
+      if (hasURL && !Array.from(webhookEvents).some((cb) => cb.checked)) {
+        webhookEvents.forEach((cb) => (cb.checked = true));
+      }
     }
-  });
+
+    webhookURL?.addEventListener("input", updateWebhookFields);
+    updateWebhookFields();
+  }
 
   // endregion
 }

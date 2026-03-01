@@ -129,9 +129,9 @@
                     </h2>
                     {{if .Admin}}
                         <button
-                            id="config-edit-btn"
                             class="btn btn-outline"
-                            data-action="edit-config"
+                            popovertarget="config-dialog"
+                            popovertargetaction="show"
                         >Edit</button>
                     {{end}}
                 </div>
@@ -237,120 +237,142 @@
                 {{end}}
 
                 {{if .Admin}}
-                    <div id="config-edit" class="hidden bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                        <p class="text-xs text-muted mb-4">
-                            Values set in tspages.toml at deploy time take priority over these settings.
-                        </p>
-                        <div class="flex flex-col gap-4">
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-public" class="text-sm text-muted">Public access</label>
-                                <input type="checkbox" id="cfg-public"
-                                    {{if and .SiteOverrides.Public (deref .SiteOverrides.Public)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-spa" class="text-sm text-muted">SPA routing</label>
-                                <input type="checkbox" id="cfg-spa"
-                                    {{if and .SiteOverrides.SPARouting (deref .SiteOverrides.SPARouting)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-cleanurls" class="text-sm text-muted">Clean URLs</label>
-                                <input type="checkbox" id="cfg-cleanurls"
-                                    {{if and .SiteOverrides.HTMLExtensions (not (deref .SiteOverrides.HTMLExtensions))}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-analytics" class="text-sm text-muted">Analytics</label>
-                                <input type="checkbox" id="cfg-analytics"
-                                    {{if and .SiteOverrides.Analytics (deref .SiteOverrides.Analytics)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-dirlist" class="text-sm text-muted">Directory listing</label>
-                                <input type="checkbox" id="cfg-dirlist"
-                                    {{if and .SiteOverrides.DirectoryListing (deref .SiteOverrides.DirectoryListing)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-trailing" class="text-sm text-muted">Trailing slash</label>
-                                <select id="cfg-trailing"
-                                    class="text-sm border border-default rounded-md px-3 py-1.5 bg-paper dark:bg-base-950 text-black dark:text-base-200 outline-none focus:border-blue-500">
-                                    <option value="" {{if eq .SiteOverrides.TrailingSlash ""}}selected{{end}}>None</option>
-                                    <option value="add" {{if eq .SiteOverrides.TrailingSlash "add"}}selected{{end}}>Add</option>
-                                    <option value="remove" {{if eq .SiteOverrides.TrailingSlash "remove"}}selected{{end}}>Remove</option>
-                                </select>
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-index" class="text-sm text-muted">Index page</label>
-                                <input type="text" id="cfg-index" value="{{.SiteOverrides.IndexPage}}"
-                                    placeholder="index.html"
-                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-notfound" class="text-sm text-muted">404 page</label>
-                                <input type="text" id="cfg-notfound" value="{{.SiteOverrides.NotFoundPage}}"
-                                    placeholder="404.html"
-                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
-                            </div>
-
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-webhook-url" class="text-sm text-muted">Webhook URL</label>
-                                <input type="text" id="cfg-webhook-url" value="{{.SiteOverrides.WebhookURL}}"
-                                    placeholder="https://example.com/hook"
-                                    class="text-sm font-mono w-64 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
-                            </div>
-
-                            <div class="py-2">
-                                <span class="text-sm text-muted block mb-2">Webhook events</span>
-                                <div class="flex flex-wrap gap-4">
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="deploy.success"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "deploy.success"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
-                                        deploy.success
-                                    </label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="deploy.failed"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "deploy.failed"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
-                                        deploy.failed
-                                    </label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="site.created"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "site.created"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
-                                        site.created
-                                    </label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="site.deleted"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "site.deleted"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
-                                        site.deleted
+                    <dialog id="config-dialog" popover class="config-dialog">
+                        <form method="POST" action="/sites/{{.Site.Name}}/config">
+                            <h3 class="text-base font-semibold mb-1">Edit configuration</h3>
+                            <p class="text-xs text-muted mb-4">
+                                Values set in tspages.toml at deploy time take priority over these settings.
+                            </p>
+                            <div class="flex flex-col gap-4">
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-sm text-muted">Public access</span>
+                                    <label>
+                                        <input type="hidden" name="public" value="false">
+                                        <input type="checkbox" name="public" value="true" class="toggle"
+                                            {{if deref .Config.Public}}checked{{end}}>
+                                        <span class="toggle-track"></span>
                                     </label>
                                 </div>
-                            </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-webhook-secret" class="text-sm text-muted">Webhook secret</label>
-                                <input type="password" id="cfg-webhook-secret" value="{{.SiteOverrides.WebhookSecret}}"
-                                    placeholder="optional"
-                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
-                            </div>
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-sm text-muted">SPA routing</span>
+                                    <label>
+                                        <input type="hidden" name="spa_routing" value="false">
+                                        <input type="checkbox" name="spa_routing" value="true" class="toggle"
+                                            {{if deref .Config.SPARouting}}checked{{end}}>
+                                        <span class="toggle-track"></span>
+                                    </label>
+                                </div>
 
-                            <div class="flex justify-end gap-2 pt-4 border-t border-default">
-                                <button class="btn btn-outline" data-action="cancel-config">Cancel</button>
-                                <button class="btn btn-primary" data-action="save-config">Save</button>
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-sm text-muted">Clean URLs</span>
+                                    <label>
+                                        <input type="hidden" name="clean_urls" value="false">
+                                        <input type="checkbox" name="clean_urls" value="true" class="toggle"
+                                            {{if not (deref .Config.HTMLExtensions)}}checked{{end}}>
+                                        <span class="toggle-track"></span>
+                                    </label>
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-sm text-muted">Analytics</span>
+                                    <label>
+                                        <input type="hidden" name="analytics" value="false">
+                                        <input type="checkbox" name="analytics" value="true" class="toggle"
+                                            {{if .AnalyticsEnabled}}checked{{end}}>
+                                        <span class="toggle-track"></span>
+                                    </label>
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-sm text-muted">Directory listing</span>
+                                    <label>
+                                        <input type="hidden" name="directory_listing" value="false">
+                                        <input type="checkbox" name="directory_listing" value="true" class="toggle"
+                                            {{if deref .Config.DirectoryListing}}checked{{end}}>
+                                        <span class="toggle-track"></span>
+                                    </label>
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <label for="cfg-trailing" class="text-sm text-muted">Trailing slash</label>
+                                    <select id="cfg-trailing" name="trailing_slash" class="select">
+                                        <option value="" {{if eq .Config.TrailingSlash ""}}selected{{end}}>None</option>
+                                        <option value="add" {{if eq .Config.TrailingSlash "add"}}selected{{end}}>Add</option>
+                                        <option value="remove" {{if eq .Config.TrailingSlash "remove"}}selected{{end}}>Remove</option>
+                                    </select>
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <label for="cfg-index" class="text-sm text-muted">Index page</label>
+                                    <input type="text" id="cfg-index" name="index_page"
+                                        value="{{.Config.IndexPage}}"
+                                        placeholder="index.html"
+                                        class="input font-mono w-48">
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <label for="cfg-notfound" class="text-sm text-muted">404 page</label>
+                                    <input type="text" id="cfg-notfound" name="not_found_page"
+                                        value="{{.Config.NotFoundPage}}"
+                                        placeholder="404.html"
+                                        class="input font-mono w-48">
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <label for="cfg-webhook-url" class="text-sm text-muted">Webhook URL</label>
+                                    <input type="url" id="cfg-webhook-url" name="webhook_url"
+                                        value="{{.Config.WebhookURL}}"
+                                        placeholder="https://example.com/hook"
+                                        class="input font-mono w-64">
+                                </div>
+
+                                <div class="py-2">
+                                    <span class="text-sm text-muted block mb-2">Webhook events</span>
+                                    <div class="flex flex-wrap gap-4">
+                                        <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                            <input type="checkbox" name="webhook_events" value="deploy.success"
+                                                {{if containsStr .Config.WebhookEvents "deploy.success"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500">
+                                            deploy.success
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                            <input type="checkbox" name="webhook_events" value="deploy.failed"
+                                                {{if containsStr .Config.WebhookEvents "deploy.failed"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500">
+                                            deploy.failed
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                            <input type="checkbox" name="webhook_events" value="site.created"
+                                                {{if containsStr .Config.WebhookEvents "site.created"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500">
+                                            site.created
+                                        </label>
+                                        <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                            <input type="checkbox" name="webhook_events" value="site.deleted"
+                                                {{if containsStr .Config.WebhookEvents "site.deleted"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500">
+                                            site.deleted
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <label for="cfg-webhook-secret" class="text-sm text-muted">Webhook secret</label>
+                                    <input type="password" id="cfg-webhook-secret" name="webhook_secret"
+                                        value="{{.Config.WebhookSecret}}"
+                                        placeholder="optional"
+                                        class="input font-mono w-48">
+                                </div>
+
+                                <div class="flex justify-end gap-2 pt-4 border-t border-default">
+                                    <button type="button" class="btn btn-outline"
+                                        popovertarget="config-dialog" popovertargetaction="hide">Cancel</button>
+                                    <button type="submit" class="btn btn-primary">Save</button>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                        </form>
+                    </dialog>
                 {{end}}
             </section>
         {{end}}
