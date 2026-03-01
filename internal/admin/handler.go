@@ -48,8 +48,9 @@ type handlerDeps struct {
 // analyticsEnabled reports whether analytics are enabled for the given site
 // by reading the current deployment's config and merging with server defaults.
 func (d *handlerDeps) analyticsEnabled(site string) bool {
-	cfg, _ := d.store.ReadCurrentSiteConfig(site)
-	merged := cfg.Merge(d.defaults)
+	deployCfg, _ := d.store.ReadCurrentDeploymentConfig(site)
+	siteCfg, _ := d.store.ReadSiteConfig(site)
+	merged := deployCfg.Merge(siteCfg).Merge(d.defaults)
 	if merged.Analytics == nil {
 		return true
 	}
@@ -101,7 +102,9 @@ type Handlers struct {
 	API             *APIHandler
 	Feed            *FeedHandler
 	SiteFeed        *SiteFeedHandler
-	SiteHealth      *SiteHealthHandler
+	SiteHealth       *SiteHealthHandler
+	SiteConfig       *SiteConfigHandler
+	UpdateSiteConfig *UpdateSiteConfigHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
@@ -125,7 +128,9 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		API:             &APIHandler{},
 		Feed:            &FeedHandler{d},
 		SiteFeed:        &SiteFeedHandler{d},
-		SiteHealth:      &SiteHealthHandler{handlerDeps: d, checker: checker},
+		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
+		SiteConfig:       &SiteConfigHandler{d},
+		UpdateSiteConfig: &UpdateSiteConfigHandler{d},
 	}
 }
 

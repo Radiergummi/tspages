@@ -351,7 +351,7 @@ func TestHandler_SPA_FallbackToIndex(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
+	store.WriteDeploymentConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
 
 	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
@@ -381,7 +381,7 @@ func TestHandler_SPA_RealFileStillServed(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
+	store.WriteDeploymentConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa})
 
 	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
@@ -410,7 +410,7 @@ func TestHandler_SPA_CustomIndexPage(t *testing.T) {
 	store.ActivateDeployment("app", "aaa11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa, IndexPage: "app.html"})
+	store.WriteDeploymentConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &spa, IndexPage: "app.html"})
 
 	h := NewHandler(store, "app", "", storage.SiteConfig{})
 
@@ -484,7 +484,7 @@ func TestHandler_CustomNotFoundPage(t *testing.T) {
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
 
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{NotFoundPage: "errors/404.html"})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{NotFoundPage: "errors/404.html"})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
@@ -519,7 +519,7 @@ func TestHandler_NotFoundPage_SymlinkEscape(t *testing.T) {
 
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{NotFoundPage: "evil404.html"})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{NotFoundPage: "evil404.html"})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
@@ -584,7 +584,7 @@ func TestHandler_CustomHeaders(t *testing.T) {
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
 
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Headers: map[string]map[string]string{
 			"/*":     {"X-Frame-Options": "DENY"},
 			"/*.css": {"Cache-Control": "public, max-age=86400"},
@@ -682,7 +682,7 @@ func TestHandler_FullConfig_Integration(t *testing.T) {
 	store.ActivateDeployment("app", "int11111")
 
 	spa := true
-	store.WriteSiteConfig("app", "int11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("app", "int11111", storage.SiteConfig{
 		SPARouting:   &spa,
 		NotFoundPage: "errors/404.html",
 		Headers: map[string]map[string]string{
@@ -763,7 +763,7 @@ func TestHandler_AnalyticsEnabled_Disabled(t *testing.T) {
 	store := storage.New(t.TempDir())
 	setupSite(t, store, "docs", "aaa11111", map[string]string{"index.html": "hi"})
 	analytics := false
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
@@ -850,7 +850,7 @@ func TestHandler_Redirect_Exact(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"index.html": "<h1>Docs</h1>",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Redirects: []storage.RedirectRule{
 			{From: "/old", To: "/new", Status: 302},
 		},
@@ -877,7 +877,7 @@ func TestHandler_Redirect_NamedParam(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"index.html": "hi",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Redirects: []storage.RedirectRule{
 			{From: "/blog/:slug", To: "/posts/:slug"},
 		},
@@ -904,7 +904,7 @@ func TestHandler_Redirect_Splat(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"index.html": "hi",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Redirects: []storage.RedirectRule{
 			{From: "/docs/*", To: "/v2/docs/*"},
 		},
@@ -931,7 +931,7 @@ func TestHandler_Redirect_FirstMatchWins(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"index.html": "hi",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Redirects: []storage.RedirectRule{
 			{From: "/a", To: "/first", Status: 302},
 			{From: "/a", To: "/second", Status: 302},
@@ -957,7 +957,7 @@ func TestHandler_Redirect_NoMatchServesFile(t *testing.T) {
 		"index.html": "<h1>Docs</h1>",
 		"style.css":  "body{}",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Redirects: []storage.RedirectRule{
 			{From: "/old", To: "/new"},
 		},
@@ -1076,7 +1076,7 @@ func TestHandler_CacheControl_UserOverride(t *testing.T) {
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
 
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{
 		Headers: map[string]map[string]string{
 			"/*.css": {"Cache-Control": "public, max-age=86400"},
 		},
@@ -1523,7 +1523,7 @@ func TestHandler_DirectoryListing_Enabled(t *testing.T) {
 	store.ActivateDeployment("files", "aaa11111")
 
 	dl := true
-	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+	store.WriteDeploymentConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
 
 	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/", nil)
@@ -1582,7 +1582,7 @@ func TestHandler_DirectoryListing_IndexTakesPrecedence(t *testing.T) {
 	store.ActivateDeployment("files", "aaa11111")
 
 	dl := true
-	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+	store.WriteDeploymentConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
 
 	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/docs/", nil)
@@ -1642,7 +1642,7 @@ func TestHandler_DirectoryListing_ParentLink(t *testing.T) {
 	store.ActivateDeployment("files", "aaa11111")
 
 	dl := true
-	store.WriteSiteConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+	store.WriteDeploymentConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
 
 	h := NewHandler(store, "files", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/a/b/", nil)
@@ -1700,7 +1700,7 @@ func TestHandler_TrailingSlash_Add(t *testing.T) {
 	store.MarkComplete("docs", "aaa11111")
 	store.ActivateDeployment("docs", "aaa11111")
 
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about", nil)
@@ -1723,7 +1723,7 @@ func TestHandler_TrailingSlash_Add_SkipsFileExtensions(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"style.css": "body{}",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "add"})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/style.css", nil)
@@ -1743,7 +1743,7 @@ func TestHandler_TrailingSlash_Remove(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"about.html": "<h1>About</h1>",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/about/", nil)
@@ -1766,7 +1766,7 @@ func TestHandler_TrailingSlash_Remove_RootUnchanged(t *testing.T) {
 	setupSite(t, store, "docs", "aaa11111", map[string]string{
 		"index.html": "<h1>Docs</h1>",
 	})
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{TrailingSlash: "remove"})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 	req := httptest.NewRequest("GET", "/", nil)
@@ -1907,7 +1907,7 @@ func TestHandler_CleanURL_Disabled(t *testing.T) {
 		"about.html": "<h1>About</h1>",
 	})
 	htmlExt := true
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{HTMLExtensions: &htmlExt})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{HTMLExtensions: &htmlExt})
 
 	h := NewHandler(store, "docs", "", storage.SiteConfig{})
 
@@ -2091,6 +2091,53 @@ func TestHandler_Gzip_RefusedWithQZero(t *testing.T) {
 	}
 	if ce := rec.Header().Get("Content-Encoding"); ce == "gzip" {
 		t.Error("response should not be gzip-encoded when q=0")
+	}
+}
+
+func TestHandler_SiteConfigMerge(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("app", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "index.html"), []byte("<h1>SPA</h1>"), 0644)
+	store.MarkComplete("app", "aaa11111")
+	store.ActivateDeployment("app", "aaa11111")
+
+	// Site-level config enables SPA routing.
+	spa := true
+	store.WriteSiteConfig("app", storage.SiteConfig{SPARouting: &spa})
+
+	h := NewHandler(store, "app", "", storage.SiteConfig{})
+
+	// Request a non-existent path — SPA should serve index.
+	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "nonexistent")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("with site config SPA=true: status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "SPA") {
+		t.Errorf("expected index content, got: %s", rec.Body.String())
+	}
+
+	// Deployment config overrides site config: disable SPA.
+	noSPA := false
+	store.WriteDeploymentConfig("app", "aaa11111", storage.SiteConfig{SPARouting: &noSPA})
+	h.InvalidateConfig()
+
+	req = httptest.NewRequest("GET", "/nonexistent", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "nonexistent")
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("with deployment config SPA=false: status = %d, want 404", rec.Code)
 	}
 }
 

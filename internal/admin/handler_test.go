@@ -318,7 +318,7 @@ func TestSiteHandler_HidesAnalyticsWhenDisabled(t *testing.T) {
 	recorder := setupRecorder(t)
 
 	analytics := false
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
 	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
@@ -914,7 +914,7 @@ func TestAnalyticsHandler_Disabled(t *testing.T) {
 
 	// Disable analytics for docs via deployment config.
 	analytics := false
-	store.WriteSiteConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
+	store.WriteDeploymentConfig("docs", "aaa11111", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
 	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
@@ -1093,7 +1093,7 @@ func TestAllAnalyticsHandler_ExcludesDisabledSites(t *testing.T) {
 
 	// Disable analytics for demo.
 	analytics := false
-	store.WriteSiteConfig("demo", "bbb22222", storage.SiteConfig{Analytics: &analytics})
+	store.WriteDeploymentConfig("demo", "bbb22222", storage.SiteConfig{Analytics: &analytics})
 
 	dnsSuffix := "test.ts.net"
 	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)

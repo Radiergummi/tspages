@@ -311,7 +311,7 @@ func TestHandler_ParsesSiteConfig(t *testing.T) {
 	json.NewDecoder(rec.Body).Decode(&resp)
 
 	// Config should be stored at deployment level
-	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	cfg, err := store.ReadDeploymentConfig("docs", resp.DeploymentID)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestHandler_ParsesRedirectsFile(t *testing.T) {
 	var resp DeployResponse
 	json.NewDecoder(rec.Body).Decode(&resp)
 
-	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	cfg, err := store.ReadDeploymentConfig("docs", resp.DeploymentID)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestHandler_ParsesHeadersFile(t *testing.T) {
 	var resp DeployResponse
 	json.NewDecoder(rec.Body).Decode(&resp)
 
-	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	cfg, err := store.ReadDeploymentConfig("docs", resp.DeploymentID)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
@@ -434,7 +434,7 @@ func TestHandler_TomlOverridesNetlifyFiles(t *testing.T) {
 	var resp DeployResponse
 	json.NewDecoder(rec.Body).Decode(&resp)
 
-	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	cfg, err := store.ReadDeploymentConfig("docs", resp.DeploymentID)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
@@ -522,7 +522,7 @@ func TestHandler_NoSiteConfig(t *testing.T) {
 	json.NewDecoder(rec.Body).Decode(&resp)
 
 	// No config file — should return zero-value config
-	cfg, err := store.ReadSiteConfig("docs", resp.DeploymentID)
+	cfg, err := store.ReadDeploymentConfig("docs", resp.DeploymentID)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}

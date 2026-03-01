@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deployment comments. Use `tspages deploy -m "your message"` or pass a `?comment=` query parameter
   (with `Comment` header fallback) to attach a human-readable note to a deployment. Comments are
   shown in the admin dashboard, Atom feeds, and webhook payloads.
+- Site-level configuration can now be edited from the admin dashboard and API
+  (`GET`/`PATCH /sites/{site}/config`). Values set in `tspages.toml` at deploy time take priority
+  over site-level settings.
+
+### Changed
+
+- SPA routing and directory listing are now validated as mutually exclusive.
+- Webhook URL now requires at least one event, and events/secret require a URL.
 
 ### Fixed
 

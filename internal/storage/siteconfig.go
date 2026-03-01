@@ -10,28 +10,29 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// SiteConfig holds per-deployment configuration parsed from tspages.toml.
+// SiteConfig holds configuration for a site, used for both per-deployment
+// config (tspages.toml) and site-level overrides (data/sites/{site}/config.toml).
 type SiteConfig struct {
-	Public           *bool                        `toml:"public"`
-	SPARouting       *bool                        `toml:"spa_routing"`
-	HTMLExtensions   *bool                        `toml:"html_extensions"`
-	Analytics        *bool                        `toml:"analytics"`
-	DirectoryListing *bool                        `toml:"directory_listing"`
-	IndexPage        string                       `toml:"index_page"`
-	NotFoundPage     string                       `toml:"not_found_page"`
-	TrailingSlash    string                       `toml:"trailing_slash"`
-	Headers          map[string]map[string]string `toml:"headers"`
-	Redirects        []RedirectRule               `toml:"redirects"`
-	WebhookURL       string                       `toml:"webhook_url"`
-	WebhookEvents    []string                     `toml:"webhook_events"`
-	WebhookSecret    string                       `toml:"webhook_secret"`
+	Public           *bool                        `toml:"public" json:"public,omitempty"`
+	SPARouting       *bool                        `toml:"spa_routing" json:"spa_routing,omitempty"`
+	HTMLExtensions   *bool                        `toml:"html_extensions" json:"html_extensions,omitempty"`
+	Analytics        *bool                        `toml:"analytics" json:"analytics,omitempty"`
+	DirectoryListing *bool                        `toml:"directory_listing" json:"directory_listing,omitempty"`
+	IndexPage        string                       `toml:"index_page" json:"index_page,omitempty"`
+	NotFoundPage     string                       `toml:"not_found_page" json:"not_found_page,omitempty"`
+	TrailingSlash    string                       `toml:"trailing_slash" json:"trailing_slash,omitempty"`
+	Headers          map[string]map[string]string `toml:"headers" json:"headers,omitempty"`
+	Redirects        []RedirectRule               `toml:"redirects" json:"redirects,omitempty"`
+	WebhookURL       string                       `toml:"webhook_url" json:"webhook_url,omitempty"`
+	WebhookEvents    []string                     `toml:"webhook_events" json:"webhook_events,omitempty"`
+	WebhookSecret    string                       `toml:"webhook_secret" json:"webhook_secret,omitempty"`
 }
 
 // RedirectRule defines a single redirect from one path pattern to another.
 type RedirectRule struct {
-	From   string `toml:"from"`
-	To     string `toml:"to"`
-	Status int    `toml:"status,omitempty"`
+	From   string `toml:"from" json:"from"`
+	To     string `toml:"to" json:"to"`
+	Status int    `toml:"status,omitempty" json:"status,omitempty"`
 }
 
 const siteConfigFile = "config.toml"
@@ -108,6 +109,19 @@ func (c SiteConfig) Validate() error {
 		if !validEvents[ev] {
 			return fmt.Errorf("webhook_events[%d]: unknown event %q", i, ev)
 		}
+	}
+
+	if c.SPARouting != nil && *c.SPARouting && c.DirectoryListing != nil && *c.DirectoryListing {
+		return fmt.Errorf("spa_routing and directory_listing are mutually exclusive")
+	}
+	if c.WebhookURL != "" && len(c.WebhookEvents) == 0 {
+		return fmt.Errorf("webhook_url requires at least one webhook_events entry")
+	}
+	if c.WebhookURL == "" && len(c.WebhookEvents) > 0 {
+		return fmt.Errorf("webhook_events requires webhook_url")
+	}
+	if c.WebhookURL == "" && c.WebhookSecret != "" {
+		return fmt.Errorf("webhook_secret requires webhook_url")
 	}
 
 	return nil
@@ -216,7 +230,35 @@ func ParseHeadersFile(data []byte) (map[string]map[string]string, error) {
 	return result, nil
 }
 
-func (s *Store) WriteSiteConfig(site, id string, cfg SiteConfig) error {
+// ReadSiteConfig reads site-level config overrides from data/sites/{site}/config.toml.
+// Returns a zero SiteConfig if the file does not exist.
+func (s *Store) ReadSiteConfig(site string) (SiteConfig, error) {
+	path := filepath.Join(s.dataDir, "sites", site, siteConfigFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return SiteConfig{}, nil
+		}
+		return SiteConfig{}, err
+	}
+	return ParseSiteConfig(data)
+}
+
+// WriteSiteConfig validates and writes site-level config overrides to data/sites/{site}/config.toml.
+func (s *Store) WriteSiteConfig(site string, cfg SiteConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal site config: %w", err)
+	}
+	path := filepath.Join(s.dataDir, "sites", site, siteConfigFile)
+	return os.WriteFile(path, data, 0644)
+}
+
+// WriteDeploymentConfig writes per-deployment config to the deployment directory.
+func (s *Store) WriteDeploymentConfig(site, id string, cfg SiteConfig) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal site config: %w", err)
@@ -225,7 +267,8 @@ func (s *Store) WriteSiteConfig(site, id string, cfg SiteConfig) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-func (s *Store) ReadSiteConfig(site, id string) (SiteConfig, error) {
+// ReadDeploymentConfig reads per-deployment config from the deployment directory.
+func (s *Store) ReadDeploymentConfig(site, id string) (SiteConfig, error) {
 	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, siteConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -301,10 +344,11 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 	return merged
 }
 
-func (s *Store) ReadCurrentSiteConfig(site string) (SiteConfig, error) {
+// ReadCurrentDeploymentConfig reads per-deployment config for the currently active deployment.
+func (s *Store) ReadCurrentDeploymentConfig(site string) (SiteConfig, error) {
 	id, err := s.CurrentDeployment(site)
 	if err != nil {
 		return SiteConfig{}, nil //nolint:nilerr // no deployment → zero config (use defaults)
 	}
-	return s.ReadSiteConfig(site, id)
+	return s.ReadDeploymentConfig(site, id)
 }

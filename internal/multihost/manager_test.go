@@ -312,7 +312,7 @@ func TestEnsureServer_PublicToggle_Restart(t *testing.T) {
 	m.startSite = func(site string) (*siteServer, error) {
 		startCount.Add(1)
 		// Read config to determine public status, mirroring defaultStartSite.
-		cfg, _ := store.ReadCurrentSiteConfig(site)
+		cfg, _ := store.ReadCurrentDeploymentConfig(site)
 		merged := cfg.Merge(m.defaults)
 		public := merged.Public != nil && *merged.Public
 		return &siteServer{
@@ -328,7 +328,7 @@ func TestEnsureServer_PublicToggle_Restart(t *testing.T) {
 	store.MarkComplete("docs", "d1")
 	store.ActivateDeployment("docs", "d1")
 	boolTrue := true
-	store.WriteSiteConfig("docs", "d1", storage.SiteConfig{Public: &boolTrue})
+	store.WriteDeploymentConfig("docs", "d1", storage.SiteConfig{Public: &boolTrue})
 
 	if err := m.EnsureServer("docs"); err != nil {
 		t.Fatal(err)
@@ -339,7 +339,7 @@ func TestEnsureServer_PublicToggle_Restart(t *testing.T) {
 
 	// Update config to public=false
 	boolFalse := false
-	store.WriteSiteConfig("docs", "d1", storage.SiteConfig{Public: &boolFalse})
+	store.WriteDeploymentConfig("docs", "d1", storage.SiteConfig{Public: &boolFalse})
 
 	if err := m.EnsureServer("docs"); err != nil {
 		t.Fatal(err)

@@ -120,133 +120,238 @@
             </dl>
         </section>
 
-        {{if .Site.ActiveDeploymentID}}
+        {{if or .Site.ActiveDeploymentID .Admin}}
             <section>
-                <h2 class="inline-flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-muted mb-4">
-                    <span>Configuration</span>
-                    {{helpicon "per-site-config" "How to configure"}}
-                </h2>
-                <div class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
-                    {{if deref .Config.Public}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Public access</span>
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
-                                on
-                            </span>
-                        </div>
-                    {{end}}
-
-                    <div class="flex items-center justify-between px-5 py-3">
-                        <span class="text-sm text-muted">SPA routing</span>
-                        {{if deref .Config.SPARouting}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
-                                on
-                            </span>
-                        {{else}}
-                            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
-                                off
-                            </span>
-                        {{end}}
-                    </div>
-
-                    {{if deref .Config.HTMLExtensions}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Clean URLs</span>
-                            <span
-                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                    rounded-full bg-base-500/10 text-muted"
-                            >
-                                off
-                            </span>
-                        </div>
-                    {{end}}
-
-                    <div class="flex items-center justify-between px-5 py-3">
-                        <span class="text-sm text-muted">
-                            Analytics
-                        </span>
-
-                        {{if .AnalyticsEnabled}}
-                            <span
-                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                    rounded-full bg-blue-500/10 text-blue-500"
-                            >
-                                on
-                            </span>
-                        {{else}}
-                            <span
-                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                    rounded-full bg-base-500/10 text-muted"
-                            >
-                                off
-                            </span>
-                        {{end}}
-                    </div>
-
-                    <div class="flex items-center justify-between px-5 py-3">
-                        <span class="text-sm text-muted">Directory listing</span>
-                        {{if deref .Config.DirectoryListing}}
-                            <span
-                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                    rounded-full bg-blue-500/10 text-blue-500"
-                            >
-                                on
-                            </span>
-                        {{else}}
-                            <span
-                                    class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                    rounded-full bg-base-500/10 text-muted"
-                            >
-                                off
-                            </span>
-                        {{end}}
-                    </div>
-
-                    {{if .Config.TrailingSlash}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Trailing slash</span>
-                            <span class="text-sm font-mono">{{.Config.TrailingSlash}}</span>
-                        </div>
-                    {{end}}
-
-                    {{if .Config.IndexPage}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Index page</span>
-                            <span class="text-sm font-mono">{{.Config.IndexPage}}</span>
-                        </div>
-                    {{end}}
-
-                    {{if .Config.NotFoundPage}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">404 page</span>
-                            <span class="text-sm font-mono">{{.Config.NotFoundPage}}</span>
-                        </div>
-                    {{end}}
-
-                    {{if .Config.WebhookURL}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Webhook</span>
-                            <span
-                                    class="text-sm font-mono truncate max-w-75"
-                                    title="{{.Config.WebhookURL}}"
-                            >{{.Config.WebhookURL}}</span>
-                        </div>
-                    {{end}}
-
-                    {{if .Config.Headers}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Custom headers</span>
-                            <span class="text-sm font-mono">{{len .Config.Headers}} {{if eq (len .Config.Headers) 1}}rule{{else}}rules{{end}}</span>
-                        </div>
-                    {{end}}
-
-                    {{if .Config.Redirects}}
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Redirects</span>
-                            <span class="text-sm font-mono">{{len .Config.Redirects}} {{if eq (len .Config.Redirects) 1}}rule{{else}}rules{{end}}</span>
-                        </div>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="inline-flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-muted">
+                        <span>Configuration</span>
+                        {{helpicon "per-site-config" "How to configure"}}
+                    </h2>
+                    {{if .Admin}}
+                        <button
+                            id="config-edit-btn"
+                            class="btn btn-outline"
+                            data-action="edit-config"
+                        >Edit</button>
                     {{end}}
                 </div>
+
+                {{if .Site.ActiveDeploymentID}}
+                    <div id="config-view" class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Public access</span>
+                            {{if deref .Config.Public}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            {{else}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">SPA routing</span>
+                            {{if deref .Config.SPARouting}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            {{else}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Clean URLs</span>
+                            {{if deref .Config.HTMLExtensions}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            {{else}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Analytics</span>
+                            {{if .AnalyticsEnabled}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            {{else}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Directory listing</span>
+                            {{if deref .Config.DirectoryListing}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
+                            {{else}}
+                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Trailing slash</span>
+                            {{if .Config.TrailingSlash}}
+                                <span class="text-sm font-mono">{{.Config.TrailingSlash}}</span>
+                            {{else}}
+                                <span class="text-sm text-muted">&mdash;</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">Index page</span>
+                            {{if .Config.IndexPage}}
+                                <span class="text-sm font-mono">{{.Config.IndexPage}}</span>
+                            {{else}}
+                                <span class="text-sm text-muted">&mdash;</span>
+                            {{end}}
+                        </div>
+
+                        <div class="flex items-center justify-between px-5 py-3">
+                            <span class="text-sm text-muted">404 page</span>
+                            {{if .Config.NotFoundPage}}
+                                <span class="text-sm font-mono">{{.Config.NotFoundPage}}</span>
+                            {{else}}
+                                <span class="text-sm text-muted">&mdash;</span>
+                            {{end}}
+                        </div>
+
+                        {{if .Config.WebhookURL}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Webhook</span>
+                                <span
+                                        class="text-sm font-mono truncate max-w-75"
+                                        title="{{.Config.WebhookURL}}"
+                                >{{.Config.WebhookURL}}</span>
+                            </div>
+                        {{end}}
+
+                        {{if .Config.Headers}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Custom headers</span>
+                                <span class="text-sm font-mono">{{len .Config.Headers}} {{if eq (len .Config.Headers) 1}}rule{{else}}rules{{end}}</span>
+                            </div>
+                        {{end}}
+
+                        {{if .Config.Redirects}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Redirects</span>
+                                <span class="text-sm font-mono">{{len .Config.Redirects}} {{if eq (len .Config.Redirects) 1}}rule{{else}}rules{{end}}</span>
+                            </div>
+                        {{end}}
+                    </div>
+                {{end}}
+
+                {{if .Admin}}
+                    <div id="config-edit" class="hidden bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                        <p class="text-xs text-muted mb-4">
+                            Values set in tspages.toml at deploy time take priority over these settings.
+                        </p>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-public" class="text-sm text-muted">Public access</label>
+                                <input type="checkbox" id="cfg-public"
+                                    {{if and .SiteOverrides.Public (deref .SiteOverrides.Public)}}checked{{end}}
+                                    class="w-4 h-4 accent-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-spa" class="text-sm text-muted">SPA routing</label>
+                                <input type="checkbox" id="cfg-spa"
+                                    {{if and .SiteOverrides.SPARouting (deref .SiteOverrides.SPARouting)}}checked{{end}}
+                                    class="w-4 h-4 accent-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-cleanurls" class="text-sm text-muted">Clean URLs</label>
+                                <input type="checkbox" id="cfg-cleanurls"
+                                    {{if and .SiteOverrides.HTMLExtensions (not (deref .SiteOverrides.HTMLExtensions))}}checked{{end}}
+                                    class="w-4 h-4 accent-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-analytics" class="text-sm text-muted">Analytics</label>
+                                <input type="checkbox" id="cfg-analytics"
+                                    {{if and .SiteOverrides.Analytics (deref .SiteOverrides.Analytics)}}checked{{end}}
+                                    class="w-4 h-4 accent-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-dirlist" class="text-sm text-muted">Directory listing</label>
+                                <input type="checkbox" id="cfg-dirlist"
+                                    {{if and .SiteOverrides.DirectoryListing (deref .SiteOverrides.DirectoryListing)}}checked{{end}}
+                                    class="w-4 h-4 accent-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-trailing" class="text-sm text-muted">Trailing slash</label>
+                                <select id="cfg-trailing"
+                                    class="text-sm border border-default rounded-md px-3 py-1.5 bg-paper dark:bg-base-950 text-black dark:text-base-200 outline-none focus:border-blue-500">
+                                    <option value="" {{if eq .SiteOverrides.TrailingSlash ""}}selected{{end}}>None</option>
+                                    <option value="add" {{if eq .SiteOverrides.TrailingSlash "add"}}selected{{end}}>Add</option>
+                                    <option value="remove" {{if eq .SiteOverrides.TrailingSlash "remove"}}selected{{end}}>Remove</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-index" class="text-sm text-muted">Index page</label>
+                                <input type="text" id="cfg-index" value="{{.SiteOverrides.IndexPage}}"
+                                    placeholder="index.html"
+                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-notfound" class="text-sm text-muted">404 page</label>
+                                <input type="text" id="cfg-notfound" value="{{.SiteOverrides.NotFoundPage}}"
+                                    placeholder="404.html"
+                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-webhook-url" class="text-sm text-muted">Webhook URL</label>
+                                <input type="text" id="cfg-webhook-url" value="{{.SiteOverrides.WebhookURL}}"
+                                    placeholder="https://example.com/hook"
+                                    class="text-sm font-mono w-64 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            </div>
+
+                            <div class="py-2">
+                                <span class="text-sm text-muted block mb-2">Webhook events</span>
+                                <div class="flex flex-wrap gap-4">
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                        <input type="checkbox" name="webhook_events" value="deploy.success"
+                                            {{if containsStr .SiteOverrides.WebhookEvents "deploy.success"}}checked{{end}}
+                                            class="w-4 h-4 accent-blue-500">
+                                        deploy.success
+                                    </label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                        <input type="checkbox" name="webhook_events" value="deploy.failed"
+                                            {{if containsStr .SiteOverrides.WebhookEvents "deploy.failed"}}checked{{end}}
+                                            class="w-4 h-4 accent-blue-500">
+                                        deploy.failed
+                                    </label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                        <input type="checkbox" name="webhook_events" value="site.created"
+                                            {{if containsStr .SiteOverrides.WebhookEvents "site.created"}}checked{{end}}
+                                            class="w-4 h-4 accent-blue-500">
+                                        site.created
+                                    </label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                        <input type="checkbox" name="webhook_events" value="site.deleted"
+                                            {{if containsStr .SiteOverrides.WebhookEvents "site.deleted"}}checked{{end}}
+                                            class="w-4 h-4 accent-blue-500">
+                                        site.deleted
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between py-2">
+                                <label for="cfg-webhook-secret" class="text-sm text-muted">Webhook secret</label>
+                                <input type="password" id="cfg-webhook-secret" value="{{.SiteOverrides.WebhookSecret}}"
+                                    placeholder="optional"
+                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            </div>
+
+                            <div class="flex justify-end gap-2 pt-4 border-t border-default">
+                                <button class="btn btn-outline" data-action="cancel-config">Cancel</button>
+                                <button class="btn btn-primary" data-action="save-config">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                {{end}}
             </section>
         {{end}}
 

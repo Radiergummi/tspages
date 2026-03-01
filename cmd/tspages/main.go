@@ -277,6 +277,8 @@ func registerRoutes(
 	mux.Handle("GET /sites/{site}/analytics", withAuth(h.Analytics))
 	mux.Handle("GET /sites/{site}/analytics.json", withAuth(h.Analytics))
 	mux.Handle("POST /sites/{site}/analytics/purge", withAuth(h.PurgeAnalytics))
+	mux.Handle("GET /sites/{site}/config", withAuth(h.SiteConfig))
+	mux.Handle("PATCH /sites/{site}/config", withAuth(h.UpdateSiteConfig))
 	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
 	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))
 	mux.Handle("GET /deployments", withAuth(h.Deployments))

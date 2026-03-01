@@ -4,6 +4,66 @@ import (
 	"testing"
 )
 
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	return New(t.TempDir())
+}
+
+func TestWriteReadSiteLevelConfig(t *testing.T) {
+	store := newTestStore(t)
+	site := "mysite"
+	if err := store.CreateSite(site); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := true
+	cfg := SiteConfig{Analytics: &tr, IndexPage: "home.html"}
+	if err := store.WriteSiteConfig(site, cfg); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := store.ReadSiteConfig(site)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.Analytics == nil || !*got.Analytics {
+		t.Error("expected analytics=true")
+	}
+	if got.IndexPage != "home.html" {
+		t.Errorf("index_page = %q, want home.html", got.IndexPage)
+	}
+}
+
+func TestReadSiteLevelConfig_Missing(t *testing.T) {
+	store := newTestStore(t)
+	site := "noconfig"
+	if err := store.CreateSite(site); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := store.ReadSiteConfig(site)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if cfg.Analytics != nil {
+		t.Error("expected nil analytics for missing config")
+	}
+}
+
+func TestWriteSiteLevelConfig_Validates(t *testing.T) {
+	store := newTestStore(t)
+	site := "badconfig"
+	if err := store.CreateSite(site); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := true
+	cfg := SiteConfig{SPARouting: &tr, DirectoryListing: &tr}
+	if err := store.WriteSiteConfig(site, cfg); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestParseSiteConfig_Full(t *testing.T) {
 	input := `
 spa_routing = true
@@ -70,7 +130,7 @@ func TestParseSiteConfig_Invalid(t *testing.T) {
 
 func boolPtr(b bool) *bool { return &b }
 
-func TestWriteReadSiteConfig(t *testing.T) {
+func TestWriteReadDeploymentConfig(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")
 
@@ -83,11 +143,11 @@ func TestWriteReadSiteConfig(t *testing.T) {
 			"/*": {"Cache-Control": "public, max-age=3600"},
 		},
 	}
-	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
+	if err := s.WriteDeploymentConfig("docs", "aaa11111", cfg); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	got, err := s.ReadSiteConfig("docs", "aaa11111")
+	got, err := s.ReadDeploymentConfig("docs", "aaa11111")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -105,11 +165,11 @@ func TestWriteReadSiteConfig(t *testing.T) {
 	}
 }
 
-func TestReadSiteConfig_Missing(t *testing.T) {
+func TestReadDeploymentConfig_Missing(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")
 
-	cfg, err := s.ReadSiteConfig("docs", "aaa11111")
+	cfg, err := s.ReadDeploymentConfig("docs", "aaa11111")
 	if err != nil {
 		t.Fatalf("missing config should not error: %v", err)
 	}
@@ -121,18 +181,18 @@ func TestReadSiteConfig_Missing(t *testing.T) {
 	}
 }
 
-func TestReadCurrentSiteConfig(t *testing.T) {
+func TestReadCurrentDeploymentConfig(t *testing.T) {
 	s := New(t.TempDir())
 	s.CreateDeployment("docs", "aaa11111")
 	s.MarkComplete("docs", "aaa11111")
 	s.ActivateDeployment("docs", "aaa11111")
 
 	cfg := SiteConfig{SPARouting: boolPtr(true)}
-	if err := s.WriteSiteConfig("docs", "aaa11111", cfg); err != nil {
+	if err := s.WriteDeploymentConfig("docs", "aaa11111", cfg); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	got, err := s.ReadCurrentSiteConfig("docs")
+	got, err := s.ReadCurrentDeploymentConfig("docs")
 	if err != nil {
 		t.Fatalf("read current: %v", err)
 	}
@@ -141,10 +201,10 @@ func TestReadCurrentSiteConfig(t *testing.T) {
 	}
 }
 
-func TestReadCurrentSiteConfig_NoDeployment(t *testing.T) {
+func TestReadCurrentDeploymentConfig_NoDeployment(t *testing.T) {
 	s := New(t.TempDir())
 
-	cfg, err := s.ReadCurrentSiteConfig("docs")
+	cfg, err := s.ReadCurrentDeploymentConfig("docs")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -647,18 +707,19 @@ func TestValidateSiteConfig_WebhookURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		url     string
+		events  []string
 		wantErr bool
 	}{
-		{"empty", "", false},
-		{"https", "https://example.com/hook", false},
-		{"http", "http://internal.ts.net/hook", false},
-		{"ftp", "ftp://example.com", true},
-		{"no scheme", "example.com/hook", true},
-		{"just text", "not-a-url", true},
+		{"empty", "", nil, false},
+		{"https", "https://example.com/hook", []string{"deploy.success"}, false},
+		{"http", "http://internal.ts.net/hook", []string{"deploy.success"}, false},
+		{"ftp", "ftp://example.com", []string{"deploy.success"}, true},
+		{"no scheme", "example.com/hook", []string{"deploy.success"}, true},
+		{"just text", "not-a-url", []string{"deploy.success"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := SiteConfig{WebhookURL: tt.url}
+			cfg := SiteConfig{WebhookURL: tt.url, WebhookEvents: tt.events}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -670,19 +731,20 @@ func TestValidateSiteConfig_WebhookURL(t *testing.T) {
 func TestValidateSiteConfig_WebhookEvents(t *testing.T) {
 	tests := []struct {
 		name    string
+		url     string
 		events  []string
 		wantErr bool
 	}{
-		{"nil", nil, false},
-		{"empty", []string{}, false},
-		{"valid single", []string{"deploy.success"}, false},
-		{"valid all", []string{"deploy.success", "deploy.failed", "site.created", "site.deleted"}, false},
-		{"unknown event", []string{"deploy.success", "deploy.started"}, true},
-		{"empty string event", []string{""}, true},
+		{"nil", "", nil, false},
+		{"empty", "", []string{}, false},
+		{"valid single", "https://example.com/hook", []string{"deploy.success"}, false},
+		{"valid all", "https://example.com/hook", []string{"deploy.success", "deploy.failed", "site.created", "site.deleted"}, false},
+		{"unknown event", "https://example.com/hook", []string{"deploy.success", "deploy.started"}, true},
+		{"empty string event", "https://example.com/hook", []string{""}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := SiteConfig{WebhookEvents: tt.events}
+			cfg := SiteConfig{WebhookURL: tt.url, WebhookEvents: tt.events}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -711,6 +773,35 @@ func TestSiteConfig_Merge_WebhookOverride(t *testing.T) {
 	}
 	if merged.WebhookSecret != "" {
 		t.Errorf("webhook_secret = %q, want empty (per-site override replaces all)", merged.WebhookSecret)
+	}
+}
+
+func TestValidateSiteConfig_SPAAndDirectoryListingMutuallyExclusive(t *testing.T) {
+	tr := true
+	cfg := SiteConfig{SPARouting: &tr, DirectoryListing: &tr}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for SPA + directory listing")
+	}
+}
+
+func TestValidateSiteConfig_WebhookURLRequiresEvents(t *testing.T) {
+	cfg := SiteConfig{WebhookURL: "https://example.com"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for webhook URL without events")
+	}
+}
+
+func TestValidateSiteConfig_WebhookEventsRequireURL(t *testing.T) {
+	cfg := SiteConfig{WebhookEvents: []string{"deploy.success"}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for webhook events without URL")
+	}
+}
+
+func TestValidateSiteConfig_WebhookSecretRequiresURL(t *testing.T) {
+	cfg := SiteConfig{WebhookSecret: "secret"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for webhook secret without URL")
 	}
 }
 

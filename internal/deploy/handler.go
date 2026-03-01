@@ -239,7 +239,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusBadRequest)
 			return
 		}
-		if err := h.store.WriteSiteConfig(site, id, siteCfg); err != nil {
+		if err := h.store.WriteDeploymentConfig(site, id, siteCfg); err != nil {
 			markFailed(extractedBytes, fmt.Sprintf("writing site config: %v", err))
 			http.Error(w, "writing site config", http.StatusInternalServerError)
 			return
@@ -288,7 +288,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 
 	if h.notifier != nil {
-		resolvedCfg := siteCfg.Merge(h.defaults)
+		siteLevelCfg, _ := h.store.ReadSiteConfig(site)
+		resolvedCfg := siteCfg.Merge(siteLevelCfg).Merge(h.defaults)
 		meta := map[string]any{
 			"site":          site,
 			"deployment_id": id,
@@ -307,8 +308,9 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 	if h.notifier == nil {
 		return
 	}
-	cfg, _ := h.store.ReadCurrentSiteConfig(site)
-	resolvedCfg := cfg.Merge(h.defaults)
+	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(site)
+	siteCfg, _ := h.store.ReadSiteConfig(site)
+	resolvedCfg := deployCfg.Merge(siteCfg).Merge(h.defaults)
 	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
 		"site":  site,
 		"error": err.Error(),

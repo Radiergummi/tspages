@@ -252,8 +252,9 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cfg, _ := h.store.ReadCurrentSiteConfig(delivery.Site)
-	merged := cfg.Merge(h.defaults)
+	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(delivery.Site)
+	siteCfg, _ := h.store.ReadSiteConfig(delivery.Site)
+	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
 
 	status, err := h.notifier.Resend(webhookID, merged.WebhookSecret)
 	if err != nil {
