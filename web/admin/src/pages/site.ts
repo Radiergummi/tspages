@@ -14,7 +14,7 @@ import {
 function main(): void {
   Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler);
 
-  const mainNode = document.querySelector<HTMLElement>("main")!;
+  const mainNode = document.querySelector<HTMLElement>("[data-site]")!;
   const siteName = mainNode.dataset.site!;
 
   // region Sparkline
@@ -179,19 +179,37 @@ function main(): void {
     editBtn?.classList.remove("hidden");
   });
 
-  const spaToggle = document.getElementById("cfg-spa") as HTMLInputElement | null;
-  const dirToggle = document.getElementById("cfg-dirlist") as HTMLInputElement | null;
+  // Toggle buttons: click toggles aria-checked
+  function isToggleOn(el: HTMLElement | null): boolean {
+    return el?.getAttribute("aria-checked") === "true";
+  }
+
+  function setToggle(el: HTMLElement | null, on: boolean): void {
+    el?.setAttribute("aria-checked", String(on));
+  }
+
+  const toggles = configEdit?.querySelectorAll<HTMLButtonElement>(".toggle");
+  toggles?.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      setToggle(btn, !isToggleOn(btn));
+      btn.dispatchEvent(new Event("change"));
+    });
+  });
+
+  const spaToggle = document.getElementById("cfg-spa") as HTMLButtonElement | null;
+  const dirToggle = document.getElementById("cfg-dirlist") as HTMLButtonElement | null;
 
   spaToggle?.addEventListener("change", () => {
-    if (dirToggle) dirToggle.disabled = spaToggle.checked;
+    if (dirToggle) dirToggle.disabled = isToggleOn(spaToggle);
   });
   dirToggle?.addEventListener("change", () => {
-    if (spaToggle) spaToggle.disabled = dirToggle.checked;
+    if (spaToggle) spaToggle.disabled = isToggleOn(dirToggle);
   });
 
   // Set initial disabled state
-  if (spaToggle?.checked && dirToggle) dirToggle.disabled = true;
-  if (dirToggle?.checked && spaToggle) spaToggle.disabled = true;
+  if (isToggleOn(spaToggle) && dirToggle) dirToggle.disabled = true;
+  if (isToggleOn(dirToggle) && spaToggle) spaToggle.disabled = true;
 
   const webhookURL = document.getElementById("cfg-webhook-url") as HTMLInputElement | null;
   const webhookEvents = document.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
@@ -212,11 +230,11 @@ function main(): void {
 
   saveBtn?.addEventListener("click", async () => {
     const body: Record<string, unknown> = {
-      public: (document.getElementById("cfg-public") as HTMLInputElement)?.checked ?? false,
-      spa_routing: spaToggle?.checked ?? false,
-      html_extensions: !((document.getElementById("cfg-cleanurls") as HTMLInputElement)?.checked ?? false),
-      analytics: (document.getElementById("cfg-analytics") as HTMLInputElement)?.checked ?? false,
-      directory_listing: dirToggle?.checked ?? false,
+      public: isToggleOn(document.getElementById("cfg-public")),
+      spa_routing: isToggleOn(spaToggle),
+      html_extensions: !isToggleOn(document.getElementById("cfg-cleanurls")),
+      analytics: isToggleOn(document.getElementById("cfg-analytics")),
+      directory_listing: isToggleOn(dirToggle),
       index_page: (document.getElementById("cfg-index") as HTMLInputElement)?.value.trim() ?? "",
       not_found_page: (document.getElementById("cfg-notfound") as HTMLInputElement)?.value.trim() ?? "",
       trailing_slash: (document.getElementById("cfg-trailing") as HTMLSelectElement)?.value ?? "",

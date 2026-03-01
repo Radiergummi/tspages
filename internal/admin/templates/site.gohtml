@@ -129,23 +129,22 @@
                     </h2>
                     {{if .Admin}}
                         <button
-                            id="config-edit-btn"
-                            class="btn btn-outline"
-                            data-action="edit-config"
-                        >Edit</button>
+                                id="config-edit-btn"
+                                class="btn btn-outline"
+                                data-action="edit-config"
+                        >Edit
+                        </button>
                     {{end}}
                 </div>
 
                 {{if .Site.ActiveDeploymentID}}
                     <div id="config-view" class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Public access</span>
-                            {{if deref .Config.Public}}
+                        {{if deref .Config.Public}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Public access</span>
                                 <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
-                            {{else}}
-                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
-                            {{end}}
-                        </div>
+                            </div>
+                        {{end}}
 
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">SPA routing</span>
@@ -156,14 +155,12 @@
                             {{end}}
                         </div>
 
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Clean URLs</span>
-                            {{if deref .Config.HTMLExtensions}}
+                        {{if deref .Config.HTMLExtensions}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Clean URLs</span>
                                 <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-base-500/10 text-muted">off</span>
-                            {{else}}
-                                <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">on</span>
-                            {{end}}
-                        </div>
+                            </div>
+                        {{end}}
 
                         <div class="flex items-center justify-between px-5 py-3">
                             <span class="text-sm text-muted">Analytics</span>
@@ -183,32 +180,26 @@
                             {{end}}
                         </div>
 
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Trailing slash</span>
-                            {{if .Config.TrailingSlash}}
+                        {{if .Config.TrailingSlash}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Trailing slash</span>
                                 <span class="text-sm font-mono">{{.Config.TrailingSlash}}</span>
-                            {{else}}
-                                <span class="text-sm text-muted">&mdash;</span>
-                            {{end}}
-                        </div>
+                            </div>
+                        {{end}}
 
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">Index page</span>
-                            {{if .Config.IndexPage}}
+                        {{if .Config.IndexPage}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">Index page</span>
                                 <span class="text-sm font-mono">{{.Config.IndexPage}}</span>
-                            {{else}}
-                                <span class="text-sm text-muted">&mdash;</span>
-                            {{end}}
-                        </div>
+                            </div>
+                        {{end}}
 
-                        <div class="flex items-center justify-between px-5 py-3">
-                            <span class="text-sm text-muted">404 page</span>
-                            {{if .Config.NotFoundPage}}
+                        {{if .Config.NotFoundPage}}
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <span class="text-sm text-muted">404 page</span>
                                 <span class="text-sm font-mono">{{.Config.NotFoundPage}}</span>
-                            {{else}}
-                                <span class="text-sm text-muted">&mdash;</span>
-                            {{end}}
-                        </div>
+                            </div>
+                        {{end}}
 
                         {{if .Config.WebhookURL}}
                             <div class="flex items-center justify-between px-5 py-3">
@@ -237,115 +228,193 @@
                 {{end}}
 
                 {{if .Admin}}
-                    <div id="config-edit" class="hidden bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
-                        <p class="text-xs text-muted mb-4">
-                            Values set in tspages.toml at deploy time take priority over these settings.
-                        </p>
-                        <div class="flex flex-col gap-4">
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-public" class="text-sm text-muted">Public access</label>
-                                <input type="checkbox" id="cfg-public"
-                                    {{if and .SiteOverrides.Public (deref .SiteOverrides.Public)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
+                    <div
+                            id="config-edit"
+                            class="hidden bg-surface rounded-md dark:ring-1 dark:ring-base-500/25"
+                    >
+                        <div class="flex flex-col divide-y divide-paper dark:divide-base-950">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <span class="text-sm">Public access</span>
+                                    <p class="text-xs text-muted mt-0.5">Expose this site to the internet via Tailscale Funnel.</p>
+                                </div>
+                                <button
+                                        type="button" id="cfg-public" role="switch"
+                                        aria-checked="{{if deref .Config.Public}}true{{else}}false{{end}}"
+                                        class="toggle shrink-0"
+                                ></button>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-spa" class="text-sm text-muted">SPA routing</label>
-                                <input type="checkbox" id="cfg-spa"
-                                    {{if and .SiteOverrides.SPARouting (deref .SiteOverrides.SPARouting)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <span class="text-sm">Clean URLs</span>
+                                    <p class="text-xs text-muted mt-0.5">Hide .html extensions from URLs.</p>
+                                </div>
+                                <button
+                                        type="button" id="cfg-cleanurls" role="switch"
+                                        aria-checked="{{if not (deref .Config.HTMLExtensions)}}true{{else}}false{{end}}"
+                                        class="toggle shrink-0"
+                                ></button>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-cleanurls" class="text-sm text-muted">Clean URLs</label>
-                                <input type="checkbox" id="cfg-cleanurls"
-                                    {{if and .SiteOverrides.HTMLExtensions (not (deref .SiteOverrides.HTMLExtensions))}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <span class="text-sm">Analytics</span>
+                                    <p class="text-xs text-muted mt-0.5">Record per-request analytics for this site.</p>
+                                </div>
+                                <button
+                                        type="button" id="cfg-analytics" role="switch"
+                                        aria-checked="{{if deref .Config.Analytics}}true{{else}}false{{end}}"
+                                        class="toggle shrink-0"
+                                ></button>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-analytics" class="text-sm text-muted">Analytics</label>
-                                <input type="checkbox" id="cfg-analytics"
-                                    {{if and .SiteOverrides.Analytics (deref .SiteOverrides.Analytics)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <span class="text-sm">SPA routing</span>
+                                    <p class="text-xs text-muted mt-0.5">Serve index page for all unmatched paths.</p>
+                                </div>
+                                <button
+                                        type="button" id="cfg-spa" role="switch"
+                                        aria-checked="{{if deref .Config.SPARouting}}true{{else}}false{{end}}"
+                                        class="toggle shrink-0"
+                                ></button>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-dirlist" class="text-sm text-muted">Directory listing</label>
-                                <input type="checkbox" id="cfg-dirlist"
-                                    {{if and .SiteOverrides.DirectoryListing (deref .SiteOverrides.DirectoryListing)}}checked{{end}}
-                                    class="w-4 h-4 accent-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <span class="text-sm">Directory listing</span>
+                                    <p class="text-xs text-muted mt-0.5">Show file listings for directories without an index page.</p>
+                                </div>
+                                <button
+                                        type="button" id="cfg-dirlist" role="switch"
+                                        aria-checked="{{if deref .Config.DirectoryListing}}true{{else}}false{{end}}"
+                                        class="toggle shrink-0"
+                                ></button>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-trailing" class="text-sm text-muted">Trailing slash</label>
-                                <select id="cfg-trailing"
-                                    class="text-sm border border-default rounded-md px-3 py-1.5 bg-paper dark:bg-base-950 text-black dark:text-base-200 outline-none focus:border-blue-500">
-                                    <option value="" {{if eq .SiteOverrides.TrailingSlash ""}}selected{{end}}>None</option>
-                                    <option value="add" {{if eq .SiteOverrides.TrailingSlash "add"}}selected{{end}}>Add</option>
-                                    <option value="remove" {{if eq .SiteOverrides.TrailingSlash "remove"}}selected{{end}}>Remove</option>
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <label for="cfg-trailing" class="text-sm">Trailing slash</label>
+                                    <p class="text-xs text-muted mt-0.5">Redirect URLs to add or remove a trailing slash.</p>
+                                </div>
+                                <select id="cfg-trailing" class="select bg-paper">
+                                    <option value="" {{if eq .Config.TrailingSlash ""}}selected{{end}}>
+                                        None
+                                    </option>
+                                    <option value="add" {{if eq .Config.TrailingSlash "add"}}selected{{end}}>
+                                        Add
+                                    </option>
+                                    <option
+                                            value="remove"
+                                            {{if eq .Config.TrailingSlash "remove"}}selected{{end}}>
+                                        Remove
+                                    </option>
                                 </select>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-index" class="text-sm text-muted">Index page</label>
-                                <input type="text" id="cfg-index" value="{{.SiteOverrides.IndexPage}}"
-                                    placeholder="index.html"
-                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <label for="cfg-index" class="text-sm">Index page</label>
+                                    <p class="text-xs text-muted mt-0.5">File to serve when a directory is requested.</p>
+                                </div>
+                                <input
+                                        type="text"
+                                        id="cfg-index"
+                                        value="{{.Config.IndexPage}}"
+                                        placeholder="index.html"
+                                        class="input max-w-3/5"
+                                >
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-notfound" class="text-sm text-muted">404 page</label>
-                                <input type="text" id="cfg-notfound" value="{{.SiteOverrides.NotFoundPage}}"
-                                    placeholder="404.html"
-                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <label for="cfg-notfound" class="text-sm">404 page</label>
+                                    <p class="text-xs text-muted mt-0.5">Custom page to serve for missing paths.</p>
+                                </div>
+                                <input
+                                        type="text"
+                                        id="cfg-notfound"
+                                        value="{{.Config.NotFoundPage}}"
+                                        placeholder="404.html"
+                                        class="input max-w-3/5"
+                                >
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-webhook-url" class="text-sm text-muted">Webhook URL</label>
-                                <input type="text" id="cfg-webhook-url" value="{{.SiteOverrides.WebhookURL}}"
-                                    placeholder="https://example.com/hook"
-                                    class="text-sm font-mono w-64 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <label for="cfg-webhook-url" class="text-sm">Webhook URL</label>
+                                    <p class="text-xs text-muted mt-0.5">Endpoint to notify on deploy and site events.</p>
+                                </div>
+                                <input
+                                        type="url"
+                                        id="cfg-webhook-url"
+                                        value="{{.Config.WebhookURL}}"
+                                        placeholder="https://example.com/hook"
+                                        class="input max-w-3/5"
+                                >
                             </div>
 
-                            <div class="py-2">
-                                <span class="text-sm text-muted block mb-2">Webhook events</span>
+                            <div class="px-5 py-3">
+                                <span class="text-sm block mb-0.5">Webhook events</span>
+                                <p class="text-xs text-muted mb-2">Which events trigger a webhook delivery.</p>
                                 <div class="flex flex-wrap gap-4">
                                     <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="deploy.success"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "deploy.success"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
+                                        <input
+                                                type="checkbox" name="webhook_events" value="deploy.success"
+                                                {{if containsStr .Config.WebhookEvents "deploy.success"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500"
+                                        >
                                         deploy.success
                                     </label>
                                     <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="deploy.failed"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "deploy.failed"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
+                                        <input
+                                                type="checkbox" name="webhook_events" value="deploy.failed"
+                                                {{if containsStr .Config.WebhookEvents "deploy.failed"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500"
+                                        >
                                         deploy.failed
                                     </label>
                                     <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="site.created"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "site.created"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
+                                        <input
+                                                type="checkbox" name="webhook_events" value="site.created"
+                                                {{if containsStr .Config.WebhookEvents "site.created"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500"
+                                        >
                                         site.created
                                     </label>
                                     <label class="inline-flex items-center gap-1.5 text-sm text-muted">
-                                        <input type="checkbox" name="webhook_events" value="site.deleted"
-                                            {{if containsStr .SiteOverrides.WebhookEvents "site.deleted"}}checked{{end}}
-                                            class="w-4 h-4 accent-blue-500">
+                                        <input
+                                                type="checkbox" name="webhook_events" value="site.deleted"
+                                                {{if containsStr .Config.WebhookEvents "site.deleted"}}checked{{end}}
+                                                class="w-4 h-4 accent-blue-500"
+                                        >
                                         site.deleted
                                     </label>
                                 </div>
                             </div>
 
-                            <div class="flex items-center justify-between py-2">
-                                <label for="cfg-webhook-secret" class="text-sm text-muted">Webhook secret</label>
-                                <input type="password" id="cfg-webhook-secret" value="{{.SiteOverrides.WebhookSecret}}"
-                                    placeholder="optional"
-                                    class="text-sm font-mono w-48 px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md text-black dark:text-base-200 outline-none focus:border-blue-500">
+                            <div class="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <label for="cfg-webhook-secret" class="text-sm">Webhook secret</label>
+                                    <p class="text-xs text-muted mt-0.5">HMAC key used to sign webhook payloads.</p>
+                                </div>
+                                <input
+                                        type="password"
+                                        id="cfg-webhook-secret"
+                                        value="{{.Config.WebhookSecret}}"
+                                        placeholder="optional"
+                                        class="input max-w-3/5"
+                                >
                             </div>
 
-                            <div class="flex justify-end gap-2 pt-4 border-t border-default">
+                            <div
+                                    class="grid grid-cols-[auto_min-content_min-content] items-center gap-2 py-3 px-5"
+                            >
+                                <p class="text-xs text-muted">
+                                    Values set in tspages.toml at deploy time take priority over these settings.
+                                </p>
+
                                 <button class="btn btn-outline" data-action="cancel-config">Cancel</button>
                                 <button class="btn btn-primary" data-action="save-config">Save</button>
                             </div>
@@ -665,22 +734,22 @@
                                 id="modal-dropzone"
                                 class="flex flex-col justify-center items-center border-2 border-dashed border-muted rounded-md p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-500/5"
                         >
-                                <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="24"
-                                        height="24"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        class="mb-2 text-muted"
-                                >
-                                    <path d="M12 3v12" />
-                                    <path d="m17 8-5-5-5 5" />
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                </svg>
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class="mb-2 text-muted"
+                            >
+                                <path d="M12 3v12" />
+                                <path d="m17 8-5-5-5 5" />
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            </svg>
                             <div>
                                 <span>
                                     Drop files here or
