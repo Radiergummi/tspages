@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"tspages/internal/auth"
@@ -499,5 +500,82 @@ func TestActivateHandler_Forbidden(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestActivateHandler_FormRedirect(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateDeployment("docs", "aaa11111")
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+	store.CreateDeployment("docs", "bbb22222")
+	store.MarkComplete("docs", "bbb22222")
+
+	h := NewActivateHandler(store, newMockManager())
+
+	req := httptest.NewRequest("POST", "/deploy/docs/bbb22222/activate", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+	req.SetPathValue("id", "bbb22222")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "/sites/docs" {
+		t.Errorf("Location = %q, want /sites/docs", got)
+	}
+}
+
+func TestDeleteHandler_FormRedirect(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateDeployment("docs", "aaa11111")
+	store.MarkComplete("docs", "aaa11111")
+	store.ActivateDeployment("docs", "aaa11111")
+
+	h := NewDeleteHandler(store, newMockManager(), nil, storage.SiteConfig{})
+
+	req := httptest.NewRequest("POST", "/sites/docs/delete", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withCaps(req, []auth.Cap{{Access: "admin"}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "/sites" {
+		t.Errorf("Location = %q, want /sites", got)
+	}
+}
+
+func TestCleanupDeploymentsHandler_FormRedirect(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateDeployment("docs", "aaa11111")
+	store.MarkComplete("docs", "aaa11111")
+	store.CreateDeployment("docs", "bbb22222")
+	store.MarkComplete("docs", "bbb22222")
+	store.ActivateDeployment("docs", "bbb22222")
+
+	h := NewCleanupDeploymentsHandler(store)
+
+	req := httptest.NewRequest("POST", "/sites/docs/cleanup", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withCaps(req, []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}})
+	req.SetPathValue("site", "docs")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "/sites/docs" {
+		t.Errorf("Location = %q, want /sites/docs", got)
 	}
 }

@@ -4,11 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
 	"tspages/internal/webhook"
 )
+
+// wantsRedirect returns true when the request came from an HTML form submission
+// (as opposed to a JSON API call). Form submissions get a 303 redirect response
+// so the browser navigates to the right page.
+func wantsRedirect(r *http.Request) bool {
+	ct := r.Header.Get("Content-Type")
+	return ct == "application/x-www-form-urlencoded" ||
+		strings.HasPrefix(ct, "multipart/form-data")
+}
 
 // DeleteHandler handles DELETE /deploy/{site}.
 type DeleteHandler struct {
@@ -53,7 +63,11 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	if wantsRedirect(r) {
+		http.Redirect(w, r, "/sites", http.StatusSeeOther)
+	} else {
+		w.WriteHeader(http.StatusNoContent)
+	}
 
 	if h.notifier != nil {
 		identity := auth.IdentityFromContext(r.Context())
@@ -172,6 +186,10 @@ func (h *CleanupDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if wantsRedirect(r) {
+		http.Redirect(w, r, "/sites/"+site, http.StatusSeeOther)
+		return
+	}
 	writeJSON(w, map[string]int{"deleted": deleted})
 }
 
@@ -235,5 +253,9 @@ func (h *ActivateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if wantsRedirect(r) {
+		http.Redirect(w, r, "/sites/"+site, http.StatusSeeOther)
+		return
+	}
 	writeJSON(w, storage.DeploymentInfo{ID: id, Active: true})
 }

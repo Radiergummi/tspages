@@ -58,11 +58,9 @@
                     </button>
                 {{end}}
                 {{if .CanDelete}}
-                    <button
-                            class="btn btn-danger"
-                            data-action="delete-site"
-                    >Delete site
-                    </button>
+                    <form method="POST" action="/sites/{{.Site.Name}}/delete">
+                        <button type="submit" class="btn btn-danger" data-action="delete-site">Delete site</button>
+                    </form>
                 {{end}}
             </div>
         </header>
@@ -669,13 +667,9 @@
                                 {{if $.Admin}}
                                     <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
                                         {{if not (or .Active .Failed)}}
-                                            <button
-                                                    class="btn btn-primary"
-                                                    data-action="activate"
-                                                    data-deployment-id="{{.ID}}"
-                                            >
-                                                Activate
-                                            </button>
+                                            <form method="POST" action="/deploy/{{$.Site.Name}}/{{.ID}}/activate">
+                                                <button type="submit" class="btn btn-primary" data-action="activate" data-deployment-id="{{.ID}}">Activate</button>
+                                            </form>
                                         {{end}}
                                     </td>
                                 {{end}}
@@ -687,12 +681,9 @@
 
                 {{if and .CanDeploy .HasInactive}}
                     <div class="flex justify-end mt-4">
-                        <button
-                                class="btn btn-outline"
-                                data-action="cleanup"
-                        >
-                            Clean old deployments
-                        </button>
+                        <form method="POST" action="/sites/{{.Site.Name}}/cleanup">
+                            <button type="submit" class="btn btn-outline" data-action="cleanup">Clean old deployments</button>
+                        </form>
                     </div>
                 {{end}}
             {{else}}

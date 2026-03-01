@@ -8,7 +8,9 @@ function main(): void {
 
   document
     .querySelector<HTMLButtonElement>("[data-action='activate']")
-    ?.addEventListener("click", () => {
+    ?.closest("form")
+    ?.addEventListener("submit", (e) => {
+      e.preventDefault();
       const id = mainNode.dataset.deploymentId!;
 
       return confirmAction({

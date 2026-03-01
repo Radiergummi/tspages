@@ -36,9 +36,9 @@
             </h1>
             <div class="flex gap-2">
                 {{if and .Admin (not .Deployment.Active) (not .Deployment.Failed)}}
-                    <button class="btn btn-primary" data-action="activate">
-                        Activate
-                    </button>
+                    <form method="POST" action="/deploy/{{.SiteName}}/{{.Deployment.ID}}/activate">
+                        <button type="submit" class="btn btn-primary" data-action="activate">Activate</button>
+                    </form>
                 {{end}}
                 {{if .CanDeploy}}
                     <button

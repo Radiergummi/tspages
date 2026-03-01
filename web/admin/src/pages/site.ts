@@ -104,7 +104,8 @@ function main(): void {
   // region Activate deployment
 
   document.querySelectorAll<HTMLButtonElement>("[data-action='activate']").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.closest("form")?.addEventListener("submit", (e) => {
+      e.preventDefault();
       const id = button.dataset.deploymentId!;
 
       return confirmAction({
@@ -121,14 +122,16 @@ function main(): void {
 
   document
     .querySelector<HTMLButtonElement>("[data-action='delete-site']")
-    ?.addEventListener("click", () =>
-      confirmAction({
+    ?.closest("form")
+    ?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      return confirmAction({
         message: `Delete site "${siteName}" and all its deployments?`,
         url: `/deploy/${encodeURIComponent(siteName)}`,
         method: "DELETE",
         onSuccess: "/sites",
-      }),
-    );
+      });
+    });
 
   // endregion
 
@@ -136,7 +139,10 @@ function main(): void {
 
   document
     .querySelector<HTMLButtonElement>("[data-action='cleanup']")
-    ?.addEventListener("click", async () => {
+    ?.closest("form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
       if (!confirm("Delete all inactive deployments? This cannot be undone.")) {
         return;
       }
