@@ -161,10 +161,10 @@ function main(): void {
 
   // region Config editing (progressive enhancement)
 
-  const configDialog = document.getElementById("config-dialog");
-  if (configDialog) {
-    const spaToggle = configDialog.querySelector<HTMLInputElement>("[name='spa_routing'][type='checkbox']");
-    const dirToggle = configDialog.querySelector<HTMLInputElement>("[name='directory_listing'][type='checkbox']");
+  const configDetails = document.getElementById("config-details") as HTMLDetailsElement | null;
+  if (configDetails) {
+    const spaToggle = configDetails.querySelector<HTMLInputElement>("[name='spa_routing'][type='checkbox']");
+    const dirToggle = configDetails.querySelector<HTMLInputElement>("[name='directory_listing'][type='checkbox']");
 
     spaToggle?.addEventListener("change", () => {
       if (dirToggle) dirToggle.disabled = spaToggle.checked;
@@ -176,9 +176,9 @@ function main(): void {
     if (spaToggle?.checked && dirToggle) dirToggle.disabled = true;
     if (dirToggle?.checked && spaToggle) spaToggle.disabled = true;
 
-    const webhookURL = configDialog.querySelector<HTMLInputElement>("[name='webhook_url']");
-    const webhookEvents = configDialog.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
-    const webhookSecret = configDialog.querySelector<HTMLInputElement>("[name='webhook_secret']");
+    const webhookURL = configDetails.querySelector<HTMLInputElement>("[name='webhook_url']");
+    const webhookEvents = configDetails.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
+    const webhookSecret = configDetails.querySelector<HTMLInputElement>("[name='webhook_secret']");
 
     function updateWebhookFields(): void {
       const hasURL = !!webhookURL?.value.trim();
@@ -191,6 +191,10 @@ function main(): void {
 
     webhookURL?.addEventListener("input", updateWebhookFields);
     updateWebhookFields();
+
+    configDetails
+      .querySelector<HTMLButtonElement>("[data-action='config-cancel']")
+      ?.addEventListener("click", () => { configDetails.open = false; });
   }
 
   // endregion
