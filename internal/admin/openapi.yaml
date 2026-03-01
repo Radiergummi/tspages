@@ -40,6 +40,11 @@ paths:
             type: string
             enum: [markdown]
           description: Force format detection (e.g. for plain-text Markdown).
+        - name: Comment
+          in: header
+          schema:
+            type: string
+          description: Human-readable note (fallback if query param is empty).
       requestBody:
         required: true
         content:
@@ -101,6 +106,17 @@ paths:
           schema:
             type: string
           description: Human-readable note to attach to the deployment.
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [markdown]
+          description: Force format detection (e.g. for plain-text Markdown).
+        - name: Comment
+          in: header
+          schema:
+            type: string
+          description: Human-readable note (fallback if query param is empty).
       requestBody:
         required: true
         content:
@@ -233,6 +249,8 @@ paths:
       responses:
         "204":
           description: Deployment deleted.
+        "400":
+          description: Invalid site name or deployment ID.
         "404":
           description: Deployment not found.
         "409":
@@ -256,8 +274,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DeploymentInfo"
+        "400":
+          description: Invalid site name or deployment ID.
         "404":
           description: Deployment not found or not complete.
+        "409":
+          description: Cannot activate a failed deployment.
       security:
         - tailscale: [deploy]
 
@@ -332,7 +354,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SiteDetailResponse"
       security:
-        - tailscale: [view]
+        - tailscale: [deploy]
 
   /sites/{site}/deployments:
     get:
@@ -366,7 +388,7 @@ paths:
                     type: integer
                 required: [deployments, page, total_pages]
       security:
-        - tailscale: [view]
+        - tailscale: [deploy]
 
   /sites/{site}/deployments/{id}:
     get:
@@ -387,7 +409,7 @@ paths:
         "404":
           description: Deployment not found.
       security:
-        - tailscale: [view]
+        - tailscale: [deploy]
 
   /deployments:
     get:
@@ -433,7 +455,7 @@ paths:
         "404":
           description: Analytics disabled for this site.
       security:
-        - tailscale: [view]
+        - tailscale: [deploy]
 
   /sites/{site}/analytics/purge:
     post:
@@ -464,7 +486,7 @@ paths:
       operationId: getAllAnalytics
       summary: Cross-site analytics
       description: |
-        Aggregated analytics across all sites the caller can view.
+        Aggregated analytics across all sites the caller can deploy to.
         Includes per-site breakdown instead of top pages.
       tags: [analytics]
       parameters:
@@ -477,7 +499,245 @@ paths:
               schema:
                 $ref: "#/components/schemas/AllAnalyticsResponse"
       security:
+        - tailscale: [deploy]
+
+  /sites/{site}/config:
+    get:
+      operationId: getSiteConfig
+      summary: Get site configuration
+      description: Returns the site-level configuration.
+      tags: [config]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Site configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteConfig"
+      security:
+        - tailscale: [admin]
+
+    patch:
+      operationId: updateSiteConfig
+      summary: Update site configuration
+      description: Merges the provided fields into the site configuration.
+      tags: [config]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SiteConfig"
+      responses:
+        "200":
+          description: Updated site configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteConfig"
+      security:
+        - tailscale: [admin]
+
+  /webhooks:
+    get:
+      operationId: listWebhookDeliveries
+      summary: Global webhook deliveries
+      description: Paginated list of webhook deliveries across all sites.
+      tags: [webhooks]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: event
+          in: query
+          schema:
+            type: string
+          description: Filter by event type.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [succeeded, failed]
+          description: Filter by delivery outcome.
+        - $ref: "#/components/parameters/range"
+      responses:
+        "200":
+          description: Webhook deliveries with stats.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDeliveriesResponse"
+      security:
+        - tailscale: [deploy]
+
+  /sites/{site}/webhooks:
+    get:
+      operationId: listSiteWebhookDeliveries
+      summary: Site webhook deliveries
+      description: Paginated list of webhook deliveries for a specific site.
+      tags: [webhooks]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: event
+          in: query
+          schema:
+            type: string
+          description: Filter by event type.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [succeeded, failed]
+          description: Filter by delivery outcome.
+        - $ref: "#/components/parameters/range"
+      responses:
+        "200":
+          description: Webhook deliveries with stats.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDeliveriesResponse"
+      security:
+        - tailscale: [deploy]
+
+  /webhooks/{id}:
+    get:
+      operationId: getWebhookDelivery
+      summary: Webhook delivery detail
+      description: Returns a delivery summary and its attempts.
+      tags: [webhooks]
+      parameters:
+        - $ref: "#/components/parameters/webhookId"
+      responses:
+        "200":
+          description: Delivery detail with attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDetailResponse"
+        "404":
+          description: Delivery not found.
+      security:
+        - tailscale: [deploy]
+
+  /webhooks/{id}/retry:
+    post:
+      operationId: retryWebhookDelivery
+      summary: Retry a webhook delivery
+      description: Re-sends the webhook payload. Requires admin on the delivery's site.
+      tags: [webhooks]
+      parameters:
+        - $ref: "#/components/parameters/webhookId"
+      responses:
+        "200":
+          description: Retry result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    description: HTTP status code from the webhook endpoint.
+                required: [status]
+        "404":
+          description: Delivery not found.
+        "502":
+          description: Retry failed.
+      security:
+        - tailscale: [admin]
+
+  /healthz:
+    get:
+      operationId: healthCheck
+      summary: Platform health
+      description: Returns overall platform health. Unauthenticated.
+      tags: [health]
+      security: []
+      responses:
+        "200":
+          description: All checks passing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: One or more checks failing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /sites/{site}/healthz:
+    get:
+      operationId: siteHealthCheck
+      summary: Site health
+      description: Returns health for a single site.
+      tags: [health]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Site is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteHealthResponse"
+        "503":
+          description: Site is unhealthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteHealthResponse"
+      security:
         - tailscale: [view]
+
+  /feed.atom:
+    get:
+      operationId: globalFeed
+      summary: Global deployment feed
+      description: Atom feed of recent deployments across all sites.
+      tags: [feeds]
+      responses:
+        "200":
+          description: Atom XML feed.
+          content:
+            application/atom+xml:
+              schema:
+                type: string
+      security:
+        - tailscale: [deploy]
+
+  /sites/{site}/feed.atom:
+    get:
+      operationId: siteFeed
+      summary: Site deployment feed
+      description: Atom feed of recent deployments for a specific site.
+      tags: [feeds]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      responses:
+        "200":
+          description: Atom XML feed.
+          content:
+            application/atom+xml:
+              schema:
+                type: string
+      security:
+        - tailscale: [deploy]
 
 components:
   parameters:
@@ -507,6 +767,14 @@ components:
         default: PT24H
       description: Time range as ISO 8601 duration.
 
+    webhookId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Webhook delivery ID.
+
   schemas:
     DeployResponse:
       type: object
@@ -527,6 +795,10 @@ components:
           type: string
         active:
           type: boolean
+        failed:
+          type: boolean
+        failed_reason:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -564,6 +836,8 @@ components:
         last_deployed_at:
           type: string
           format: date-time
+        can_deploy:
+          type: boolean
       required: [name, requests]
 
     UserInfo:
@@ -574,6 +848,10 @@ components:
         profile_pic_url:
           type: string
           format: uri
+        admin:
+          type: boolean
+        can_deploy:
+          type: boolean
       required: [name]
 
     SitesResponse:
@@ -803,6 +1081,235 @@ components:
           items:
             $ref: "#/components/schemas/NodeCount"
       required: [range, total, unique_visitors]
+
+    SiteConfig:
+      type: object
+      properties:
+        public:
+          type: boolean
+        spa_routing:
+          type: boolean
+        html_extensions:
+          type: boolean
+        analytics:
+          type: boolean
+        directory_listing:
+          type: boolean
+        index_page:
+          type: string
+        not_found_page:
+          type: string
+        trailing_slash:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+          description: Per-path header overrides. Keys are path patterns.
+        redirects:
+          type: array
+          items:
+            $ref: "#/components/schemas/RedirectRule"
+        webhook_url:
+          type: string
+        webhook_events:
+          type: array
+          items:
+            type: string
+        webhook_secret:
+          type: string
+
+    RedirectRule:
+      type: object
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        status:
+          type: integer
+      required: [from, to]
+
+    WebhookDeliveriesResponse:
+      type: object
+      properties:
+        deliveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliverySummary"
+        page:
+          type: integer
+        total_pages:
+          type: integer
+        range:
+          type: string
+        total:
+          type: integer
+          format: int64
+        succeeded:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        time_series:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryTimeBucket"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventCount"
+        latency:
+          type: array
+          items:
+            $ref: "#/components/schemas/LatencyTimeBucket"
+        latency_stats:
+          $ref: "#/components/schemas/LatencyStats"
+      required: [deliveries, page, total_pages]
+
+    DeliverySummary:
+      type: object
+      properties:
+        webhook_id:
+          type: string
+        event:
+          type: string
+        site:
+          type: string
+        url:
+          type: string
+        attempts:
+          type: integer
+        succeeded:
+          type: boolean
+        signed:
+          type: boolean
+        first_attempt:
+          type: string
+        last_attempt:
+          type: string
+      required: [webhook_id, event, site, url]
+
+    DeliveryTimeBucket:
+      type: object
+      properties:
+        time:
+          type: string
+        succeeded:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+      required: [time, succeeded, failed]
+
+    EventCount:
+      type: object
+      properties:
+        event:
+          type: string
+        count:
+          type: integer
+          format: int64
+      required: [event, count]
+
+    LatencyTimeBucket:
+      type: object
+      properties:
+        time:
+          type: string
+        avg:
+          type: number
+          format: double
+        p95:
+          type: number
+          format: double
+        max:
+          type: number
+          format: double
+      required: [time, avg, p95, max]
+
+    LatencyStats:
+      type: object
+      properties:
+        min:
+          type: number
+          format: double
+        avg:
+          type: number
+          format: double
+        p95:
+          type: number
+          format: double
+        max:
+          type: number
+          format: double
+      required: [min, avg, p95, max]
+
+    WebhookDetailResponse:
+      type: object
+      properties:
+        delivery:
+          $ref: "#/components/schemas/DeliverySummary"
+        attempts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryAttempt"
+      required: [delivery, attempts]
+
+    DeliveryAttempt:
+      type: object
+      properties:
+        attempt:
+          type: integer
+        status:
+          type: integer
+        error:
+          type: string
+        created_at:
+          type: string
+        payload:
+          type: string
+        duration_ms:
+          type: integer
+          format: int64
+      required: [attempt, status, created_at]
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        checks:
+          type: object
+          properties:
+            storage:
+              type: string
+              enum: [ok, error]
+            analytics:
+              type: string
+              enum: [ok, error, disabled]
+          required: [storage, analytics]
+      required: [status, checks]
+
+    SiteHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        site:
+          type: string
+        server:
+          type: string
+          enum: [running, stopped]
+        active_deployment:
+          type: string
+      required: [status, site, server]
 
   securitySchemes:
     tailscale:
