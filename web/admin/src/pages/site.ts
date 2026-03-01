@@ -198,15 +198,24 @@ function main(): void {
       if (toggleBtn) toggleBtn.textContent = configDetails.open ? "Cancel" : "Edit";
     }
 
+    function closeConfig(): void {
+      configDetails.querySelector("form")?.reset();
+      configDetails.open = false;
+    }
+
     toggleBtn?.addEventListener("click", () => {
-      configDetails.open = !configDetails.open;
+      if (configDetails.open) {
+        closeConfig();
+      } else {
+        configDetails.open = true;
+      }
     });
 
     configDetails.addEventListener("toggle", syncToggleLabel);
 
     configDetails
       .querySelector<HTMLButtonElement>("[data-action='config-cancel']")
-      ?.addEventListener("click", () => { configDetails.open = false; });
+      ?.addEventListener("click", closeConfig);
   }
 
   // endregion
