@@ -33,19 +33,113 @@
 
 @layer components {
   .btn {
-    @apply px-3 py-1.5 text-sm font-medium border rounded-md select-none;
+    @apply px-4 py-2 text-sm font-medium border rounded-md select-none outline-hidden
+      dark:shadow-sm transition-all duration-150 ease-in-out cursor-pointer
+      hover:shadow-xs dark:hover:shadow-md hover:-translate-y-[0.5px]
+      active:shadow-none active:translate-y-[0.5px]
+      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+      disabled:opacity-50 disabled:pointer-events-none disabled:shadow-none;
   }
 
   .btn-primary {
-    @apply border-blue-500 bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white;
+    @apply bg-blue-500 text-white border-blue-500
+      hover:bg-blue-600 hover:border-blue-600
+      active:bg-blue-700 active:border-blue-700;
   }
 
   .btn-danger {
-    @apply border-muted text-red-600 dark:text-red-400 hover:border-red-600 dark:hover:border-red-400 hover:bg-red-600/10 dark:hover:bg-red-400/10;
+    @apply border-muted text-red-600 dark:text-red-400
+      hover:border-red-600 dark:hover:border-red-400 hover:bg-red-600/10 dark:hover:bg-red-400/10
+      active:bg-red-600/20 dark:active:bg-red-400/20;
   }
 
   .btn-outline {
-    @apply border-muted hover:border-blue-500;
+    @apply border-muted
+      hover:border-blue-500
+      active:bg-base-50 dark:active:bg-base-900;
+  }
+
+  .btn-ghost {
+    @apply border-transparent bg-base-100 dark:bg-base-800
+      hover:bg-base-200 dark:hover:bg-base-700
+      active:bg-base-300 dark:active:bg-base-700;
+  }
+
+  .pill {
+    @apply px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline select-none outline-hidden
+      text-muted transition-all duration-150 ease-in-out
+      dark:shadow-xs dark:hover:shadow-sm hover:-translate-y-[0.5px]
+      hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
+      active:shadow-none active:translate-y-[0.5px]
+      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+      aria-[current=step]:text-white aria-[current=step]:bg-blue-500 aria-[current=step]:shadow-sm
+      aria-[current=step]:hover:bg-blue-600 aria-[current=step]:hover:text-white;
+  }
+
+  .btn-icon {
+    @apply p-1.5 text-muted bg-transparent border-0 cursor-pointer rounded-full select-none outline-hidden
+      transition-all duration-150 ease-in-out
+      hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-800
+      active:bg-base-200 dark:active:bg-base-700
+      focus-visible:ring-2 focus-visible:ring-blue-500/40;
+  }
+
+  .btn-inline {
+    @apply bg-transparent border-0 text-blue-500 cursor-pointer underline outline-hidden
+      transition-colors duration-150 ease-in-out
+      hover:text-blue-400
+      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:rounded-sm;
+  }
+
+  .input {
+    @apply w-full text-sm h-9 px-3 py-2 bg-paper dark:bg-base-950 border border-default rounded-md
+      text-black dark:text-base-200 outline-hidden transition-colors duration-150 ease-in-out
+      placeholder:text-muted
+      hover:border-base-300 dark:hover:border-base-600
+      focus:border-blue-500 dark:focus:border-blue-500
+      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+      disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .select {
+    @apply text-sm h-9 px-3 py-2 bg-surface border border-default rounded-md
+      text-black dark:text-base-200 outline-hidden transition-colors duration-150 ease-in-out
+      hover:border-base-300 dark:hover:border-base-600
+      focus:border-blue-500 dark:focus:border-blue-500
+      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+      disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .toggle {
+    @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
+      border-2 border-transparent bg-base-300 dark:bg-base-700 outline-hidden
+      transition-colors duration-200 ease-in-out
+      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+      aria-checked:bg-blue-500
+      disabled:opacity-50 disabled:pointer-events-none;
+
+    &::after {
+      content: "";
+      @apply block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out;
+    }
+
+    &[aria-checked="true"]::after {
+      @apply translate-x-4;
+    }
+  }
+
+  .segmented-control {
+    @apply inline-flex rounded-lg border border-default bg-surface p-0.5;
+  }
+
+  .segmented-control a,
+  .segmented-control button {
+    @apply px-3 py-1 text-sm rounded-md no-underline outline-hidden
+      transition-colors duration-150 ease-in-out text-muted
+      hover:text-black dark:hover:text-base-200
+      focus-visible:ring-2 focus-visible:ring-blue-500/40
+      aria-current:bg-base-300 dark:aria-current:bg-base-700 aria-current:text-black
+    dark:aria-current:text-base-200 aria-current:font-medium;
   }
 
   .prose {

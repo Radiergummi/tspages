@@ -93,6 +93,27 @@ data/sites/{site}/
 - **Tests inject capabilities directly** via `auth.ContextWithCaps` — no mock WhoIs needed. Deploy
   tests use a `mockEnsurer` to verify `EnsureServer` calls.
 
+### UI component classes
+
+CSS component classes are defined in `web/admin/src/main.css` (`@layer components`). Use these
+instead of inline utility classes in templates.
+
+| Class | Use for |
+|---|---|
+| `.btn` + `.btn-primary` | Primary actions: deploy, activate, create |
+| `.btn` + `.btn-ghost` | Secondary actions without a border: analytics link, settings |
+| `.btn` + `.btn-outline` | Tertiary/neutral actions: pagination, cancel |
+| `.btn` + `.btn-danger` | Destructive actions: delete site, purge data |
+| `.pill` | Filter chips (time ranges). Active state via `aria-current="step"` |
+| `.btn-icon` | Icon-only buttons: copy, close, settings |
+| `.btn-inline` | Text-styled buttons inline with prose: "browse", "view details" |
+| `.input` | Text/URL/email fields. Add `font-mono` for code-like inputs |
+| `.select` | Dropdown selects. Same height as `.input` |
+| `.toggle` | Boolean switches. Uses `role="switch"` + `aria-checked` |
+| `.segmented-control` | Mutually exclusive filter groups. Active state via `aria-current="true"` on child `<a>`/`<button>` |
+
+All interactive elements include `outline-hidden`, `focus-visible:ring`, and `disabled` states.
+
 ### Feature inventory
 
 **Serving features:** SPA mode, clean URLs (strip .html), custom index/404 pages, per-path headers,

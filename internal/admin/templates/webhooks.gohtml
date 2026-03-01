@@ -51,20 +51,14 @@
             <!-- region Time range filter -->
             <nav aria-label="Time range" class="flex gap-1">
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                        class="pill"
                         href="{{.BasePath}}?range=PT24H{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
                         {{if eq .Range "PT24H"}}aria-current="step"{{end}}
                 >
                     24H
                 </a>
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                        class="pill"
 
                         href="{{.BasePath}}?range=P7D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
                         {{if eq .Range "P7D"}}aria-current="step"{{end}}
@@ -72,10 +66,7 @@
                     7D
                 </a>
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                        class="pill"
 
                         href="{{.BasePath}}?range=P30D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
                         {{if eq .Range "P30D"}}aria-current="step"{{end}}
@@ -83,10 +74,7 @@
                     30D
                 </a>
                 <a
-                        class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                        focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                        aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                        class="pill"
 
                         href="{{.BasePath}}?range=all{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
                         {{if eq .Range "all"}}aria-current="step"{{end}}
@@ -213,6 +201,7 @@
                 {{if .Range}}
                     <input type="hidden" name="range" value="{{.Range}}">
                 {{end}}
+
                 {{if .Status}}
                     <input type="hidden" name="status" value="{{.Status}}">
                 {{end}}
@@ -221,7 +210,7 @@
                         name="event"
                         aria-label="Event type"
                         onchange="this.form.submit()"
-                        class="text-sm border border-default rounded-lg px-3 py-1.5 bg-surface text-black dark:text-base-200"
+                        class="select"
                 >
                     <option value="">All events</option>
                     <option value="deploy.success"{{if eq .Event "deploy.success"}} selected{{end}}>
@@ -241,32 +230,22 @@
             <!-- endregion -->
 
             <!-- region Status filter -->
-            <div
-                    class="inline-flex rounded-lg border border-default bg-surface p-0.5"
-                    role="group"
-                    aria-label="Delivery status"
-            >
+            <div class="segmented-control" role="group" aria-label="Delivery status">
                 <a
                         href="{{.BasePath}}?{{if .Range}}range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
                         {{if eq .Status ""}}aria-current="true"{{end}}
-                        class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq .Status ""}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
                 >
                     All
                 </a>
                 <a
                         href="{{.BasePath}}?status=succeeded{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
                         {{if eq .Status "succeeded"}}aria-current="true"{{end}}
-                        class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq .Status "succeeded"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
                 >
                     Succeeded
                 </a>
                 <a
                         href="{{.BasePath}}?status=failed{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
                         {{if eq .Status "failed"}}aria-current="true"{{end}}
-                        class="px-3 py-1 text-sm rounded-md no-underline transition-colors
-                          {{if eq .Status "failed"}}bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium{{else}}text-muted hover:text-black dark:hover:text-base-200{{end}}"
                 >
                     Failed
                 </a>
@@ -282,7 +261,8 @@
                     <tr>
                         <th
                                 scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
                         >
                             Event
                         </th>
@@ -290,7 +270,8 @@
                         {{if .Global}}
                             <th
                                     scope="col"
-                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b border-default"
                             >
                                 Site
                             </th>
@@ -298,19 +279,22 @@
 
                         <th
                                 scope="col"
-                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
                         >
                             Status
                         </th>
                         <th
                                 scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
                         >
                             Attempts
                         </th>
                         <th
                                 scope="col"
-                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default"
+                                class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
                         >
                             Time
                         </th>
@@ -339,15 +323,15 @@
                             <td class="px-4 py-3 text-xs border-b border-default">
                                 {{if .Succeeded}}
                                     <span
-                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                        rounded-full bg-green-500/10 text-green-600 dark:text-green-400"
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2
+                                            py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400"
                                     >
                                         ok
                                     </span>
                                 {{else}}
                                     <span
-                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5
-                                        rounded-full bg-red-500/10 text-red-600 dark:text-red-400"
+                                            class="inline-block text-xs font-semibold uppercase tracking-wide px-2
+                                            py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400"
                                     >
                                         failed
                                     </span>
@@ -374,7 +358,7 @@
                     <div>
                         {{if gt .Page 1}}
                             <a
-                                    class="btn btn-outline inline-flex items-center gap-2 no-underline"
+                                    class="btn btn-ghost inline-flex items-center gap-2 no-underline"
                                     href="{{.BasePath}}?page={{sub .Page 1}}{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
                             >
                                 <svg
@@ -403,7 +387,7 @@
                     <div class="place-self-end">
                         {{if lt .Page .TotalPages}}
                             <a
-                                    class="btn btn-outline inline-flex items-center gap-2 no-underline"
+                                    class="btn btn-ghost inline-flex items-center gap-2 no-underline"
                                     href="{{.BasePath}}?page={{add .Page 1}}{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
                             >
                                 <span>Older</span>

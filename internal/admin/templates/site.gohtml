@@ -44,7 +44,7 @@
             <div class="flex gap-2">
                 {{if and .AnalyticsEnabled .CanDeploy}}
                     <a
-                            class="btn btn-outline inline-block no-underline"
+                            class="btn btn-ghost inline-block no-underline"
                             href="/sites/{{.Site.Name}}/analytics"
                     >
                         Analytics
@@ -536,7 +536,7 @@
                         </h3>
                         <button
                                 aria-label="Close"
-                                class="modal-close text-xl text-muted hover:text-black dark:hover:text-base-200 bg-transparent border-0 cursor-pointer p-0 leading-none"
+                                class="modal-close btn-icon text-xl leading-none"
                         >
                             <svg
                                     aria-hidden="true"
@@ -580,7 +580,7 @@
                                 <span>
                                     Drop files here or
                                 </span>
-                                <button class="bg-transparent border-0 text-blue-500 cursor-pointer underline hover:text-blue-400">
+                                <button class="btn-inline">
                                     browse
                                 </button>
                             </div>
@@ -602,7 +602,7 @@
                                     class="flex-1 font-mono text-sm break-all bg-surface border border-default px-1.5 py-0.5 rounded-sm select-all"
                             >curl --upload-file site.zip https://{{.Host}}/deploy/{{.Site.Name}}</code>
                             <button
-                                    class="bg-transparent border-0 text-lg text-muted hover:text-black dark:hover:text-base-200 cursor-pointer p-1 shrink-0"
+                                    class="btn-icon shrink-0"
                                     data-action="copy-cmd"
                                     title="Copy"
                                     aria-label="Copy command"

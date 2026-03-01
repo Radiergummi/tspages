@@ -45,40 +45,28 @@
             <div class="flex items-center gap-2">
                 <nav aria-label="Time range" class="flex gap-1">
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                            class="pill"
                             href="?range=PT24H"
                             {{if eq .Range "PT24H"}}aria-current="step"{{end}}
                     >
                         24H
                     </a>
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                            class="pill"
                             href="?range=P7D"
                             {{if eq .Range "P7D"}}aria-current="step"{{end}}
                     >
                         7D
                     </a>
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                            class="pill"
                             href="?range=P30D"
                             {{if eq .Range "P30D"}}aria-current="step"{{end}}
                     >
                         30D
                     </a>
                     <a
-                            class="px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline text-muted
-                            hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-                            focus-visible:bg-base-100 dark:focus-visible:bg-base-900 outline-hidden
-                            aria-[current=step]:text-white aria-[current=step]:bg-blue-500"
+                            class="pill"
                             href="?range=all"
                             {{if eq .Range "all"}}aria-current="step"{{end}}
                     >

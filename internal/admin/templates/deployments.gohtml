@@ -152,7 +152,7 @@
                     <div>
                         {{if gt .Page 1}}
                             <a
-                                    class="btn btn-outline inline-flex items-center gap-2 no-underline"
+                                    class="btn btn-ghost inline-flex items-center gap-2 no-underline"
                                     href="/deployments?page={{sub .Page 1}}"
                             >
                                 <svg
@@ -179,7 +179,7 @@
                     <div>
                         {{if lt .Page .TotalPages}}
                             <a
-                                    class="btn btn-outline inline-flex items-center gap-2 no-underline"
+                                    class="btn btn-ghost inline-flex items-center gap-2 no-underline"
                                     href="/deployments?page={{add .Page 1}}"
                             >
                                 <span>Older</span>
