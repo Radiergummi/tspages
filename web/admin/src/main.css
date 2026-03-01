@@ -90,14 +90,17 @@
     }
   }
 
-  .config-dialog {
-    @apply bg-surface border border-default rounded-lg shadow-2xl
-      max-w-lg w-full px-5 py-4;
+  .config-details > summary {
+    list-style: none;
+    cursor: pointer;
+  }
 
-    &::backdrop {
-      background: rgba(0, 0, 0, 0.25);
-      backdrop-filter: blur(4px);
-    }
+  .config-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .config-details[open] .config-summary {
+    display: none;
   }
 
   .prose {
