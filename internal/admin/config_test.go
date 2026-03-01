@@ -144,3 +144,99 @@ func TestPatchSiteConfig_RequiresAdmin(t *testing.T) {
 		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
+
+func TestFormBool(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []string
+		want   bool
+	}{
+		{"unchecked (hidden only)", []string{"false"}, false},
+		{"checked (hidden+checkbox)", []string{"false", "true"}, true},
+		{"missing", nil, false},
+		{"single true", []string{"true"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := map[string][]string{"field": tt.values}
+			got := formBool(form, "field")
+			if got != tt.want {
+				t.Fatalf("formBool(%v) = %v, want %v", tt.values, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPostSiteConfig_FormSubmit(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	caps := []auth.Cap{{Access: "admin"}}
+	id := auth.Identity{LoginName: "admin@test"}
+
+	// Simulate form: analytics on, clean_urls on (→ html_extensions=false), index_page set.
+	body := "public=false&analytics=false&analytics=true&clean_urls=false&clean_urls=true&spa_routing=false&directory_listing=false&index_page=home.html&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, caps, id)
+	r.SetPathValue("site", "docs")
+
+	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+	if loc := w.Header().Get("Location"); loc != "/sites/docs" {
+		t.Fatalf("expected redirect to /sites/docs, got %q", loc)
+	}
+
+	// Verify persisted config.
+	cfg, err := store.ReadSiteConfig("docs")
+	if err != nil {
+		t.Fatalf("reading config: %v", err)
+	}
+	if cfg.Analytics == nil || !*cfg.Analytics {
+		t.Fatal("expected analytics=true")
+	}
+	if cfg.HTMLExtensions == nil || *cfg.HTMLExtensions {
+		t.Fatal("expected html_extensions=false (clean_urls=true)")
+	}
+	if cfg.IndexPage != "home.html" {
+		t.Fatalf("expected index_page=home.html, got %q", cfg.IndexPage)
+	}
+}
+
+func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	body := "index_page=home.html"
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "deploy"}}, auth.Identity{LoginName: "deployer@test"})
+	r.SetPathValue("site", "docs")
+
+	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestPostSiteConfig_ValidationError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	// SPA + directory listing both true = mutually exclusive.
+	body := "spa_routing=false&spa_routing=true&directory_listing=false&directory_listing=true&public=false&analytics=false&clean_urls=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}

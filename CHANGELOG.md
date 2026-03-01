@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`GET`/`PATCH /sites/{site}/config`). Values set in `tspages.toml` at deploy time take priority
   over site-level settings.
 
+- The config edit form now uses a native HTML dialog with `<form method="POST">`, so the core
+  edit/save flow works without JavaScript. JS provides progressive enhancement only (mutual
+  exclusion, webhook field dependencies).
+
 ### Changed
 
 - SPA routing and directory listing are now validated as mutually exclusive.

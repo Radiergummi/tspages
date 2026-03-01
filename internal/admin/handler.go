@@ -105,6 +105,7 @@ type Handlers struct {
 	SiteHealth       *SiteHealthHandler
 	SiteConfig       *SiteConfigHandler
 	UpdateSiteConfig *UpdateSiteConfigHandler
+	PostSiteConfig   *PostSiteConfigHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
@@ -131,6 +132,7 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
 		SiteConfig:       &SiteConfigHandler{d},
 		UpdateSiteConfig: &UpdateSiteConfigHandler{d},
+		PostSiteConfig:   &PostSiteConfigHandler{d},
 	}
 }
 

@@ -142,6 +142,58 @@
     dark:aria-current:text-base-200 aria-current:font-medium;
   }
 
+  .input {
+    @apply text-sm px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md
+      text-black dark:text-base-200 outline-none focus:border-blue-500;
+  }
+
+  .select {
+    @apply text-sm px-3 py-1.5 bg-paper dark:bg-base-950 border border-default rounded-md
+      text-black dark:text-base-200 outline-none focus:border-blue-500;
+  }
+
+  .toggle {
+    @apply sr-only;
+  }
+
+  .toggle-track {
+    @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
+      border-2 border-transparent bg-base-300 dark:bg-base-700
+      transition-colors duration-200;
+
+    .toggle:checked + & {
+      @apply bg-blue-500;
+    }
+
+    .toggle:disabled + & {
+      @apply opacity-50 pointer-events-none;
+    }
+
+    .toggle:focus-visible + & {
+      @apply ring-2 ring-blue-500/40;
+    }
+
+    &::after {
+      content: "";
+      @apply block h-4 w-4 rounded-full bg-white shadow-sm
+        transition-transform duration-200;
+    }
+
+    .toggle:checked + &::after {
+      @apply translate-x-4;
+    }
+  }
+
+  .config-dialog {
+    @apply bg-surface border border-default rounded-lg shadow-2xl
+      max-w-lg w-full px-5 py-4;
+
+    &::backdrop {
+      background: rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(4px);
+    }
+  }
+
   .prose {
     font-size: 1rem;
     line-height: 1.7;
