@@ -207,6 +207,26 @@ Open http://localhost:8080 in your browser. The `-dev` flag:
 The tsnet control plane still starts normally alongside the dev server. Production builds use
 `npx vite build`, which outputs to `internal/admin/assets/dist/` (embedded at compile time).
 
+## Benchmarks
+
+The serve handler has Go benchmarks covering all major code paths (file serving, compression,
+caching, SPA fallback, redirects, etc.):
+
+```bash
+go test -bench=. -benchmem ./internal/serve/...
+```
+
+To compare against the baseline or a previous run, use
+[benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat):
+
+```bash
+# Record a new run
+go test -bench=. -benchmem -count=5 ./internal/serve/... > benchmarks/new.txt
+
+# Compare against baseline
+benchstat benchmarks/baseline.txt benchmarks/new.txt
+```
+
 ## Security
 
 - **Archive extraction** rejects path traversal (zip-slip and tar equivalents), symlinks, hardlinks,

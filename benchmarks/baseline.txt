@@ -1,0 +1,71 @@
+goos: darwin
+goarch: arm64
+pkg: tspages/internal/serve
+cpu: Apple M3 Pro
+BenchmarkServeSmallHTML-12                   	   35958	     38017 ns/op	   14757 B/op	     102 allocs/op
+BenchmarkServeSmallHTML-12                   	   33045	     34305 ns/op	   14757 B/op	     102 allocs/op
+BenchmarkServeSmallHTML-12                   	   35476	     34847 ns/op	   14757 B/op	     102 allocs/op
+BenchmarkServeSmallHTML-12                   	   33316	     34171 ns/op	   14757 B/op	     102 allocs/op
+BenchmarkServeSmallHTML-12                   	   36136	     33231 ns/op	   14758 B/op	     102 allocs/op
+BenchmarkServeSmallHTML_Gzip-12              	    7538	    194792 ns/op	  837624 B/op	     184 allocs/op
+BenchmarkServeSmallHTML_Gzip-12              	    5594	    197430 ns/op	  837626 B/op	     184 allocs/op
+BenchmarkServeSmallHTML_Gzip-12              	    8146	    145261 ns/op	  837613 B/op	     184 allocs/op
+BenchmarkServeSmallHTML_Gzip-12              	    8040	    143453 ns/op	  837613 B/op	     184 allocs/op
+BenchmarkServeSmallHTML_Gzip-12              	    8486	    145416 ns/op	  837615 B/op	     184 allocs/op
+BenchmarkServeSmallHTML_Brotli-12            	   10000	    119727 ns/op	  580022 B/op	     177 allocs/op
+BenchmarkServeSmallHTML_Brotli-12            	   10000	    118225 ns/op	  580050 B/op	     177 allocs/op
+BenchmarkServeSmallHTML_Brotli-12            	   10000	    111496 ns/op	  579810 B/op	     177 allocs/op
+BenchmarkServeSmallHTML_Brotli-12            	   10000	    120384 ns/op	  580015 B/op	     177 allocs/op
+BenchmarkServeSmallHTML_Brotli-12            	    9427	    128891 ns/op	  580176 B/op	     178 allocs/op
+BenchmarkServeLargeAsset-12                  	   18201	     66469 ns/op	  277176 B/op	     105 allocs/op
+BenchmarkServeLargeAsset-12                  	   18122	     66556 ns/op	  277143 B/op	     105 allocs/op
+BenchmarkServeLargeAsset-12                  	   18066	     66846 ns/op	  277175 B/op	     105 allocs/op
+BenchmarkServeLargeAsset-12                  	   17661	     67570 ns/op	  277143 B/op	     105 allocs/op
+BenchmarkServeLargeAsset-12                  	   14970	     78372 ns/op	  277181 B/op	     105 allocs/op
+BenchmarkServeLargeAsset_Gzip-12             	    3585	    334402 ns/op	  870482 B/op	     185 allocs/op
+BenchmarkServeLargeAsset_Gzip-12             	    3640	    332707 ns/op	  870603 B/op	     185 allocs/op
+BenchmarkServeLargeAsset_Gzip-12             	    3616	    331657 ns/op	  870616 B/op	     185 allocs/op
+BenchmarkServeLargeAsset_Gzip-12             	    3631	    331360 ns/op	  870476 B/op	     185 allocs/op
+BenchmarkServeLargeAsset_Gzip-12             	    3686	    335034 ns/op	  870604 B/op	     185 allocs/op
+BenchmarkServeLargeAsset_Precompressed-12    	   23626	     50434 ns/op	   42900 B/op	     162 allocs/op
+BenchmarkServeLargeAsset_Precompressed-12    	   24292	     49008 ns/op	   42900 B/op	     162 allocs/op
+BenchmarkServeLargeAsset_Precompressed-12    	   22376	     51028 ns/op	   42900 B/op	     162 allocs/op
+BenchmarkServeLargeAsset_Precompressed-12    	   23888	     49396 ns/op	   42900 B/op	     162 allocs/op
+BenchmarkServeLargeAsset_Precompressed-12    	   24411	     49036 ns/op	   42899 B/op	     162 allocs/op
+BenchmarkServeETag304-12                     	   40021	     30057 ns/op	   14814 B/op	      98 allocs/op
+BenchmarkServeETag304-12                     	   39884	     30462 ns/op	   14813 B/op	      98 allocs/op
+BenchmarkServeETag304-12                     	   39864	     30699 ns/op	   14814 B/op	      98 allocs/op
+BenchmarkServeETag304-12                     	   39829	     30396 ns/op	   14813 B/op	      98 allocs/op
+BenchmarkServeETag304-12                     	   39679	     30599 ns/op	   14798 B/op	      98 allocs/op
+BenchmarkServeSPAFallback-12                 	   20593	     59531 ns/op	   27729 B/op	     214 allocs/op
+BenchmarkServeSPAFallback-12                 	   19963	     59698 ns/op	   27729 B/op	     214 allocs/op
+BenchmarkServeSPAFallback-12                 	   19966	     58899 ns/op	   27729 B/op	     214 allocs/op
+BenchmarkServeSPAFallback-12                 	   20635	     57769 ns/op	   27728 B/op	     214 allocs/op
+BenchmarkServeSPAFallback-12                 	   19797	     61666 ns/op	   27729 B/op	     214 allocs/op
+BenchmarkServeCustom404-12                   	   20494	     58210 ns/op	   27547 B/op	     202 allocs/op
+BenchmarkServeCustom404-12                   	   20642	     57741 ns/op	   27547 B/op	     202 allocs/op
+BenchmarkServeCustom404-12                   	   20845	     58957 ns/op	   27515 B/op	     202 allocs/op
+BenchmarkServeCustom404-12                   	   20815	     58014 ns/op	   27547 B/op	     202 allocs/op
+BenchmarkServeCustom404-12                   	   20722	     58012 ns/op	   27515 B/op	     202 allocs/op
+BenchmarkServeRedirect-12                    	  565357	      2040 ns/op	    7188 B/op	      30 allocs/op
+BenchmarkServeRedirect-12                    	  597765	      2049 ns/op	    7188 B/op	      30 allocs/op
+BenchmarkServeRedirect-12                    	  599836	      2059 ns/op	    7188 B/op	      30 allocs/op
+BenchmarkServeRedirect-12                    	  584970	      2081 ns/op	    7188 B/op	      30 allocs/op
+BenchmarkServeRedirect-12                    	  587127	      2216 ns/op	    7188 B/op	      30 allocs/op
+BenchmarkServeCleanURL-12                    	   26758	     45098 ns/op	   20847 B/op	     158 allocs/op
+BenchmarkServeCleanURL-12                    	   26512	     45202 ns/op	   20849 B/op	     158 allocs/op
+BenchmarkServeCleanURL-12                    	   26193	     45506 ns/op	   20849 B/op	     158 allocs/op
+BenchmarkServeCleanURL-12                    	   26461	     45236 ns/op	   20849 B/op	     158 allocs/op
+BenchmarkServeCleanURL-12                    	   26450	     45449 ns/op	   20849 B/op	     158 allocs/op
+BenchmarkServeDirectoryListing-12            	   12748	     94093 ns/op	   46164 B/op	     546 allocs/op
+BenchmarkServeDirectoryListing-12            	   12654	     94706 ns/op	   46101 B/op	     546 allocs/op
+BenchmarkServeDirectoryListing-12            	   12754	     94287 ns/op	   46164 B/op	     546 allocs/op
+BenchmarkServeDirectoryListing-12            	   12829	     93732 ns/op	   46164 B/op	     546 allocs/op
+BenchmarkServeDirectoryListing-12            	   12801	     93653 ns/op	   46164 B/op	     546 allocs/op
+BenchmarkServeCustomHeaders-12               	   33128	     41722 ns/op	   15696 B/op	     104 allocs/op
+BenchmarkServeCustomHeaders-12               	   27202	     42047 ns/op	   15695 B/op	     104 allocs/op
+BenchmarkServeCustomHeaders-12               	   35516	     33820 ns/op	   15695 B/op	     104 allocs/op
+BenchmarkServeCustomHeaders-12               	   35174	     33937 ns/op	   15696 B/op	     104 allocs/op
+BenchmarkServeCustomHeaders-12               	   35662	     34861 ns/op	   15696 B/op	     104 allocs/op
+PASS
+ok  	tspages/internal/serve	79.653s
