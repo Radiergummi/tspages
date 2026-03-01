@@ -192,6 +192,18 @@ function main(): void {
     webhookURL?.addEventListener("input", updateWebhookFields);
     updateWebhookFields();
 
+    const toggleBtn = document.querySelector<HTMLButtonElement>("[data-action='config-toggle']");
+
+    function syncToggleLabel(): void {
+      if (toggleBtn) toggleBtn.textContent = configDetails.open ? "Cancel" : "Edit";
+    }
+
+    toggleBtn?.addEventListener("click", () => {
+      configDetails.open = !configDetails.open;
+    });
+
+    configDetails.addEventListener("toggle", syncToggleLabel);
+
     configDetails
       .querySelector<HTMLButtonElement>("[data-action='config-cancel']")
       ?.addEventListener("click", () => { configDetails.open = false; });
