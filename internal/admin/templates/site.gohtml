@@ -286,6 +286,31 @@
                                     </div>
                                     <!-- endregion -->
 
+                                    <!-- region Forms -->
+                                    <div class="flex items-center justify-between px-5 py-3">
+                                        <label for="cfg-forms">
+                                            <span class="text-sm text-muted">
+                                                Forms
+                                            </span>
+                                            <span class="block text-xs text-muted mt-0.5">
+                                                Accept form submissions on this site.
+                                            </span>
+                                        </label>
+                                        <label>
+                                            <input type="hidden" name="forms" value="false">
+                                            <input
+                                                    type="checkbox"
+                                                    name="forms"
+                                                    id="cfg-forms"
+                                                    value="true"
+                                                    class="toggle"
+                                                    {{if and .Config.Forms (deref .Config.Forms.Enabled)}}checked{{end}}
+                                            >
+                                            <span class="toggle-track"></span>
+                                        </label>
+                                    </div>
+                                    <!-- endregion -->
+
                                     <!-- region Trailing slash -->
                                     <div class="flex items-center justify-between px-5 py-3">
                                         <div>
@@ -417,6 +442,16 @@
                                                         class="size-4 accent-blue-500"
                                                 >
                                                 site.deleted
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5 text-sm text-muted">
+                                                <input
+                                                        type="checkbox"
+                                                        name="webhook_events"
+                                                        value="form.submission"
+                                                        {{if containsStr .Config.WebhookEvents "form.submission"}}checked{{end}}
+                                                        class="size-4 accent-blue-500"
+                                                >
+                                                form.submission
                                             </label>
                                         </div>
                                     </div>

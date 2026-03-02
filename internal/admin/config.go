@@ -102,12 +102,14 @@ func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 			events = append(events, v)
 		}
 	}
+	formsEnabled := formBool(form, "forms")
 	return storage.SiteConfig{
 		Public:           boolPtr(formBool(form, "public")),
 		SPARouting:       boolPtr(formBool(form, "spa_routing")),
 		HTMLExtensions:   boolPtr(!formBool(form, "clean_urls")),
 		Analytics:        boolPtr(formBool(form, "analytics")),
 		DirectoryListing: boolPtr(formBool(form, "directory_listing")),
+		Forms:            &storage.FormsConfig{Enabled: boolPtr(formsEnabled)},
 		IndexPage:        r.FormValue("index_page"),
 		NotFoundPage:     r.FormValue("not_found_page"),
 		TrailingSlash:    r.FormValue("trailing_slash"),
