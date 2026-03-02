@@ -54,6 +54,14 @@
                     </a>
                 {{end}}
                 {{if .CanDeploy}}
+                    <a
+                            class="btn btn-outline inline-block no-underline"
+                            href="/sites/{{.Site.Name}}/submissions"
+                    >
+                        Submissions
+                    </a>
+                {{end}}
+                {{if .CanDeploy}}
                     <button
                             class="btn btn-primary"
                             data-action="deploy"

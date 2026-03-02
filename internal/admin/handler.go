@@ -110,6 +110,7 @@ type Handlers struct {
 	SiteConfig            *SiteConfigHandler
 	UpdateSiteConfig     *UpdateSiteConfigHandler
 	PostSiteConfig       *PostSiteConfigHandler
+	SubmissionsPage      *SubmissionsPageHandler
 	Submissions          *SubmissionsHandler
 	SubmissionDetail     *SubmissionDetailHandler
 	DeleteSubmission     *DeleteSubmissionHandler
@@ -142,6 +143,7 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		SiteConfig:            &SiteConfigHandler{d},
 		UpdateSiteConfig:     &UpdateSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
 		PostSiteConfig:       &PostSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		SubmissionsPage:      &SubmissionsPageHandler{d},
 		Submissions:          &SubmissionsHandler{d},
 		SubmissionDetail:     &SubmissionDetailHandler{d},
 		DeleteSubmission:     &DeleteSubmissionHandler{d},

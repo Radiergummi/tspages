@@ -1,0 +1,142 @@
+{{define "title"}} - {{.SiteName}} submissions{{end}}
+{{define "head-extra"}}{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        <nav>
+            <a
+                    class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200"
+                    href="/sites/{{.SiteName}}"
+            >
+                <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                >
+                    <path d="M9 14 4 9l5-5" />
+                    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+                </svg>
+                <span>{{.SiteName}}</span>
+            </a>
+        </nav>
+
+        <header class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold tracking-tight">Submissions</h1>
+        </header>
+
+        {{if .Paths}}
+            <nav aria-label="Form paths" class="flex flex-wrap gap-1">
+                {{range .Paths}}
+                    <a
+                            class="pill"
+                            href="/sites/{{$.SiteName}}/submissions?path={{.Path}}"
+                            {{if eq .Path $.CurrentPath}}aria-current="step"{{end}}
+                    >
+                        {{.Name}}
+                        <span class="text-muted ml-1">{{.Count}}</span>
+                    </a>
+                {{end}}
+            </nav>
+
+            {{if .Submissions}}
+                <div class="flex items-center justify-between">
+                    {{if .FormName}}
+                        <div>
+                            <h2 class="text-lg font-semibold">{{.FormName}}</h2>
+                            {{if .FormDesc}}
+                                <p class="text-sm text-muted">{{.FormDesc}}</p>
+                            {{end}}
+                        </div>
+                    {{else}}
+                        <div></div>
+                    {{end}}
+
+                    <div class="flex gap-2">
+                        <a
+                                class="btn btn-outline inline-block no-underline"
+                                href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
+                        >
+                            Export CSV
+                        </a>
+                        {{if .Admin}}
+                            <form
+                                    method="POST"
+                                    action="/sites/{{.SiteName}}/submissions/delete"
+                                    onsubmit="return confirm('Delete all submissions for this form?')"
+                            >
+                                <input type="hidden" name="path" value="{{.CurrentPath}}">
+                                <button type="submit" class="btn btn-danger">Delete all</button>
+                            </form>
+                        {{end}}
+                    </div>
+                </div>
+
+                {{if gt .TotalCount 20}}
+                    <p class="text-sm text-muted">
+                        Showing 20 of {{.TotalCount}} submissions.
+                        <a href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv" class="text-blue-500 no-underline hover:underline">Export all</a>
+                    </p>
+                {{end}}
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse rounded-md overflow-hidden text-sm">
+                        <thead>
+                        <tr>
+                            <th
+                                    scope="col"
+                                    class="sticky left-0 z-10 bg-surface text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap"
+                            >
+                                Field
+                            </th>
+                            {{range .Submissions}}
+                                <th
+                                        scope="col"
+                                        class="text-start px-4 py-3 text-xs font-medium border-b border-default whitespace-nowrap"
+                                >
+                                    <div>{{.Submitter}}</div>
+                                    <time
+                                            class="text-muted font-normal"
+                                            datetime="{{abstime .CreatedAt}}"
+                                            title="{{abstime .CreatedAt}}"
+                                    >
+                                        {{reltime .CreatedAt}}
+                                    </time>
+                                </th>
+                            {{end}}
+                        </tr>
+                        </thead>
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+                        {{range $key := $.FieldKeys}}
+                            <tr>
+                                <td class="sticky left-0 z-10 bg-surface px-4 py-3 border-b border-default font-medium whitespace-nowrap">
+                                    {{index $.FieldLabels $key}}
+                                </td>
+                                {{range $.Submissions}}
+                                    <td class="px-4 py-3 border-b border-default max-w-48 truncate" title="{{index .ParsedFields $key}}">
+                                        {{index .ParsedFields $key}}
+                                    </td>
+                                {{end}}
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            {{else}}
+                <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
+                    No submissions for this form.
+                </p>
+            {{end}}
+        {{else}}
+            <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
+                No form submissions yet.
+            </p>
+        {{end}}
+    </article>
+{{end}}

@@ -526,6 +526,7 @@ var (
 	webhooksTmpl        = newTmpl("templates/layout.gohtml", "templates/webhooks.gohtml")
 	webhookDetailTmpl   = newTmpl("templates/layout.gohtml", "templates/webhook.gohtml")
 	siteDeploymentsTmpl = newTmpl("templates/layout.gohtml", "templates/site-deployments.gohtml")
+	submissionsTmpl     = newTmpl("templates/layout.gohtml", "templates/submissions.gohtml")
 	errorTmpl           = newTmpl("templates/layout.gohtml", "templates/error.gohtml")
 )
 
