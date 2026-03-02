@@ -12,6 +12,7 @@ import (
 
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
+	"tspages/internal/forms"
 	"tspages/internal/httplog"
 	"tspages/internal/metrics"
 	"tspages/internal/serve"
@@ -55,6 +56,7 @@ type ManagerConfig struct {
 	Recorder   *analytics.Recorder
 	DNSSuffix  string
 	Defaults   storage.SiteConfig
+	Notifier   forms.Notifier
 }
 
 // Manager tracks per-site tsnet servers.
@@ -65,6 +67,7 @@ type Manager struct {
 	capability string
 	maxSites   int
 	recorder   *analytics.Recorder
+	notifier   forms.Notifier
 	dnsSuffix  string
 	defaults   storage.SiteConfig
 	startSite  siteStarter
@@ -82,6 +85,7 @@ func New(cfg ManagerConfig) *Manager {
 		capability: cfg.Capability,
 		maxSites:   cfg.MaxSites,
 		recorder:   cfg.Recorder,
+		notifier:   cfg.Notifier,
 		dnsSuffix:  cfg.DNSSuffix,
 		defaults:   cfg.Defaults,
 		servers:    make(map[string]*siteServer),
@@ -212,8 +216,12 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 			})
 		}
 	})
+	formHandler := forms.NewHandler(m.recorder, m.notifier, site, handler.Config)
+	formLogged := httplog.Wrap(formHandler, slog.String("site", site))
+
 	mux := http.NewServeMux()
 	mux.Handle("GET /{path...}", withAuth(recorded))
+	mux.Handle("POST /{path...}", withAuth(formLogged))
 
 	var ln net.Listener
 	if public {

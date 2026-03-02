@@ -126,6 +126,7 @@ func main() {
 		Capability: cfg.Tailscale.Capability,
 		MaxSites:   cfg.Server.MaxSites,
 		Recorder:   recorder,
+		Notifier:   notifier,
 		DNSSuffix:  dnsSuffix,
 		Defaults:   cfg.Defaults,
 	})

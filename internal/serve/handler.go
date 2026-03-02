@@ -226,6 +226,12 @@ func (h *Handler) InvalidateConfig() {
 	h.mu.Unlock()
 }
 
+// Config returns the current merged SiteConfig. Safe to call from other goroutines.
+func (h *Handler) Config() storage.SiteConfig {
+	_, _, cfg, _ := h.resolve()
+	return cfg
+}
+
 // AnalyticsEnabled reports whether analytics recording is enabled for the
 // current deployment's merged config. Safe to call from other goroutines.
 func (h *Handler) AnalyticsEnabled() bool {
