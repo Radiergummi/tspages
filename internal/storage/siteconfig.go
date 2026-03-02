@@ -23,6 +23,7 @@ type SiteConfig struct {
 	TrailingSlash    string                       `toml:"trailing_slash" json:"trailing_slash,omitempty"`
 	Headers          map[string]map[string]string `toml:"headers" json:"headers,omitempty"`
 	Redirects        []RedirectRule               `toml:"redirects" json:"redirects,omitempty"`
+	Forms            *FormsConfig                 `toml:"forms" json:"forms,omitempty"`
 	WebhookURL       string                       `toml:"webhook_url" json:"webhook_url,omitempty"`
 	WebhookEvents    []string                     `toml:"webhook_events" json:"webhook_events,omitempty"`
 	WebhookSecret    string                       `toml:"webhook_secret" json:"webhook_secret,omitempty"`
@@ -33,6 +34,28 @@ type RedirectRule struct {
 	From   string `toml:"from" json:"from"`
 	To     string `toml:"to" json:"to"`
 	Status int    `toml:"status,omitempty" json:"status,omitempty"`
+}
+
+// FormsConfig holds form collection configuration for a site.
+// In TOML: [forms] enabled = true with [[forms.endpoints]] for endpoints.
+type FormsConfig struct {
+	Enabled   *bool          `toml:"enabled" json:"enabled,omitempty"`
+	Endpoints []FormEndpoint `toml:"endpoints" json:"endpoints,omitempty"`
+}
+
+// FormEndpoint defines a single form collection endpoint.
+type FormEndpoint struct {
+	Path        string      `toml:"path" json:"path"`
+	Name        string      `toml:"name" json:"name,omitempty"`
+	Description string      `toml:"description" json:"description,omitempty"`
+	Fields      []FormField `toml:"fields" json:"fields,omitempty"`
+}
+
+// FormField describes an expected field in a form endpoint.
+type FormField struct {
+	Key   string `toml:"key" json:"key"`
+	Label string `toml:"label" json:"label,omitempty"`
+	Type  string `toml:"type" json:"type,omitempty"`
 }
 
 const siteConfigFile = "config.toml"
@@ -92,6 +115,39 @@ func (c SiteConfig) Validate() error {
 			}
 			if !fromParams[p] {
 				return fmt.Errorf("redirect %d: 'to' references :%s not in 'from'", i, p)
+			}
+		}
+	}
+
+	if c.Forms != nil {
+		seenPaths := make(map[string]bool, len(c.Forms.Endpoints))
+		for i, ep := range c.Forms.Endpoints {
+			if ep.Path == "" {
+				return fmt.Errorf("forms.endpoints[%d]: path is required", i)
+			}
+			if !strings.HasPrefix(ep.Path, "/") {
+				return fmt.Errorf("forms.endpoints[%d]: path must start with /", i)
+			}
+			if seenPaths[ep.Path] {
+				return fmt.Errorf("forms.endpoints[%d]: duplicate path %q", i, ep.Path)
+			}
+			seenPaths[ep.Path] = true
+			validFieldTypes := map[string]bool{
+				"":       true,
+				"text":   true,
+				"email":  true,
+				"number": true,
+				"url":    true,
+				"tel":    true,
+				"date":   true,
+			}
+			for j, f := range ep.Fields {
+				if f.Key == "" {
+					return fmt.Errorf("forms.endpoints[%d].fields[%d]: key is required", i, j)
+				}
+				if !validFieldTypes[f.Type] {
+					return fmt.Errorf("forms.endpoints[%d].fields[%d]: invalid type %q", i, j, f.Type)
+				}
 			}
 		}
 	}
@@ -342,6 +398,10 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 
 	if c.Redirects != nil {
 		merged.Redirects = c.Redirects
+	}
+
+	if c.Forms != nil {
+		merged.Forms = c.Forms
 	}
 
 	if c.WebhookURL != "" {
