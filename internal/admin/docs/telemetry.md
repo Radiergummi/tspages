@@ -1,3 +1,8 @@
+---
+description: Health checks, Prometheus metrics, and Atom feeds for monitoring.
+category: reference
+---
+
 # Telemetry
 
 tspages exposes health checks, Prometheus metrics, and Atom feeds for monitoring deployments and

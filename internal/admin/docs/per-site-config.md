@@ -1,3 +1,8 @@
+---
+description: Configure SPA routing, headers, redirects, and more per deployment.
+category: reference
+---
+
 # Per-Site Configuration
 
 Each deployment can include a `tspages.toml` at the root of the archive. This file is parsed at

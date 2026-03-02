@@ -1,3 +1,8 @@
+---
+description: Supported archive and single-file formats for deploying sites.
+category: reference
+---
+
 # Upload Formats
 
 The deploy endpoint auto-detects the upload format from magic bytes, so `Content-Type` is only

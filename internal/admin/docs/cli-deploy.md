@@ -1,3 +1,8 @@
+---
+description: Deploy sites and generate config templates from the command line.
+category: reference
+---
+
 # CLI
 
 The `tspages` binary includes subcommands for deploying sites and generating configuration

@@ -1,3 +1,8 @@
+---
+description: Control access with Tailscale grants — no API keys or tokens needed.
+category: reference
+---
+
 # Authorization
 
 All access is controlled via Tailscale Application Grants with a custom capability. No tokens or API

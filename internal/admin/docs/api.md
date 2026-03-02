@@ -1,3 +1,8 @@
+---
+description: Complete HTTP API reference for the tspages control plane.
+category: reference
+---
+
 # API Reference
 
 All API endpoints are on the control plane hostname (e.g., `pages.your-tailnet.ts.net`). Sites are
@@ -45,6 +50,30 @@ GET /deploy/{site}
 
 Returns a JSON array of deployments for a site, including which one is active.
 
+Response:
+
+```json
+[
+  {
+    "id": "a3f9c1e2",
+    "active": true,
+    "created_at": "2025-03-02T10:30:45Z",
+    "created_by": "Alice",
+    "size_bytes": 1048576,
+    "comment": "v2.1.0"
+  },
+  {
+    "id": "b7d4e8f1",
+    "active": false,
+    "created_at": "2025-03-01T14:20:00Z",
+    "created_by": "Bob",
+    "size_bytes": 982315
+  }
+]
+```
+
+Fields with zero values (`failed`, `failed_reason`, `comment`, `created_by_avatar`) are omitted.
+
 Requires `deploy` capability for the site.
 
 ## Activate a deployment
@@ -54,6 +83,18 @@ POST /deploy/{site}/{id}/activate
 ```
 
 Switches live traffic to a specific deployment. Useful for rollbacks.
+
+Response:
+
+```json
+{
+  "id": "a3f9c1e2",
+  "active": true,
+  "created_at": "2025-03-02T10:30:45Z",
+  "created_by": "Alice",
+  "size_bytes": 1048576
+}
+```
 
 Requires `deploy` capability for the site.
 
@@ -66,6 +107,8 @@ DELETE /deploy/{site}/{id}
 Removes a deployment's files. Cannot delete the currently active deployment -- activate a different
 one first.
 
+Returns `204 No Content` on success.
+
 Requires `deploy` capability for the site.
 
 ## Delete all inactive deployments
@@ -75,6 +118,14 @@ DELETE /deploy/{site}/deployments
 ```
 
 Removes all deployments except the currently active one.
+
+Response:
+
+```json
+{
+  "deleted": 3
+}
+```
 
 Requires `deploy` capability for the site.
 
@@ -86,7 +137,13 @@ Content-Type: application/x-www-form-urlencoded
 ```
 
 Creates an empty site directory. Body: `name=my-site`. Returns a redirect to `/sites/{name}` (or
-JSON with `Accept: application/json`).
+JSON with `Accept: application/json`):
+
+```json
+{
+  "name": "my-site"
+}
+```
 
 Requires `admin` access for the site name.
 
@@ -98,7 +155,33 @@ DELETE /deploy/{site}
 
 Stops the site's server and removes all deployments.
 
+Returns `204 No Content` on success.
+
 Requires `admin` access for the site.
+
+## Errors
+
+When a request fails, the response body depends on the `Accept` header. With
+`Accept: application/json` (or a `.json` URL suffix):
+
+```json
+{
+  "error": "invalid site name"
+}
+```
+
+Without it, errors are returned as plain text.
+
+Common error codes:
+
+| Status | Meaning |
+| ------ | ------- |
+| `400`  | Invalid site name, empty upload, upload too large, bad config |
+| `403`  | Missing required capability for this action |
+| `404`  | Site or deployment not found |
+| `409`  | Cannot delete the active deployment; cannot activate a failed deployment |
+| `413`  | Upload exceeds `max_upload_mb` |
+| `500`  | Internal error (storage, server startup) |
 
 ## Admin dashboard
 

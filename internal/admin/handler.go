@@ -163,7 +163,7 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, err := RenderDoc(slug)
+	result, err := RenderDoc(slug)
 	if err != nil {
 		RenderError(w, r, http.StatusNotFound, "")
 		return
@@ -171,10 +171,12 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	renderPage(w, r, helpTmpl, "help", struct {
 		User    UserInfo
-		Pages   []DocPage
+		Nav     []NavGroup
 		Current DocPage
 		Content template.HTML
-	}{userInfo(identity, caps), pages, *current, content})
+		TOC     []TOCEntry
+		Meta    DocMeta
+	}{userInfo(identity, caps), DocNav(), *current, result.Content, result.TOC, result.Meta})
 }
 
 // --- GET /api ---

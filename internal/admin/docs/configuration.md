@@ -1,3 +1,8 @@
+---
+description: Server-level TOML config, environment variables, and Docker setup.
+category: reference
+---
+
 # Configuration
 
 tspages is configured via a TOML file (default: `tspages.toml`). Specify a different path with

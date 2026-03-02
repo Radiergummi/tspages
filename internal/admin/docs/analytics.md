@@ -1,3 +1,8 @@
+---
+description: Per-site request analytics with visitor, page, and device breakdowns.
+category: reference
+---
+
 # Analytics
 
 tspages records per-request analytics for all sites (enabled by default). Data is stored in a local

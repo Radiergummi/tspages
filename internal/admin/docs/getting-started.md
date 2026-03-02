@@ -1,3 +1,8 @@
+---
+description: Install tspages and deploy your first site in under 5 minutes.
+category: guide
+---
+
 # Getting Started
 
 ## Prerequisites

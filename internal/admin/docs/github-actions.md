@@ -1,3 +1,8 @@
+---
+description: Deploy to tspages from GitHub Actions CI/CD pipelines.
+category: guide
+---
+
 # GitHub Actions
 
 You can deploy to tspages from GitHub Actions using the
