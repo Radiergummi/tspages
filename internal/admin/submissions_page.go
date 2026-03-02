@@ -222,6 +222,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		// Parse sort param. Comma-separated, minus prefix = descending.
 		// Empty means default (date desc, no indicator).
 		sortFields := parseSortParam(r.URL.Query().Get("sort"))
+		data.Sort = sortFields
 
 		// Load submissions (limit 20). Sort fields referencing nonexistent
 		// JSON keys are harmless (json_extract returns NULL), so we pass them

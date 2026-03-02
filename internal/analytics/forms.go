@@ -221,6 +221,9 @@ func (r *Recorder) PurgeFormSubmissions(site string) (int64, error) {
 // If path is non-empty, results are filtered to that path. Zero from/to values
 // are treated as unbounded on that side.
 func (r *Recorder) SubmissionsOverTime(site, path string, from, to time.Time) ([]TimeBucket, error) {
+	if to.IsZero() {
+		to = time.Now()
+	}
 	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
 	args := []any{stepSecs, stepSecs, site}
 	where := `site = ?`
