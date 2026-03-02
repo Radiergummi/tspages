@@ -28,7 +28,7 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -83,7 +83,7 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -186,7 +186,7 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.IsAdmin(caps, siteName) {
+	if !auth.CanDeploy(caps, siteName) {
 		RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}

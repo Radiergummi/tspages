@@ -107,12 +107,12 @@ type Handlers struct {
 	Feed             *FeedHandler
 	SiteFeed         *SiteFeedHandler
 	SiteHealth       *SiteHealthHandler
-	SiteConfig            *SiteConfigHandler
-	UpdateSiteConfig     *UpdateSiteConfigHandler
-	PostSiteConfig       *PostSiteConfigHandler
-	SubmissionsPage      *SubmissionsPageHandler
-	Submissions          *SubmissionsHandler
-	SubmissionDetail     *SubmissionDetailHandler
+	SiteConfig       *SiteConfigHandler
+	UpdateSiteConfig *UpdateSiteConfigHandler
+	PostSiteConfig   *PostSiteConfigHandler
+	SubmissionsPage       *SubmissionsPageHandler
+	Submissions           *SubmissionsHandler
+	SubmissionDetail      *SubmissionDetailHandler
 	DeleteSubmission     *DeleteSubmissionHandler
 	BulkDeleteSubmissions *BulkDeleteSubmissionsHandler
 	ExportSubmissions    *ExportSubmissionsHandler
