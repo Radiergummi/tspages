@@ -58,6 +58,48 @@ function main(): void {
 
   // endregion
 
+  // region View Toggle
+
+  const STORAGE_KEY = "tspages:sites-view";
+  const toggle = document.querySelector<HTMLElement>("[data-view-toggle]");
+
+  if (toggle) {
+    const buttons = toggle.querySelectorAll<HTMLButtonElement>("[data-view]");
+    const panels = document.querySelectorAll<HTMLElement>("[data-view-panel]");
+
+    function setView(view: string): void {
+      buttons.forEach((btn) => {
+        btn.setAttribute("aria-current", btn.dataset.view === view ? "true" : "false");
+      });
+      panels.forEach((panel) => {
+        panel.classList.toggle("hidden", panel.dataset.viewPanel !== view);
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY, view);
+      } catch {
+        // storage unavailable
+      }
+    }
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.view) setView(btn.dataset.view);
+      });
+    });
+
+    // Restore saved preference
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === "grid" || saved === "list") {
+        setView(saved);
+      }
+    } catch {
+      // storage unavailable
+    }
+  }
+
+  // endregion
+
   // region New Site Modal
 
   const modal = document.getElementById("new-site-modal");
