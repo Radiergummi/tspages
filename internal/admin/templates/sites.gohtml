@@ -13,8 +13,18 @@
             <div class="flex items-center gap-3">
                 {{if .Sites}}
                     <div class="segmented-control" role="group" aria-label="View mode" data-view-toggle>
-                        <button data-view="list" aria-current="true">List</button>
-                        <button data-view="grid">Grid</button>
+                        <input type="radio" name="view" id="view-list" value="list" checked class="sr-only peer/list">
+                        <label for="view-list" data-view="list">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" />
+                            </svg>
+                        </label>
+                        <input type="radio" name="view" id="view-grid" value="grid" class="sr-only peer/grid">
+                        <label for="view-grid" data-view="grid">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" />
+                            </svg>
+                        </label>
                     </div>
                 {{end}}
 
@@ -30,7 +40,7 @@
         </header>
 
         {{if .Sites}}
-            <div data-view-panel="list" class="overflow-x-auto">
+            <div data-view-panel="list" class="overflow-x-auto starting:opacity-0 transition-opacity duration-150 delay-150">
                 <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
                     <thead>
                     <tr>
@@ -189,14 +199,13 @@
                 </table>
             </div>
 
-            <div data-view-panel="grid" class="hidden">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div data-view-panel="grid" class="starting:opacity-0 transition-opacity duration-150 delay-150">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {{range .Sites}}
                         <a
                                 href="/sites/{{.Name}}"
-                                class="group flex flex-col border border-default rounded-lg overflow-hidden
-                                       no-underline hover:border-blue-400 dark:hover:border-blue-500
-                                       transition-colors bg-surface"
+                                class="group flex flex-col rounded-lg overflow-hidden no-underline ring-1 ring-base-100 dark:ring-base-700
+                                hover:ring-blue-400 dark:hover:ring-blue-500 transition bg-surface"
                         >
                             {{if .OGImage}}
                                 <div class="aspect-video bg-base-100 dark:bg-base-900 overflow-hidden">
@@ -212,33 +221,48 @@
                                     {{if .Favicon}}
                                         <img
                                                 src="{{.Favicon}}"
-                                                alt=""
-                                                class="w-12 h-12"
+                                                alt="{{.Name}} favicon"
+                                                class="size-12"
                                                 loading="lazy"
                                         >
                                     {{else}}
-                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
-                                             width="32" height="32" viewBox="0 0 24 24" fill="none"
-                                             stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                                             stroke-linejoin="round" class="text-muted">
-                                            <path d="M12 2 2 7l10 5 10-5-10-5Z"/>
-                                            <path d="m2 17 10 5 10-5"/>
-                                            <path d="m2 12 10 5 10-5"/>
+                                        <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="32"
+                                                height="32"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                class="text-base-400 dark:text-base-600"
+                                        >
+                                            <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+                                            <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+                                            <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
                                         </svg>
                                     {{end}}
                                 </div>
                             {{end}}
 
                             <div class="p-3 flex flex-col gap-1">
-                                <span class="font-mono text-sm font-medium text-blue-500 group-hover:underline">
+                                <span class="text-sm font-medium text-blue-500">
                                     {{.Name}}
                                 </span>
+
                                 {{if .OGDescription}}
-                                    <span class="text-xs text-muted line-clamp-2">{{.OGDescription}}</span>
+                                    <span class="text-xs text-muted line-clamp-2">
+                                        {{.OGDescription}}
+                                    </span>
                                 {{end}}
+
                                 {{if and $.Admin .LastDeployedAt}}
                                     <span class="text-xs text-muted mt-1">
-                                        <time datetime="{{abstime .LastDeployedAt}}" title="{{abstime .LastDeployedAt}}">
+                                        <time
+                                                datetime="{{abstime .LastDeployedAt}}"
+                                                title="{{abstime .LastDeployedAt}}"
+                                        >
                                             {{reltime .LastDeployedAt}}
                                         </time>
                                         &middot; {{fmtnum .Requests}} requests

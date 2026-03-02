@@ -36,10 +36,10 @@
             </a>
         </nav>
 
-        <header class="flex items-center justify-between">
+        <header class="flex items-center justify-between flex-wrap gap-4">
             <h1 class="text-2xl font-semibold tracking-tight inline-flex items-center gap-2">
                 {{if .Site.Favicon}}
-                    <img src="{{.Site.Favicon}}" alt="" class="size-6">
+                    <img src="{{.Site.Favicon}}" alt="Favicon of {{.Site.Name}}" class="size-6 rounded-sm object-cover">
                 {{end}}
                 {{.Site.Name}}
             </h1>
@@ -66,6 +66,12 @@
                     </form>
                 {{end}}
             </div>
+
+            {{if .Site.OGDescription}}
+                <div class="w-full">
+                    <p class="text-sm text-muted">{{.Site.OGDescription}}</p>
+                </div>
+            {{end}}
         </header>
 
         <section class="grid gap-4 grid-cols-12">
@@ -120,10 +126,6 @@
                 </dd>
             </dl>
         </section>
-
-        {{if .Site.OGDescription}}
-            <p class="text-sm text-muted">{{.Site.OGDescription}}</p>
-        {{end}}
 
         {{if or .Site.ActiveDeploymentID .Admin}}
             <section>
@@ -675,7 +677,13 @@
                                     <td class="px-4 py-3 text-sm border-b border-paper dark:border-base-950 text-end">
                                         {{if not (or .Active .Failed)}}
                                             <form method="POST" action="/deploy/{{$.Site.Name}}/{{.ID}}/activate">
-                                                <button type="submit" class="btn btn-primary" data-action="activate" data-deployment-id="{{.ID}}">Activate</button>
+                                                <button
+                                                        type="submit"
+                                                        class="btn btn-primary"
+                                                        data-action="activate"
+                                                        data-deployment-id="{{.ID}}"
+                                                >Activate
+                                                </button>
                                             </form>
                                         {{end}}
                                     </td>
@@ -689,7 +697,8 @@
                 {{if and .CanDeploy .HasInactive}}
                     <div class="flex justify-end mt-4">
                         <form method="POST" action="/sites/{{.Site.Name}}/cleanup">
-                            <button type="submit" class="btn btn-outline" data-action="cleanup">Clean old deployments</button>
+                            <button type="submit" class="btn btn-outline" data-action="cleanup">Clean old deployments
+                            </button>
                         </form>
                     </div>
                 {{end}}

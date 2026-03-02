@@ -119,14 +119,28 @@
   }
 
   .segmented-control a,
-  .segmented-control button {
-    @apply px-3 py-1 text-sm rounded-md no-underline outline-hidden
+  .segmented-control button,
+  .segmented-control label {
+    @apply px-3 py-1.5 text-sm rounded-md no-underline outline-hidden cursor-pointer
         transition-colors duration-150 ease-in-out text-muted
         hover:text-black dark:hover:text-base-200
         focus-visible:ring-2 focus-visible:ring-blue-500/40
         aria-current:bg-base-300 dark:aria-current:bg-base-700 aria-current:text-black
         dark:aria-current:text-base-200 aria-current:font-medium;
   }
+
+  .segmented-control input:checked + label {
+    @apply bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium;
+  }
+
+  .segmented-control input:focus-visible + label {
+    @apply ring-2 ring-blue-500/40;
+  }
+
+  /* CSS-only view switching: hide the non-selected panel. */
+  :has(#view-list:checked) [data-view-panel="grid"] { display: none; }
+  :has(#view-grid:checked) [data-view-panel="list"] { display: none; }
+
 
   .toggle-track {
     @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
