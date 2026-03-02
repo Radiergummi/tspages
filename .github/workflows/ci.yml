@@ -10,29 +10,49 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  build-frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npx vite build
-      - run: go build ./cmd/tspages
-      - run: go test -race ./...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: internal/admin/assets/dist
+          retention-days: 1
 
-  lint-go:
+  test:
+    needs: build-frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: internal/admin/assets/dist
+      - run: go build ./cmd/tspages
+      - run: go test -race ./...
+
+  lint-go:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: internal/admin/assets/dist
       - uses: golangci/golangci-lint-action@v7
         with:
           version: v2.10
