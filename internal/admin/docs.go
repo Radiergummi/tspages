@@ -65,6 +65,7 @@ var docPageOrder = []DocPage{
 	{"authorization", "Authorization"},
 	{"api", "API Reference"},
 	{"analytics", "Analytics"},
+	{"forms", "Forms"},
 	{"webhooks", "Webhooks"},
 	{"telemetry", "Telemetry"},
 	{"github-actions", "GitHub Actions"},

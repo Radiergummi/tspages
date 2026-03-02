@@ -42,8 +42,9 @@ to = "/wiki/*"
 | `headers`           | `map[pattern]map[name]value` | --             | Custom response headers keyed by path pattern.                                                                |
 | `redirects`         | `array`                      | --             | Redirect rules, evaluated first-match.                                                                        |
 | `webhook_url`       | `string`                     | `""`           | URL to receive webhook notifications for this site. Must be `http://` or `https://`.                          |
-| `webhook_events`    | `array`                      | `[]`           | Events to notify: `deploy.success`, `deploy.failed`, `site.created`, `site.deleted`.                          |
+| `webhook_events`    | `array`                      | `[]`           | Events to notify: `deploy.success`, `deploy.failed`, `site.created`, `site.deleted`, `form.submission`.       |
 | `webhook_secret`    | `string`                     | `""`           | HMAC secret for signing webhook payloads.                                                                     |
+| `[forms]`           | `section`                    | --             | Form processing configuration. See [Forms](forms).                                                            |
 
 ## Header patterns
 
@@ -101,3 +102,4 @@ defaults:
 - `redirects`: deployment value entirely replaces defaults (no merging)
 - `webhook_url`, `webhook_events`, `webhook_secret`: deployment value replaces defaults when
   `webhook_url` is non-empty
+- `forms`: deployment value entirely replaces defaults (no merging)

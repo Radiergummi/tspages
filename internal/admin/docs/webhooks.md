@@ -44,12 +44,13 @@ config merging.
 
 ## Events
 
-| Event            | Fired when                              | Data fields                                                |
-| ---------------- | --------------------------------------- | ---------------------------------------------------------- |
-| `deploy.success` | A deployment completes and is activated | `site`, `deployment_id`, `created_by`, `url`, `size_bytes` |
-| `deploy.failed`  | A deployment fails                      | `site`, `error`                                            |
-| `site.created`   | A new site is created                   | `site`, `created_by`                                       |
-| `site.deleted`   | A site is deleted                       | `site`, `deleted_by`                                       |
+| Event             | Fired when                              | Data fields                                                |
+| ----------------- | --------------------------------------- | ---------------------------------------------------------- |
+| `deploy.success`  | A deployment completes and is activated | `site`, `deployment_id`, `created_by`, `url`, `size_bytes` |
+| `deploy.failed`   | A deployment fails                      | `site`, `error`                                            |
+| `site.created`    | A new site is created                   | `site`, `created_by`                                       |
+| `site.deleted`    | A site is deleted                       | `site`, `deleted_by`                                       |
+| `form.submission` | A form is submitted on a site           | `id`, `site`, `path`, `fields`, `submitter`, `node`        |
 
 ## Payload format
 
