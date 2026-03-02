@@ -23,47 +23,83 @@
                     <path d="M9 14 4 9l5-5" />
                     <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
                 </svg>
-                <span>{{.SiteName}}</span>
+                <span>
+                    {{.SiteName}}
+                </span>
             </a>
         </nav>
 
         <header class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold tracking-tight">Submissions</h1>
+            <h1 class="text-2xl font-semibold tracking-tight">
+                Submissions
+            </h1>
         </header>
 
         {{if .Paths}}
-            <nav aria-label="Form paths" class="flex flex-wrap gap-1">
-                {{range .Paths}}
-                    <a
-                            class="pill"
-                            href="/sites/{{$.SiteName}}/submissions?path={{.Path}}"
-                            {{if eq .Path $.CurrentPath}}aria-current="step"{{end}}
-                    >
-                        {{.Name}}
-                        <span class="text-muted ml-1">{{.Count}}</span>
-                    </a>
-                {{end}}
-            </nav>
+            <!-- region Forms Navigation -->
+            {{if (gt (len .Paths) 1)}}
+                <nav aria-label="Form paths" class="flex flex-wrap gap-1">
+                    {{range .Paths}}
+                        <a
+                                class="pill inline-flex items-center gap-2 pe-1.5"
+                                href="/sites/{{$.SiteName}}/submissions?path={{.Path}}"
+                                {{if eq .Path $.CurrentPath}}aria-current="step"{{end}}
+                        >
+                            <span>{{.Name}}</span>
+                            <span
+                                    class="text-base-100 bg-base-950/50 rounded-full flex items-center
+                                justify-center p-1 min-w-6"
+                            >
+                                {{.Count}}
+                            </span>
+                        </a>
+                    {{end}}
+                </nav>
+            {{end}}
+            <!-- endregion -->
 
             {{if .Submissions}}
                 <div class="flex items-center justify-between">
                     {{if .FormName}}
                         <div>
-                            <h2 class="text-lg font-semibold">{{.FormName}}</h2>
+                            <h2 class="text-lg font-semibold">
+                                {{.FormName}}
+                            </h2>
+
                             {{if .FormDesc}}
-                                <p class="text-sm text-muted">{{.FormDesc}}</p>
+                                <p class="text-sm text-muted">
+                                    {{.FormDesc}}
+                                </p>
                             {{end}}
                         </div>
                     {{else}}
                         <div></div>
                     {{end}}
 
+                    <!-- region Actions -->
                     <div class="flex gap-2">
                         <a
-                                class="btn btn-outline inline-block no-underline"
+                                class="btn btn-outline inline-flex items-center gap-1.5 no-underline"
                                 href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
                         >
-                            Export CSV
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                            >
+                                <path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" />
+                                <path d="M12 22V12" />
+                                <polyline points="3.29 7 12 12 20.71 7" />
+                                <path d="m7.5 4.27 9 5.15" />
+                            </svg>
+
+                            <span>Export CSV</span>
                         </a>
                         {{if .Admin}}
                             <form
@@ -76,76 +112,212 @@
                             </form>
                         {{end}}
                     </div>
+                    <!-- endregion -->
                 </div>
 
+                <!-- region Overflow actions -->
                 {{if gt .TotalCount 20}}
                     <p class="text-sm text-muted">
                         Showing 20 of {{.TotalCount}} submissions.
-                        <a href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv" class="text-blue-500 no-underline hover:underline">Export all</a>
+                        <a
+                                href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
+                                class="text-blue-500 no-underline hover:underline"
+                        >
+                            Export all
+                        </a>
                     </p>
                 {{end}}
+                <!-- endregion -->
 
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse rounded-md overflow-hidden text-sm">
+
+                        <!-- region Table Head -->
                         <thead>
                         <tr>
-                            <th scope="col" class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap">
+                            <th
+                                    scope="col"
+                                    class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b-2 border-default whitespace-nowrap"
+                            >
                                 Submitted by
                             </th>
-                            <th scope="col" class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap">
+                            <th
+                                    scope="col"
+                                    class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b-2 border-default whitespace-nowrap"
+                            >
                                 Date
                             </th>
                             {{range .FieldKeys}}
-                                <th scope="col" class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap">
+                                <th
+                                        scope="col"
+                                        class="text-start data-numeric:text-end pe-4 last:pe-0 py-3 text-xs uppercase
+                                        tracking-wider text-muted font-medium border-b-2 border-default
+                                        whitespace-nowrap"
+                                        {{if index $.NumericFields .}}data-numeric="true"{{end}}
+                                >
                                     {{index $.FieldLabels .}}
                                 </th>
                             {{end}}
+                            <th scope="col" class="w-10 py-3 border-b-2 border-default">
+                                <span class="sr-only">Actions</span>
+                            </th>
                         </tr>
                         </thead>
+                        <!-- endregion -->
+
+                        <!-- region Table Body -->
                         <tbody class="[&>tr:last-child>td]:border-b-0">
                         {{range $sub := .Submissions}}
                             <tr class="hover:bg-base-50/50 dark:hover:bg-base-900/50">
-                                <td class="px-4 py-3 border-b border-default whitespace-nowrap">
-                                    {{$sub.Submitter}}
+                                <td class="pe-4 py-3 border-b border-default whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-2">
+                                        {{avatarHTML $sub.Submitter $sub.SubmitterPicURL}}
+                                        {{$sub.Submitter}}
+                                    </span>
                                 </td>
-                                <td class="px-4 py-3 border-b border-default whitespace-nowrap text-muted">
+
+                                <td class="pe-4 py-3 border-b border-default whitespace-nowrap text-muted">
                                     <time datetime="{{abstime $sub.CreatedAt}}" title="{{abstime $sub.CreatedAt}}">
                                         {{reltime $sub.CreatedAt}}
                                     </time>
                                 </td>
+
                                 {{range $key := $.FieldKeys}}
-                                    <td class="px-4 py-3 border-b border-default max-w-64 truncate" title="{{index $sub.ParsedFields $key}}">
-                                        {{index $sub.ParsedFields $key}}
+                                    <td class="pe-4 last:pe-0 py-3 border-b border-default max-w-64 truncate{{if index $.NumericFields $key}} text-end tabular-nums{{end}}">
+                                        {{with index $sub.ParsedFields $key}}
+                                            <span title="{{.}}">{{.}}</span>
+                                        {{else}}
+                                            <span class="text-muted italic">—</span>
+                                        {{end}}
                                     </td>
                                 {{end}}
+                                <td class="py-3 border-b border-default text-end">
+                                    <button
+                                            class="btn-icon"
+                                            popovertarget="actions-{{$sub.ID}}"
+                                            aria-label="Actions"
+                                            style="anchor-name: --a{{$sub.ID}}"
+                                    >
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- Actions menu popover -->
+                                    <div popover="auto" id="actions-{{$sub.ID}}" class="popover-menu" style="position-anchor: --a{{$sub.ID}}">
+                                        <button type="button" popovertarget="detail-{{$sub.ID}}">
+                                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>
+                                            </svg>
+                                            <span>View details</span>
+                                        </button>
+                                        {{if $.Admin}}
+                                            <form
+                                                    method="POST"
+                                                    action="/sites/{{$.SiteName}}/submissions/{{$sub.ID}}/delete"
+                                                    onsubmit="return confirm('Delete this submission?')"
+                                            >
+                                                <input type="hidden" name="path" value="{{$.CurrentPath}}">
+                                                <button type="submit" class="menu-danger">
+                                                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                                    </svg>
+                                                    <span>Delete</span>
+                                                </button>
+                                            </form>
+                                        {{end}}
+                                    </div>
+
+                                    <!-- Detail popover -->
+                                    <div popover="auto" id="detail-{{$sub.ID}}" class="popover-detail">
+                                        <div class="flex items-center justify-between px-5 py-4 border-b border-default">
+                                            <h3 class="text-base font-semibold">Submission details</h3>
+                                            <button class="btn-icon" popovertarget="detail-{{$sub.ID}}" popovertargetaction="hide" aria-label="Close">
+                                                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="px-5 py-4">
+                                            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+                                                <dt class="text-muted font-medium">Submitted by</dt>
+                                                <dd class="inline-flex items-center gap-2">
+                                                    {{avatarHTML $sub.Submitter $sub.SubmitterPicURL}}
+                                                    {{$sub.Submitter}}
+                                                </dd>
+
+                                                <dt class="text-muted font-medium">Date</dt>
+                                                <dd>
+                                                    <time datetime="{{abstime $sub.CreatedAt}}" class="tabular-nums">
+                                                        {{abstime $sub.CreatedAt}}
+                                                    </time>
+                                                </dd>
+
+                                                <dt class="text-muted font-medium">Node</dt>
+                                                <dd class="font-mono text-xs">{{$sub.Node}}</dd>
+
+                                                <dt class="text-muted font-medium">IP address</dt>
+                                                <dd class="font-mono text-xs">{{$sub.IP}}</dd>
+
+                                                {{range $key := $.FieldKeys}}
+                                                    <dt class="text-muted font-medium">{{index $.FieldLabels $key}}</dt>
+                                                    <dd class="whitespace-pre-wrap break-words">{{index $sub.ParsedFields $key}}</dd>
+                                                {{end}}
+                                            </dl>
+                                        </div>
+                                    </div>
+                                </td>
                             </tr>
                         {{end}}
                         </tbody>
-                        {{if .Summary}}
+                        <!-- endregion -->
+
+                        <!-- region Summary Footer -->
+                        {{if .HasSummary}}
                             <tfoot>
-                            <tr class="bg-base-50/50 dark:bg-base-900/50">
-                                <td class="px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider" colspan="2">
-                                    {{.TotalCount}} total
+                            <tr class="border-t-2 border-default">
+                                <td
+                                        class="pe-4 py-3 text-xs font-medium text-muted uppercase tracking-wider
+                                        whitespace-nowrap"
+                                >
+                                    {{len .Submissions}} of {{.TotalCount}}
                                 </td>
+
+                                <td class="pe-4 py-3 text-xs text-muted whitespace-nowrap">
+                                    {{.DateSummary}}
+                                </td>
+
                                 {{range .FieldKeys}}
-                                    <td class="px-4 py-3 text-xs text-muted">
+                                    <td
+                                            class="pe-4 last:pe-0 py-3 text-xs text-muted data-numeric:text-end
+                                            data-numeric:tabular-nums"
+                                            {{if index $.NumericFields .}}data-numeric="true"{{end}}
+                                    >
                                         {{index $.Summary .}}
                                     </td>
                                 {{end}}
+                                <td></td>
                             </tr>
                             </tfoot>
                         {{end}}
+                        <!-- endregion -->
                     </table>
                 </div>
             {{else}}
+                <!-- region No submissions -->
                 <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
                     No submissions for this form.
                 </p>
+                <!-- endregion -->
             {{end}}
         {{else}}
+            <!-- region No forms -->
             <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
-                No form submissions yet.
+                No forms yet.
             </p>
+            <!-- endregion -->
         {{end}}
     </article>
 {{end}}
