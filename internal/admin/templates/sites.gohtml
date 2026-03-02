@@ -10,18 +10,27 @@
                 <p class="text-sm text-muted mt-1">Manage your static sites and deployments.</p>
             </div>
 
-            {{if .CanCreate}}
-                <button
-                        data-action="new-site"
-                        class="btn btn-primary"
-                >
-                    New site
-                </button>
-            {{end}}
+            <div class="flex items-center gap-3">
+                {{if .Sites}}
+                    <div class="segmented-control" role="group" aria-label="View mode" data-view-toggle>
+                        <button data-view="list" aria-current="true">List</button>
+                        <button data-view="grid">Grid</button>
+                    </div>
+                {{end}}
+
+                {{if .CanCreate}}
+                    <button
+                            data-action="new-site"
+                            class="btn btn-primary"
+                    >
+                        New site
+                    </button>
+                {{end}}
+            </div>
         </header>
 
         {{if .Sites}}
-            <div class="overflow-x-auto">
+            <div data-view-panel="list" class="overflow-x-auto">
                 <table class="w-full border-collapse border border-default rounded-md overflow-hidden">
                     <thead>
                     <tr>
@@ -178,6 +187,67 @@
                     {{end}}
                     </tbody>
                 </table>
+            </div>
+
+            <div data-view-panel="grid" class="hidden">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {{range .Sites}}
+                        <a
+                                href="/sites/{{.Name}}"
+                                class="group flex flex-col border border-default rounded-lg overflow-hidden
+                                       no-underline hover:border-blue-400 dark:hover:border-blue-500
+                                       transition-colors bg-surface"
+                        >
+                            {{if .OGImage}}
+                                <div class="aspect-video bg-base-100 dark:bg-base-900 overflow-hidden">
+                                    <img
+                                            src="{{.OGImage}}"
+                                            alt=""
+                                            class="w-full h-full object-cover"
+                                            loading="lazy"
+                                    >
+                                </div>
+                            {{else}}
+                                <div class="aspect-video bg-base-100 dark:bg-base-900 flex items-center justify-center">
+                                    {{if .Favicon}}
+                                        <img
+                                                src="{{.Favicon}}"
+                                                alt=""
+                                                class="w-12 h-12"
+                                                loading="lazy"
+                                        >
+                                    {{else}}
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                             width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                             stroke-linejoin="round" class="text-muted">
+                                            <path d="M12 2 2 7l10 5 10-5-10-5Z"/>
+                                            <path d="m2 17 10 5 10-5"/>
+                                            <path d="m2 12 10 5 10-5"/>
+                                        </svg>
+                                    {{end}}
+                                </div>
+                            {{end}}
+
+                            <div class="p-3 flex flex-col gap-1">
+                                <span class="font-mono text-sm font-medium text-blue-500 group-hover:underline">
+                                    {{.Name}}
+                                </span>
+                                {{if .OGDescription}}
+                                    <span class="text-xs text-muted line-clamp-2">{{.OGDescription}}</span>
+                                {{end}}
+                                {{if and $.Admin .LastDeployedAt}}
+                                    <span class="text-xs text-muted mt-1">
+                                        <time datetime="{{abstime .LastDeployedAt}}" title="{{abstime .LastDeployedAt}}">
+                                            {{reltime .LastDeployedAt}}
+                                        </time>
+                                        &middot; {{fmtnum .Requests}} requests
+                                    </span>
+                                {{end}}
+                            </div>
+                        </a>
+                    {{end}}
+                </div>
             </div>
         {{else}}
             <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md">
