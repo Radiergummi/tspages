@@ -70,7 +70,7 @@ func TestPatchSiteConfig(t *testing.T) {
 	patchReq = patchReq.WithContext(ctx)
 	patchReq.SetPathValue("site", "docs")
 
-	patchHandler := &UpdateSiteConfigHandler{handlerDeps{store: store}}
+	patchHandler := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
 	pw := httptest.NewRecorder()
 	patchHandler.ServeHTTP(pw, patchReq)
 
@@ -101,6 +101,54 @@ func TestPatchSiteConfig(t *testing.T) {
 	}
 }
 
+func TestPatchSiteConfig_InvalidatesHandler(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{}
+	h := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}, ensurer: mock}
+
+	body := `{"directory_listing": true}`
+	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
+	ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "admin@test"})
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mock.ensured) != 1 || mock.ensured[0] != "docs" {
+		t.Fatalf("expected EnsureServer(docs), got %v", mock.ensured)
+	}
+}
+
+func TestPostSiteConfig_InvalidatesHandler(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{}
+	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}, ensurer: mock}
+
+	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&directory_listing=true&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mock.ensured) != 1 || mock.ensured[0] != "docs" {
+		t.Fatalf("expected EnsureServer(docs), got %v", mock.ensured)
+	}
+}
+
 func TestPatchSiteConfig_ValidationError(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
@@ -114,7 +162,7 @@ func TestPatchSiteConfig_ValidationError(t *testing.T) {
 	r = r.WithContext(ctx)
 	r.SetPathValue("site", "docs")
 
-	h := &UpdateSiteConfigHandler{handlerDeps{store: store}}
+	h := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -136,7 +184,7 @@ func TestPatchSiteConfig_RequiresAdmin(t *testing.T) {
 	r = r.WithContext(ctx)
 	r.SetPathValue("site", "docs")
 
-	h := &UpdateSiteConfigHandler{handlerDeps{store: store}}
+	h := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -179,7 +227,7 @@ func TestPostSiteConfig_FormSubmit(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, caps, id)
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -214,7 +262,7 @@ func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "deploy"}}, auth.Identity{LoginName: "deployer@test"})
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -232,7 +280,7 @@ func TestPostSiteConfig_ValidationError(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 

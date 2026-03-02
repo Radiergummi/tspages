@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Site config changes made via the admin dashboard or API (e.g. enabling directory listing) now take
+  effect immediately instead of requiring a new deployment.
+- Directory listing now works for the root path (`/`) on sites without an index page.
+
 ## [0.5.0] - 2026-03-02
 
 ### Added

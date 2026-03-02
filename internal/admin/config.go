@@ -48,7 +48,10 @@ func (h *SiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // --- PATCH /sites/{site}/config ---
 
-type UpdateSiteConfigHandler struct{ handlerDeps }
+type UpdateSiteConfigHandler struct {
+	handlerDeps
+	ensurer SiteEnsurer
+}
 
 func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := trimSuffix(r.PathValue("site"))
@@ -74,12 +77,22 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Invalidate the serve handler's cached config so the new settings take
+	// effect immediately. EnsureServer on a running site just calls
+	// InvalidateConfig (and restarts if the public flag changed).
+	if h.ensurer != nil {
+		h.ensurer.EnsureServer(siteName)
+	}
+
 	writeJSON(w, cfg)
 }
 
 // --- POST /sites/{site}/config ---
 
-type PostSiteConfigHandler struct{ handlerDeps }
+type PostSiteConfigHandler struct {
+	handlerDeps
+	ensurer SiteEnsurer
+}
 
 func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 	form := r.Form
@@ -126,6 +139,10 @@ func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if h.ensurer != nil {
+		h.ensurer.EnsureServer(siteName)
 	}
 
 	http.Redirect(w, r, "/sites/"+siteName, http.StatusSeeOther)

@@ -275,7 +275,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	filePath := filepath.Clean(r.PathValue("path"))
 	if filePath == "" || filePath == "." {
-		filePath = indexPage
+		filePath = "."
 	}
 	if strings.Contains(filePath, "..") {
 		http.NotFound(w, r)
@@ -289,7 +289,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var isFile, isDir bool
-	if h.cachedFiles != nil {
+	if filePath == "." {
+		// Root is always a directory; the index file check happens in the
+		// isDir branch below, same as any other directory.
+		isDir = true
+	} else if h.cachedFiles != nil {
 		_, isFile = h.cachedFiles[filePath]
 		if !isFile {
 			_, isDir = h.cachedDirs[filePath]

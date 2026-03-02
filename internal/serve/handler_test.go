@@ -1482,6 +1482,40 @@ func TestHandler_DirectoryListing_Enabled(t *testing.T) {
 	}
 }
 
+func TestHandler_DirectoryListing_RootNoIndex(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content")
+	os.MkdirAll(contentDir, 0755)
+	// No index.html — only data files at root.
+	os.WriteFile(filepath.Join(contentDir, "data.csv"), []byte("a,b"), 0644)
+	os.WriteFile(filepath.Join(contentDir, "report.pdf"), []byte("pdf"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	dl := true
+	store.WriteDeploymentConfig("files", "aaa11111", storage.SiteConfig{DirectoryListing: &dl})
+
+	h := NewHandler(store, "files", "", storage.SiteConfig{})
+	req := httptest.NewRequest("GET", "/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (root directory listing)", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "data.csv") {
+		t.Error("listing should contain data.csv")
+	}
+	if !strings.Contains(body, "report.pdf") {
+		t.Error("listing should contain report.pdf")
+	}
+}
+
 func TestHandler_DirectoryListing_Disabled(t *testing.T) {
 	store := storage.New(t.TempDir())
 	dir, _ := store.CreateDeployment("files", "aaa11111")
@@ -1563,6 +1597,46 @@ func TestHandler_DirectoryListing_FromDefaults(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "file.txt") {
 		t.Error("listing should show file.txt from defaults config")
+	}
+}
+
+func TestHandler_DirectoryListing_SiteConfigAfterCache(t *testing.T) {
+	store := storage.New(t.TempDir())
+	dir, _ := store.CreateDeployment("files", "aaa11111")
+	contentDir := filepath.Join(dir, "content", "docs")
+	os.MkdirAll(contentDir, 0755)
+	os.WriteFile(filepath.Join(contentDir, "file.txt"), []byte("hi"), 0644)
+	store.MarkComplete("files", "aaa11111")
+	store.ActivateDeployment("files", "aaa11111")
+
+	h := NewHandler(store, "files", "", storage.SiteConfig{})
+
+	// First request caches config — directory listing is off, expect 404.
+	req := httptest.NewRequest("GET", "/docs/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("before config change: status = %d, want 404", rec.Code)
+	}
+
+	// Enable directory listing via site config (as the admin UI does).
+	dl := true
+	store.WriteSiteConfig("files", storage.SiteConfig{DirectoryListing: &dl})
+	h.InvalidateConfig()
+
+	// Second request should pick up the new config.
+	req = httptest.NewRequest("GET", "/docs/", nil)
+	req = withCaps(req, []auth.Cap{{Access: "view"}})
+	req.SetPathValue("path", "docs")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("after config change: status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "file.txt") {
+		t.Error("listing should show file.txt after enabling directory_listing via site config")
 	}
 }
 

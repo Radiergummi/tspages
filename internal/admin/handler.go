@@ -131,8 +131,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		SiteFeed:         &SiteFeedHandler{d},
 		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
 		SiteConfig:       &SiteConfigHandler{d},
-		UpdateSiteConfig: &UpdateSiteConfigHandler{d},
-		PostSiteConfig:   &PostSiteConfigHandler{d},
+		UpdateSiteConfig: &UpdateSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		PostSiteConfig:   &PostSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
 	}
 }
 
