@@ -492,6 +492,80 @@ func TestRecorder_SubmissionsOverTime(t *testing.T) {
 	}
 }
 
+func TestRecorder_UniqueSubmitters(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "us1", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), Submitter: "alice@example.com", CreatedAt: "2026-02-24T08:00:00Z"},
+		{ID: "us2", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), Submitter: "bob@example.com", CreatedAt: "2026-02-24T09:00:00Z"},
+		{ID: "us3", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), Submitter: "alice@example.com", CreatedAt: "2026-02-24T10:00:00Z"}, // duplicate
+		{ID: "us4", Site: "docs", Path: "/feedback", Fields: json.RawMessage(`{}`), Submitter: "carol@example.com", CreatedAt: "2026-02-24T11:00:00Z"},
+		{ID: "us5", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), Submitter: "", CreatedAt: "2026-02-24T12:00:00Z"},               // empty submitter, excluded
+		{ID: "us6", Site: "other", Path: "/contact", Fields: json.RawMessage(`{}`), Submitter: "dave@example.com", CreatedAt: "2026-02-24T08:00:00Z"}, // different site
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from := time.Date(2026, 2, 24, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 2, 25, 0, 0, 0, 0, time.UTC)
+
+	// All paths: alice, bob, carol = 3.
+	count, err := r.UniqueSubmitters("docs", "", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 3 {
+		t.Errorf("all paths: got %d, want 3", count)
+	}
+
+	// /contact only: alice, bob = 2.
+	count, err = r.UniqueSubmitters("docs", "/contact", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Errorf("/contact: got %d, want 2", count)
+	}
+}
+
+func TestRecorder_HourlySubmissionPattern(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "hp1", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"},
+		{ID: "hp2", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:30:00Z"},
+		{ID: "hp3", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T14:00:00Z"},
+		{ID: "hp4", Site: "other", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"}, // different site
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from := time.Date(2026, 2, 24, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 2, 25, 0, 0, 0, 0, time.UTC)
+
+	hours, err := r.HourlySubmissionPattern("docs", "", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Build a map for easy lookup.
+	m := make(map[int]int64)
+	for _, h := range hours {
+		m[h.Hour] = h.Count
+	}
+
+	if m[8] != 2 {
+		t.Errorf("hour 8: got %d, want 2", m[8])
+	}
+	if m[14] != 1 {
+		t.Errorf("hour 14: got %d, want 1", m[14])
+	}
+}
+
 func TestPurgeFormSubmissions(t *testing.T) {
 	r := newTestRecorder(t)
 

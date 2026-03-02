@@ -217,6 +217,76 @@ func (r *Recorder) PurgeFormSubmissions(site string) (int64, error) {
 	return res.RowsAffected()
 }
 
+// UniqueSubmitters returns the number of distinct non-empty submitters for a site.
+// If path is non-empty, results are filtered to that path. Zero from/to values
+// are treated as unbounded on that side.
+func (r *Recorder) UniqueSubmitters(site, path string, from, to time.Time) (int64, error) {
+	if to.IsZero() {
+		to = time.Now()
+	}
+	query := `SELECT COUNT(DISTINCT submitter) FROM form_submissions WHERE site = ? AND submitter != ''`
+	args := []any{site}
+
+	if path != "" {
+		query += ` AND path = ?`
+		args = append(args, path)
+	}
+	if !from.IsZero() {
+		query += ` AND created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	if !to.IsZero() {
+		query += ` AND created_at <= ?`
+		args = append(args, to.UTC().Format(time.RFC3339))
+	}
+
+	var count int64
+	err := r.db.QueryRow(query, args...).Scan(&count)
+	return count, err
+}
+
+// HourlySubmissionPattern returns submission counts grouped by hour-of-day for a site.
+// If path is non-empty, results are filtered to that path. Zero from/to values
+// are treated as unbounded on that side.
+func (r *Recorder) HourlySubmissionPattern(site, path string, from, to time.Time) ([]HourCount, error) {
+	if to.IsZero() {
+		to = time.Now()
+	}
+	query := `SELECT CAST(strftime('%H', created_at) AS INTEGER) AS hour, COUNT(*) FROM form_submissions WHERE site = ?`
+	args := []any{site}
+
+	if path != "" {
+		query += ` AND path = ?`
+		args = append(args, path)
+	}
+	if !from.IsZero() {
+		query += ` AND created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	if !to.IsZero() {
+		query += ` AND created_at <= ?`
+		args = append(args, to.UTC().Format(time.RFC3339))
+	}
+
+	query += ` GROUP BY hour ORDER BY hour`
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []HourCount
+	for rows.Next() {
+		var h HourCount
+		if err := rows.Scan(&h.Hour, &h.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
 // SubmissionsOverTime returns time-bucketed submission counts for a site.
 // If path is non-empty, results are filtered to that path. Zero from/to values
 // are treated as unbounded on that side.
