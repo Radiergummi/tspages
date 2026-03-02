@@ -156,10 +156,11 @@ func (c SiteConfig) Validate() error {
 		return fmt.Errorf("webhook_url: must start with http:// or https://, got %q", c.WebhookURL)
 	}
 	validEvents := map[string]bool{
-		"deploy.success": true,
-		"deploy.failed":  true,
-		"site.created":   true,
-		"site.deleted":   true,
+		"deploy.success":  true,
+		"deploy.failed":   true,
+		"site.created":    true,
+		"site.deleted":    true,
+		"form.submission": true,
 	}
 	for i, ev := range c.WebhookEvents {
 		if !validEvents[ev] {

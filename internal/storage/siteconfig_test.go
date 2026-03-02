@@ -1077,6 +1077,16 @@ func TestSiteConfig_Merge_FormsEnabled(t *testing.T) {
 	}
 }
 
+func TestValidateSiteConfig_FormSubmissionWebhookEvent(t *testing.T) {
+	cfg := SiteConfig{
+		WebhookURL:    "https://example.com/hook",
+		WebhookEvents: []string{"form.submission"},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("form.submission should be valid: %v", err)
+	}
+}
+
 func TestSiteConfig_Merge_FormsEndpoints(t *testing.T) {
 	defaults := SiteConfig{
 		Forms: &FormsConfig{
