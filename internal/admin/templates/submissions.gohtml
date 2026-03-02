@@ -89,43 +89,52 @@
                     <table class="w-full border-collapse rounded-md overflow-hidden text-sm">
                         <thead>
                         <tr>
-                            <th
-                                    scope="col"
-                                    class="sticky left-0 z-10 bg-surface text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap"
-                            >
-                                Field
+                            <th scope="col" class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap">
+                                Submitted by
                             </th>
-                            {{range .Submissions}}
-                                <th
-                                        scope="col"
-                                        class="text-start px-4 py-3 text-xs font-medium border-b border-default whitespace-nowrap"
-                                >
-                                    <div>{{.Submitter}}</div>
-                                    <time
-                                            class="text-muted font-normal"
-                                            datetime="{{abstime .CreatedAt}}"
-                                            title="{{abstime .CreatedAt}}"
-                                    >
-                                        {{reltime .CreatedAt}}
-                                    </time>
+                            <th scope="col" class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap">
+                                Date
+                            </th>
+                            {{range .FieldKeys}}
+                                <th scope="col" class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium border-b border-default whitespace-nowrap">
+                                    {{index $.FieldLabels .}}
                                 </th>
                             {{end}}
                         </tr>
                         </thead>
                         <tbody class="[&>tr:last-child>td]:border-b-0">
-                        {{range $key := $.FieldKeys}}
-                            <tr>
-                                <td class="sticky left-0 z-10 bg-surface px-4 py-3 border-b border-default font-medium whitespace-nowrap">
-                                    {{index $.FieldLabels $key}}
+                        {{range .Submissions}}
+                            <tr class="hover:bg-base-50/50 dark:hover:bg-base-900/50">
+                                <td class="px-4 py-3 border-b border-default whitespace-nowrap">
+                                    {{.Submitter}}
                                 </td>
-                                {{range $.Submissions}}
-                                    <td class="px-4 py-3 border-b border-default max-w-48 truncate" title="{{index .ParsedFields $key}}">
+                                <td class="px-4 py-3 border-b border-default whitespace-nowrap text-muted">
+                                    <time datetime="{{abstime .CreatedAt}}" title="{{abstime .CreatedAt}}">
+                                        {{reltime .CreatedAt}}
+                                    </time>
+                                </td>
+                                {{range $key := $.FieldKeys}}
+                                    <td class="px-4 py-3 border-b border-default max-w-64 truncate" title="{{index .ParsedFields $key}}">
                                         {{index .ParsedFields $key}}
                                     </td>
                                 {{end}}
                             </tr>
                         {{end}}
                         </tbody>
+                        {{if .Summary}}
+                            <tfoot>
+                            <tr class="bg-base-50/50 dark:bg-base-900/50">
+                                <td class="px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider" colspan="2">
+                                    {{.TotalCount}} total
+                                </td>
+                                {{range .FieldKeys}}
+                                    <td class="px-4 py-3 text-xs text-muted">
+                                        {{index $.Summary .}}
+                                    </td>
+                                {{end}}
+                            </tr>
+                            </tfoot>
+                        {{end}}
                     </table>
                 </div>
             {{else}}

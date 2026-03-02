@@ -25,6 +25,7 @@ type SubmissionsPageData struct {
 	Submissions []submissionView
 	FieldKeys   []string
 	FieldLabels map[string]string
+	Summary     map[string]string // per-field summary (unique count)
 	TotalCount  int64
 	Admin       bool
 }
@@ -151,9 +152,22 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			fieldLabels[k] = fieldLabelFromConfig(endpoint, k)
 		}
 
+		// Compute summary: count unique values per field.
+		summary := make(map[string]string, len(fieldKeys))
+		for _, k := range fieldKeys {
+			unique := map[string]struct{}{}
+			for _, v := range views {
+				if val := v.ParsedFields[k]; val != "" {
+					unique[val] = struct{}{}
+				}
+			}
+			summary[k] = fmt.Sprintf("%d unique", len(unique))
+		}
+
 		data.Submissions = views
 		data.FieldKeys = fieldKeys
 		data.FieldLabels = fieldLabels
+		data.Summary = summary
 	}
 
 	renderPage(w, r, submissionsTmpl, "sites", data)
