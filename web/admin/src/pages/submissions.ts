@@ -23,8 +23,14 @@ interface FormPath {
   count: number;
 }
 
+interface FormSeries {
+  path: string;
+  name: string;
+  series: TimeBucket[];
+}
+
 interface SubmissionsData {
-  time_series?: TimeBucket[];
+  time_series_by_form?: FormSeries[];
   hourly_pattern?: HourCount[];
   paths?: FormPath[];
 }
@@ -42,14 +48,23 @@ async function main(): Promise<void> {
 
   const data: SubmissionsData = await response.json();
 
-  if (data.time_series?.length) {
-    const counts = data.time_series.map(({ count }) => count);
-    const max = Math.max(...counts) || 1;
+  if (data.time_series_by_form?.length) {
+    const forms = data.time_series_by_form;
+    const labels = forms[0].series.map(({ time }) => formatLabel(time, "all"));
+    const allCounts = forms.flatMap((f) => f.series.map((b) => b.count));
+    const max = Math.max(...allCounts) || 1;
+
+    const datasets = forms.map((f, i) => ({
+      label: f.name,
+      data: f.series.map(({ count }) => count),
+      color: theme.palette[i % theme.palette.length],
+      fill: forms.length === 1 ? ("start" as const) : false,
+    }));
 
     lineChart(
       document.getElementById("submissions-chart") as HTMLCanvasElement | null,
-      data.time_series.map(({ time }) => formatLabel(time, "all")),
-      [{ label: "Submissions", data: counts, color: theme.cv("--color-blue-500"), fill: "start" }],
+      labels,
+      datasets,
       { yMin: -max * 0.05 },
     );
   }

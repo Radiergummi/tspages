@@ -38,10 +38,16 @@ type SubmissionsPageData struct {
 	Sort          []analytics.SortField // current sort (up to 2 fields)
 
 	// Analytics fields.
-	TimeSeries    []analytics.TimeBucket `json:"time_series,omitempty"`
-	Submitters    int64                  `json:"unique_submitters"`
-	HourlyPattern []analytics.HourCount  `json:"hourly_pattern,omitempty"`
-	FormPaths     []analytics.FormPath   `json:"paths,omitempty"`
+	TimeSeriesByForm []formTimeSeries      `json:"time_series_by_form,omitempty"`
+	Submitters       int64                 `json:"unique_submitters"`
+	HourlyPattern    []analytics.HourCount `json:"hourly_pattern,omitempty"`
+	FormPaths        []analytics.FormPath  `json:"paths,omitempty"`
+}
+
+type formTimeSeries struct {
+	Path   string                 `json:"path"`
+	Name   string                 `json:"name"`
+	Series []analytics.TimeBucket `json:"series"`
 }
 
 // sortPosition returns the 0-based index of col in the sort list, or -1 if absent.
@@ -221,19 +227,22 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 	data.CurrentPath = currentPath
 
-	if currentPath == "" {
-		for _, fp := range formPaths {
-			data.TotalCount += fp.Count
-		}
-		data.FormPaths = formPaths // expose for per-form breakdown chart
-	}
-
-	// Analytics — scoped to selected path (or all forms if no path selected).
+	// Analytics — per-form time series for the chart, other stats scoped to selected path.
 	now := time.Now()
 	var from time.Time // zero = all time
-	data.TimeSeries, _ = h.recorder.SubmissionsOverTime(siteName, currentPath, from, now)
+	byForm, _ := h.recorder.SubmissionsOverTimeByForm(siteName, from, now)
+	for _, p := range paths {
+		if series, ok := byForm[p.Path]; ok {
+			data.TimeSeriesByForm = append(data.TimeSeriesByForm, formTimeSeries{
+				Path:   p.Path,
+				Name:   p.Name,
+				Series: series,
+			})
+		}
+	}
 	data.Submitters, _ = h.recorder.UniqueSubmitters(siteName, currentPath, from, now)
 	data.HourlyPattern, _ = h.recorder.HourlySubmissionPattern(siteName, currentPath, from, now)
+	data.FormPaths = formPaths
 
 	if currentPath != "" {
 		data.FormName = formNameFromConfig(merged, currentPath)

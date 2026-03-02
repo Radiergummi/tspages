@@ -415,6 +415,7 @@ func TestSubmissions_Forbidden(t *testing.T) {
 		{"delete", &DeleteSubmissionHandler{deps}, "DELETE", "/sites/docs/submissions/s1"},
 		{"bulk-delete", &BulkDeleteSubmissionsHandler{deps}, "DELETE", "/sites/docs/submissions?path=/x"},
 		{"export", &ExportSubmissionsHandler{deps}, "GET", "/sites/docs/submissions/export"},
+		{"analytics", &SubmissionAnalyticsHandler{deps}, "GET", "/sites/docs/submissions/analytics.json"},
 	}
 
 	for _, tt := range tests {

@@ -566,6 +566,68 @@ func TestRecorder_HourlySubmissionPattern(t *testing.T) {
 	}
 }
 
+func TestRecorder_SubmissionsOverTimeByForm(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "bf1", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"},
+		{ID: "bf2", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T09:00:00Z"},
+		{ID: "bf3", Site: "docs", Path: "/feedback", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T14:00:00Z"},
+		{ID: "bf4", Site: "other", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"},
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from := time.Date(2026, 2, 24, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 2, 25, 0, 0, 0, 0, time.UTC)
+
+	result, err := r.SubmissionsOverTimeByForm("docs", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result) != 2 {
+		t.Fatalf("got %d paths, want 2", len(result))
+	}
+
+	// Both paths should have filled buckets.
+	contactBuckets := result["/contact"]
+	feedbackBuckets := result["/feedback"]
+	if len(contactBuckets) == 0 {
+		t.Fatal("/contact has no buckets")
+	}
+	if len(feedbackBuckets) == 0 {
+		t.Fatal("/feedback has no buckets")
+	}
+
+	// Same bucket count (same time range).
+	if len(contactBuckets) != len(feedbackBuckets) {
+		t.Errorf("bucket counts differ: /contact=%d, /feedback=%d", len(contactBuckets), len(feedbackBuckets))
+	}
+
+	// Totals: /contact=2, /feedback=1.
+	var contactTotal, feedbackTotal int64
+	for _, b := range contactBuckets {
+		contactTotal += b.Count
+	}
+	for _, b := range feedbackBuckets {
+		feedbackTotal += b.Count
+	}
+	if contactTotal != 2 {
+		t.Errorf("/contact total = %d, want 2", contactTotal)
+	}
+	if feedbackTotal != 1 {
+		t.Errorf("/feedback total = %d, want 1", feedbackTotal)
+	}
+
+	// Site isolation: "other" should not appear.
+	if _, ok := result["/other"]; ok {
+		t.Error("unexpected path from other site")
+	}
+}
+
 func TestPurgeFormSubmissions(t *testing.T) {
 	r := newTestRecorder(t)
 
