@@ -191,6 +191,53 @@ func (s *Store) ReadManifest(site, id string) (Manifest, error) {
 	return m, nil
 }
 
+// Preview holds social/SEO metadata for a deployment.
+type Preview struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	OGImage     string `json:"og_image,omitempty"`
+	Favicon     string `json:"favicon,omitempty"`
+}
+
+func (s *Store) WritePreview(site, id string, p Preview) error {
+	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, "preview.json")
+	data, err := json.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("marshal preview: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func (s *Store) ReadPreview(site, id string) (Preview, error) {
+	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, "preview.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Preview{}, err
+	}
+	var p Preview
+	if err := json.Unmarshal(data, &p); err != nil {
+		return Preview{}, fmt.Errorf("parse preview: %w", err)
+	}
+	return p, nil
+}
+
+// ReadCurrentPreview reads preview metadata for the currently active deployment.
+// Returns a zero Preview (no error) if no deployment is active or no preview file exists.
+func (s *Store) ReadCurrentPreview(site string) (Preview, error) {
+	id, err := s.CurrentDeployment(site)
+	if err != nil {
+		return Preview{}, nil //nolint:nilerr // no deployment → zero preview
+	}
+	p, err := s.ReadPreview(site, id)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Preview{}, nil
+		}
+		return Preview{}, err
+	}
+	return p, nil
+}
+
 func (s *Store) CurrentDeployment(site string) (string, error) {
 	if !ValidSiteName(site) {
 		return "", fmt.Errorf("invalid site name: %q", site)

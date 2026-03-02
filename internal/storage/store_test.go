@@ -869,3 +869,84 @@ func TestNewDeploymentID(t *testing.T) {
 		t.Error("two generated IDs should differ")
 	}
 }
+
+func TestWriteReadPreview(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "abc12345")
+
+	p := Preview{
+		Title:       "My Site",
+		Description: "A great site",
+		OGImage:     "/img/og.png",
+		Favicon:     "/favicon.ico",
+	}
+	if err := s.WritePreview("docs", "abc12345", p); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := s.ReadPreview("docs", "abc12345")
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.Title != "My Site" {
+		t.Errorf("title = %q, want %q", got.Title, "My Site")
+	}
+	if got.Description != "A great site" {
+		t.Errorf("description = %q, want %q", got.Description, "A great site")
+	}
+	if got.OGImage != "/img/og.png" {
+		t.Errorf("og_image = %q, want %q", got.OGImage, "/img/og.png")
+	}
+	if got.Favicon != "/favicon.ico" {
+		t.Errorf("favicon = %q, want %q", got.Favicon, "/favicon.ico")
+	}
+}
+
+func TestReadPreview_Missing(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "abc12345")
+
+	_, err := s.ReadPreview("docs", "abc12345")
+	if err == nil {
+		t.Fatal("expected error for missing preview.json")
+	}
+}
+
+func TestReadCurrentPreview(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateDeployment("docs", "abc12345")
+	s.MarkComplete("docs", "abc12345")
+	s.ActivateDeployment("docs", "abc12345")
+
+	p := Preview{
+		Title:       "My Site",
+		Description: "A great site",
+	}
+	if err := s.WritePreview("docs", "abc12345", p); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got, err := s.ReadCurrentPreview("docs")
+	if err != nil {
+		t.Fatalf("read current: %v", err)
+	}
+	if got.Title != "My Site" {
+		t.Errorf("title = %q, want %q", got.Title, "My Site")
+	}
+	if got.Description != "A great site" {
+		t.Errorf("description = %q, want %q", got.Description, "A great site")
+	}
+}
+
+func TestReadCurrentPreview_NoDeployment(t *testing.T) {
+	s := New(t.TempDir())
+	s.CreateSite("docs")
+
+	got, err := s.ReadCurrentPreview("docs")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != (Preview{}) {
+		t.Errorf("expected zero Preview, got %+v", got)
+	}
+}
