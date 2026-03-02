@@ -93,38 +93,64 @@ func (cw *compressWriter) WriteHeader(code int) {
 	}
 }
 
-func (cw *compressWriter) Write(b []byte) (int, error) {
-	if !cw.headerWritten {
-		cw.headerWritten = true
-		if cw.statusCode == 0 {
-			cw.statusCode = http.StatusOK
-		}
-		ct := cw.Header().Get("Content-Type")
-		if isCompressible(ct) {
-			cw.Header().Set("Vary", "Accept-Encoding")
-			clStr := cw.Header().Get("Content-Length")
-			cl, err := strconv.ParseInt(clStr, 10, 64)
-			if err != nil || cl >= compressMinBytes {
-				switch cw.encoding {
-				case "br":
-					w := brotliPool.Get().(*brotli.Writer)
-					w.Reset(cw.ResponseWriter)
-					cw.enc = w
-				default:
-					w := gzipPool.Get().(*gzip.Writer)
-					w.Reset(cw.ResponseWriter)
-					cw.enc = w
-				}
-				cw.Header().Del("Content-Length")
-				cw.Header().Set("Content-Encoding", cw.encoding)
+// ensureHeaderWritten triggers the compression decision and writes the
+// HTTP status. Called on the first Write or ReadFrom.
+func (cw *compressWriter) ensureHeaderWritten() {
+	if cw.headerWritten {
+		return
+	}
+	cw.headerWritten = true
+	if cw.statusCode == 0 {
+		cw.statusCode = http.StatusOK
+	}
+	ct := cw.Header().Get("Content-Type")
+	if isCompressible(ct) {
+		cw.Header().Set("Vary", "Accept-Encoding")
+		clStr := cw.Header().Get("Content-Length")
+		cl, err := strconv.ParseInt(clStr, 10, 64)
+		if err != nil || cl >= compressMinBytes {
+			switch cw.encoding {
+			case "br":
+				w := brotliPool.Get().(*brotli.Writer)
+				w.Reset(cw.ResponseWriter)
+				cw.enc = w
+			default:
+				w := gzipPool.Get().(*gzip.Writer)
+				w.Reset(cw.ResponseWriter)
+				cw.enc = w
+			}
+			cw.Header().Del("Content-Length")
+			cw.Header().Set("Content-Encoding", cw.encoding)
+			// Differentiate ETags per encoding (RFC 9110 §8.8.3.3).
+			if etag := cw.Header().Get("ETag"); etag != "" {
+				cw.Header().Set("ETag", strings.TrimSuffix(etag, `"`)+"-"+cw.encoding+`"`)
 			}
 		}
-		cw.ResponseWriter.WriteHeader(cw.statusCode)
 	}
+	cw.ResponseWriter.WriteHeader(cw.statusCode)
+}
+
+func (cw *compressWriter) Write(b []byte) (int, error) {
+	cw.ensureHeaderWritten()
 	if cw.enc != nil {
 		return cw.enc.Write(b)
 	}
 	return cw.ResponseWriter.Write(b)
+}
+
+// ReadFrom implements io.ReaderFrom. When compression is not active, it
+// delegates to the underlying ResponseWriter's ReadFrom which may use
+// sendfile(2) for zero-copy transfer. When compressing, data must flow
+// through the compressor so sendfile cannot be used.
+func (cw *compressWriter) ReadFrom(r io.Reader) (int64, error) {
+	cw.ensureHeaderWritten()
+	if cw.enc != nil {
+		return io.Copy(cw.enc, r)
+	}
+	if rf, ok := cw.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+	return io.Copy(cw.ResponseWriter, r)
 }
 
 // Close flushes the compressed stream. Must be called via defer.

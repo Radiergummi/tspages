@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Content-type sniffing is now disabled for files with unknown extensions. Previously Go's stdlib
+  would read the first 512 bytes to guess; now an empty Content-Type is sent instead.
+- Compressed responses (gzip/brotli) now carry encoding-specific ETags (e.g. `"id:path-br"`),
+  preventing cache mix-ups between compressed and uncompressed variants. The 304 fast-path
+  correctly handles both plain and suffixed ETags.
+- Precompressed files now include an explicit `Content-Length` header, allowing clients to display
+  accurate download progress.
+- Non-compressible file types (images, fonts, etc.) served through the compression wrapper now
+  preserve the `sendfile(2)` zero-copy I/O path.
+- File descriptor exhaustion now returns 503 with a randomized `Retry-After` header instead of a
+  misleading 404.
+- Directory listings are capped at 10,000 entries to prevent excessive memory use.
 - Serve handler no longer calls `filepath.EvalSymlinks` per request, significantly reducing syscalls
   and allocations on the hot path. Path containment is enforced during deployment.
 - Serve handler uses the in-memory file index to answer all existence checks (`os.Stat`) and

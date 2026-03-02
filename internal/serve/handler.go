@@ -2,18 +2,22 @@ package serve
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
+	"math/rand/v2"
 	"mime"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
@@ -38,16 +42,16 @@ type Handler struct {
 	defaults  storage.SiteConfig
 	public    atomic.Bool
 
-	mu          sync.RWMutex
-	resolved    bool // true once resolve() has run; cleared by InvalidateConfig
-	cachedID    string
-	cachedRoot  string // resolved content root (no symlinks)
-	cachedCfg   storage.SiteConfig
-	hintCache          map[string][]string
-	cachedFiles        map[string]struct{}
-	cachedDirs         map[string]struct{} // inferred from file paths
-	sortedHeaderPats   []string            // pre-sorted header patterns from cachedCfg
-	cached404Body      []byte              // custom 404 page content (nil = use default)
+	mu               sync.RWMutex
+	resolved         bool // true once resolve() has run; cleared by InvalidateConfig
+	cachedID         string
+	cachedRoot       string // resolved content root (no symlinks)
+	cachedCfg        storage.SiteConfig
+	hintCache        map[string][]string
+	cachedFiles      map[string]struct{}
+	cachedDirs       map[string]struct{} // inferred from file paths
+	sortedHeaderPats []string            // pre-sorted header patterns from cachedCfg
+	cached404Body    []byte              // custom 404 page content (nil = use default)
 }
 
 // isUnderRoot reports whether path is equal to root or a child of it.
@@ -220,6 +224,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if inm := r.Header.Get("If-None-Match"); inm != "" && h.cachedFiles != nil {
 		if tag, ok := strings.CutPrefix(inm, `"`); ok {
 			if tag, ok = strings.CutSuffix(tag, `"`); ok {
+				// Strip encoding suffix added for compressed variants
+				// (e.g. "id:path-br" → "id:path").
+				for _, s := range []string{"-br", "-gzip"} {
+					tag = strings.TrimSuffix(tag, s)
+				}
 				if id, fp, ok := strings.Cut(tag, ":"); ok {
 					if id == deploymentID {
 						if _, exists := h.cachedFiles[fp]; exists {
@@ -486,7 +495,13 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, fi
 func serveFileContent(w http.ResponseWriter, r *http.Request, name string) {
 	f, err := os.Open(name)
 	if err != nil {
-		http.NotFound(w, r)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+			http.NotFound(w, r)
+			return
+		}
+		// Likely FD exhaustion; ask client to retry after a random backoff.
+		w.Header().Set("Retry-After", strconv.Itoa(rand.IntN(4)+2))
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	defer f.Close()
@@ -495,7 +510,14 @@ func serveFileContent(w http.ResponseWriter, r *http.Request, name string) {
 		http.NotFound(w, r)
 		return
 	}
-	http.ServeContent(w, r, filepath.Base(name), stat.ModTime(), f)
+	// Set Content-Type from extension; suppress Go's content sniffing for
+	// unknown types by setting the header map entry to nil.
+	if ct := mime.TypeByExtension(filepath.Ext(name)); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	} else {
+		w.Header()["Content-Type"] = nil
+	}
+	http.ServeContent(w, r, "", stat.ModTime(), f)
 }
 
 // servePrecompressed tries to serve a precompressed variant of origPath
@@ -518,10 +540,18 @@ func servePrecompressed(w http.ResponseWriter, r *http.Request, origPath, ext, e
 		w.Header().Set("Content-Type", ct)
 	}
 	w.Header().Set("Content-Encoding", encoding)
+	// http.ServeContent omits Content-Length when Content-Encoding is set;
+	// set it explicitly for non-range requests so clients can show progress.
+	if r.Header.Get("Range") == "" {
+		w.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
+	}
 	w.Header().Set("Vary", "Accept-Encoding")
 
-	// ETag is already set by the caller; http.ServeContent handles
-	// If-None-Match and range requests.
+	// Differentiate ETags per encoding (RFC 9110 §8.8.3.3).
+	if etag := w.Header().Get("ETag"); etag != "" {
+		w.Header().Set("ETag", strings.TrimSuffix(etag, `"`)+"-"+encoding+`"`)
+	}
+
 	http.ServeContent(w, r, "", stat.ModTime(), f)
 	return true
 }
@@ -625,11 +655,16 @@ type dirlistEntry struct {
 	Size  string
 }
 
+const maxDirEntries = 10_000
+
 func (h *Handler) serveDirectoryListing(w http.ResponseWriter, dirPath, reqPath string) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+	if len(entries) > maxDirEntries {
+		entries = entries[:maxDirEntries]
 	}
 
 	// Sort: directories first, then files, alphabetical within each group.
