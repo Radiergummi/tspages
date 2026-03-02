@@ -85,23 +85,23 @@ type SiteHealthChecker interface {
 
 // Handlers groups all admin HTTP handlers.
 type Handlers struct {
-	Sites           *SitesHandler
-	Site            *SiteHandler
-	Deployment      *DeploymentHandler
-	CreateSite      *CreateSiteHandler
-	Deployments     *DeploymentsHandler
-	Analytics       *AnalyticsHandler
-	PurgeAnalytics  *PurgeAnalyticsHandler
-	AllAnalytics    *AllAnalyticsHandler
-	Webhooks        *WebhooksHandler
-	WebhookDetail   *WebhookDetailHandler
-	WebhookRetry    *WebhookRetryHandler
-	SiteWebhooks    *SiteWebhooksHandler
-	SiteDeployments *SiteDeploymentsHandler
-	Help            *HelpHandler
-	API             *APIHandler
-	Feed            *FeedHandler
-	SiteFeed        *SiteFeedHandler
+	Sites            *SitesHandler
+	Site             *SiteHandler
+	Deployment       *DeploymentHandler
+	CreateSite       *CreateSiteHandler
+	Deployments      *DeploymentsHandler
+	Analytics        *AnalyticsHandler
+	PurgeAnalytics   *PurgeAnalyticsHandler
+	AllAnalytics     *AllAnalyticsHandler
+	Webhooks         *WebhooksHandler
+	WebhookDetail    *WebhookDetailHandler
+	WebhookRetry     *WebhookRetryHandler
+	SiteWebhooks     *SiteWebhooksHandler
+	SiteDeployments  *SiteDeploymentsHandler
+	Help             *HelpHandler
+	API              *APIHandler
+	Feed             *FeedHandler
+	SiteFeed         *SiteFeedHandler
 	SiteHealth       *SiteHealthHandler
 	SiteConfig       *SiteConfigHandler
 	UpdateSiteConfig *UpdateSiteConfigHandler
@@ -112,23 +112,23 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
 	wh := &WebhooksHandler{handlerDeps: d, notifier: notifier}
 	return &Handlers{
-		Sites:           &SitesHandler{d},
-		Site:            &SiteHandler{handlerDeps: d, notifier: notifier},
-		Deployment:      &DeploymentHandler{d},
-		CreateSite:      &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
-		Deployments:     &DeploymentsHandler{d},
-		Analytics:       &AnalyticsHandler{d},
-		PurgeAnalytics:  &PurgeAnalyticsHandler{d},
-		AllAnalytics:    &AllAnalyticsHandler{d},
-		Webhooks:        wh,
-		WebhookDetail:   &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
-		WebhookRetry:    &WebhookRetryHandler{handlerDeps: d, notifier: notifier},
-		SiteWebhooks:    &SiteWebhooksHandler{WebhooksHandler: wh},
-		SiteDeployments: &SiteDeploymentsHandler{d},
-		Help:            &HelpHandler{},
-		API:             &APIHandler{},
-		Feed:            &FeedHandler{d},
-		SiteFeed:        &SiteFeedHandler{d},
+		Sites:            &SitesHandler{d},
+		Site:             &SiteHandler{handlerDeps: d, notifier: notifier},
+		Deployment:       &DeploymentHandler{d},
+		CreateSite:       &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
+		Deployments:      &DeploymentsHandler{d},
+		Analytics:        &AnalyticsHandler{d},
+		PurgeAnalytics:   &PurgeAnalyticsHandler{d},
+		AllAnalytics:     &AllAnalyticsHandler{d},
+		Webhooks:         wh,
+		WebhookDetail:    &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
+		WebhookRetry:     &WebhookRetryHandler{handlerDeps: d, notifier: notifier},
+		SiteWebhooks:     &SiteWebhooksHandler{WebhooksHandler: wh},
+		SiteDeployments:  &SiteDeploymentsHandler{d},
+		Help:             &HelpHandler{},
+		API:              &APIHandler{},
+		Feed:             &FeedHandler{d},
+		SiteFeed:         &SiteFeedHandler{d},
 		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
 		SiteConfig:       &SiteConfigHandler{d},
 		UpdateSiteConfig: &UpdateSiteConfigHandler{d},
