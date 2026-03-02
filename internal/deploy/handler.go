@@ -253,6 +253,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("writing file index", "site", site, "deployment", id, "err", err)
 	}
 
+	// Extract preview metadata from the site's index page.
+	indexFile := "index.html"
+	if hasConfig && siteCfg.IndexPage != "" {
+		indexFile = siteCfg.IndexPage
+	}
+	preview := storage.ExtractPreview(contentDir, indexFile)
+	if (preview != storage.Preview{}) {
+		if err := h.store.WritePreview(site, id, preview); err != nil {
+			slog.Warn("writing preview", "site", site, "deployment", id, "err", err)
+		}
+	}
+
 	if err := h.store.MarkComplete(site, id); err != nil {
 		os.RemoveAll(deployDir)
 		http.Error(w, "finalizing deployment", http.StatusInternalServerError)
