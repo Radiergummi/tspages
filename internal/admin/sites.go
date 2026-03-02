@@ -216,6 +216,16 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if p, err := h.store.ReadCurrentPreview(siteName); err == nil {
+		ss.OGTitle = p.Title
+		ss.OGDescription = p.Description
+		if p.OGImage != "" {
+			ss.OGImage = fmt.Sprintf("https://%s.%s%s", siteName, h.dnsSuffix, p.OGImage)
+		}
+		if p.Favicon != "" {
+			ss.Favicon = fmt.Sprintf("https://%s.%s%s", siteName, h.dnsSuffix, p.Favicon)
+		}
+	}
 
 	deployments, err := h.store.ListDeployments(siteName)
 	if err != nil {
