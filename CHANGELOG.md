@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Grid view for the sites index with preview cards showing og:image, favicon, and description
+  extracted from each site's index page at deploy time. Toggle between list and grid views; the
+  preference is saved in the browser. Preview metadata is also available in the sites API response.
+
 ### Fixed
 
 - Site config changes made via the admin dashboard or API (e.g. enabling directory listing) now take
