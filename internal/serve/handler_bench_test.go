@@ -24,6 +24,7 @@ func benchSetup(b *testing.B, files map[string]string, cfg *storage.SiteConfig) 
 	if err != nil {
 		b.Fatal(err)
 	}
+	var index []storage.FileInfo
 	for name, content := range files {
 		p := filepath.Join(dir, "content", name)
 		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
@@ -32,6 +33,10 @@ func benchSetup(b *testing.B, files map[string]string, cfg *storage.SiteConfig) 
 		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
 			b.Fatal(err)
 		}
+		index = append(index, storage.FileInfo{Path: name})
+	}
+	if err := store.WriteFileIndex("bench", "aaa11111", index); err != nil {
+		b.Fatal(err)
 	}
 	store.MarkComplete("bench", "aaa11111")
 	store.ActivateDeployment("bench", "aaa11111")

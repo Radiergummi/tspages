@@ -22,6 +22,7 @@ func setupSite(t *testing.T, store *storage.Store, site, id string, files map[st
 	if err != nil {
 		t.Fatal(err)
 	}
+	var index []storage.FileInfo
 	for name, content := range files {
 		path := filepath.Join(dir, "content", name)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -30,6 +31,10 @@ func setupSite(t *testing.T, store *storage.Store, site, id string, files map[st
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}
+		index = append(index, storage.FileInfo{Path: name})
+	}
+	if err := store.WriteFileIndex(site, id, index); err != nil {
+		t.Fatal(err)
 	}
 	store.MarkComplete(site, id)
 	store.ActivateDeployment(site, id)

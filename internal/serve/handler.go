@@ -38,12 +38,13 @@ type Handler struct {
 	defaults  storage.SiteConfig
 	public    atomic.Bool
 
-	mu         sync.RWMutex
-	resolved   bool // true once resolve() has run; cleared by InvalidateConfig
-	cachedID   string
-	cachedRoot string // resolved content root (no symlinks)
-	cachedCfg  storage.SiteConfig
-	hintCache  map[string][]string
+	mu          sync.RWMutex
+	resolved    bool // true once resolve() has run; cleared by InvalidateConfig
+	cachedID    string
+	cachedRoot  string // resolved content root (no symlinks)
+	cachedCfg   storage.SiteConfig
+	hintCache   map[string][]string
+	cachedFiles map[string]struct{}
 }
 
 // isUnderRoot reports whether path is equal to root or a child of it.
@@ -105,6 +106,14 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 	}
 	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
 
+	if files, err := h.store.ReadFileIndex(h.site, id); err == nil {
+		m := make(map[string]struct{}, len(files))
+		for _, f := range files {
+			m[f.Path] = struct{}{}
+		}
+		h.cachedFiles = m
+	}
+
 	h.cachedID = id
 	h.cachedRoot = rr
 	h.cachedCfg = merged
@@ -123,6 +132,7 @@ func (h *Handler) InvalidateConfig() {
 	h.cachedRoot = ""
 	h.cachedCfg = storage.SiteConfig{}.Merge(h.defaults)
 	h.hintCache = nil
+	h.cachedFiles = nil
 	h.mu.Unlock()
 }
 
@@ -148,6 +158,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		h.servePlaceholder(w)
 		return
+	}
+
+	// Fast-path 304: if the client's ETag matches a known file in the
+	// current deployment, return 304 without any disk I/O.
+	if inm := r.Header.Get("If-None-Match"); inm != "" && h.cachedFiles != nil {
+		if tag, ok := strings.CutPrefix(inm, `"`); ok {
+			if tag, ok = strings.CutSuffix(tag, `"`); ok {
+				if id, fp, ok := strings.Cut(tag, ":"); ok {
+					if id == deploymentID {
+						if _, exists := h.cachedFiles[fp]; exists {
+							w.Header().Set("ETag", inm)
+							w.Header().Set("Cache-Control", defaultCacheControl(fp))
+							if ct := mime.TypeByExtension(filepath.Ext(fp)); isCompressible(ct) {
+								w.Header().Set("Vary", "Accept-Encoding")
+							}
+							w.WriteHeader(http.StatusNotModified)
+							return
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Check redirects before file resolution (first match wins).
@@ -202,7 +234,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.sendEarlyHints(w, deploymentID, htmlFilePath, htmlPath)
 				w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
 				h.applyHeaders(w, htmlFilePath, cfg)
-				w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, htmlFilePath))
+				w.Header().Set("ETag", `"`+deploymentID+":"+htmlFilePath+`"`)
 				h.serveFileCompressed(w, r, htmlPath)
 				return
 			}
@@ -224,7 +256,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.sendEarlyHints(w, deploymentID, indexFilePath, dirIndexPath)
 			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
 			h.applyHeaders(w, indexFilePath, cfg)
-			w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexFilePath))
+			w.Header().Set("ETag", `"`+deploymentID+":"+indexFilePath+`"`)
 			h.serveFileCompressed(w, r, dirIndexPath)
 			return
 		}
@@ -249,7 +281,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.applyHeaders(w, filePath, cfg)
 	// Deployments are immutable, so deploymentID:filePath is a stable ETag.
 	// http.ServeFile checks If-None-Match and returns 304 when it matches.
-	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, filePath))
+	w.Header().Set("ETag", `"`+deploymentID+":"+filePath+`"`)
 	h.serveFileCompressed(w, r, fullPath)
 }
 
@@ -262,7 +294,7 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resol
 	h.sendEarlyHints(w, deploymentID, indexPage, indexPath)
 	w.Header().Set("Cache-Control", defaultCacheControl(indexPage))
 	h.applyHeaders(w, indexPage, cfg)
-	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexPage))
+	w.Header().Set("ETag", `"`+deploymentID+":"+indexPage+`"`)
 	h.serveFileCompressed(w, r, indexPath)
 }
 
@@ -507,6 +539,9 @@ func matchRedirect(rule storage.RedirectRule, pathSegs []string) (string, bool) 
 }
 
 func (h *Handler) checkRedirects(reqPath string, cfg storage.SiteConfig) (string, int, bool) {
+	if len(cfg.Redirects) == 0 {
+		return "", 0, false
+	}
 	pathSegs := strings.Split(reqPath, "/")
 	for _, rule := range cfg.Redirects {
 		if target, ok := matchRedirect(rule, pathSegs); ok {
