@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Serve handler no longer calls `filepath.EvalSymlinks` per request, significantly reducing syscalls
+  and allocations on the hot path. Path containment is enforced during deployment.
 - SPA routing and directory listing are now validated as mutually exclusive.
 - Webhook URL now requires at least one event, and events/secret require a URL.
 

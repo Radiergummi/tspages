@@ -46,9 +46,9 @@ type Handler struct {
 	hintCache  map[string][]string
 }
 
-// isUnderRoot reports whether resolved is equal to resolvedRoot or a child of it.
-func isUnderRoot(resolved, resolvedRoot string) bool {
-	return resolved == resolvedRoot || strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator))
+// isUnderRoot reports whether path is equal to root or a child of it.
+func isUnderRoot(path, root string) bool {
+	return path == root || strings.HasPrefix(path, root+string(os.PathSeparator))
 }
 
 func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.SiteConfig) *Handler {
@@ -61,8 +61,9 @@ func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.S
 func (h *Handler) SetPublic(b bool) { h.public.Store(b) }
 
 // resolve returns the cached deployment state, resolving it on first call or
-// after InvalidateConfig. All filesystem lookups (Readlink, EvalSymlinks,
-// ReadDeploymentConfig) happen here and are cached until the next invalidation.
+// after InvalidateConfig. All filesystem lookups (Readlink, EvalSymlinks on
+// the site root, ReadDeploymentConfig) happen here and are cached until the
+// next invalidation.
 func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConfig, ok bool) {
 	h.mu.RLock()
 	if h.resolved {
@@ -186,24 +187,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullPath := filepath.Join(resolvedRoot, filePath)
+	if !isUnderRoot(fullPath, resolvedRoot) {
+		http.NotFound(w, r)
+		return
+	}
 
-	// Resolve symlinks on the target file to ensure it doesn't escape
-	// the content root via a symlink within the deployment.
-	resolved, err := filepath.EvalSymlinks(fullPath)
+	info, err := os.Stat(fullPath)
 	if err != nil {
 		// Clean URL fallback: try path + ".html" before SPA/404.
 		if cleanURLs {
 			htmlPath := fullPath + ".html"
-			if resolvedHTML, err := filepath.EvalSymlinks(htmlPath); err == nil {
-				if isUnderRoot(resolvedHTML, resolvedRoot) {
-					htmlFilePath := filePath + ".html"
-					h.sendEarlyHints(w, deploymentID, htmlFilePath, htmlPath)
-					w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
-					h.applyHeaders(w, htmlFilePath, cfg)
-					w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, htmlFilePath))
-					h.serveFileCompressed(w, r, resolvedRoot, htmlPath)
-					return
-				}
+			if _, err := os.Stat(htmlPath); err == nil {
+				htmlFilePath := filePath + ".html"
+				h.sendEarlyHints(w, deploymentID, htmlFilePath, htmlPath)
+				w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
+				h.applyHeaders(w, htmlFilePath, cfg)
+				w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, htmlFilePath))
+				h.serveFileCompressed(w, r, htmlPath)
+				return
 			}
 		}
 		// SPA fallback or 404
@@ -214,27 +215,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serve404(w, resolvedRoot, cfg)
 		return
 	}
-	if !isUnderRoot(resolved, resolvedRoot) {
-		http.NotFound(w, r)
-		return
-	}
 
 	// If the path is a directory, try to serve its index file or a listing.
-	if info, err := os.Stat(resolved); err == nil && info.IsDir() {
+	if info.IsDir() {
 		dirIndexPath := filepath.Join(fullPath, indexPage)
-		resolvedIndex, err := filepath.EvalSymlinks(dirIndexPath)
-		if err == nil && isUnderRoot(resolvedIndex, resolvedRoot) {
+		if _, err := os.Stat(dirIndexPath); err == nil {
 			indexFilePath := filepath.Join(filePath, indexPage)
 			h.sendEarlyHints(w, deploymentID, indexFilePath, dirIndexPath)
 			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
 			h.applyHeaders(w, indexFilePath, cfg)
 			w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexFilePath))
-			h.serveFileCompressed(w, r, resolvedRoot, dirIndexPath)
+			h.serveFileCompressed(w, r, dirIndexPath)
 			return
 		}
 		// No index file — try directory listing
 		if cfg.DirectoryListing != nil && *cfg.DirectoryListing {
-			h.serveDirectoryListing(w, resolved, r.URL.Path)
+			h.serveDirectoryListing(w, fullPath, r.URL.Path)
 			return
 		}
 		// No index, no listing — SPA fallback or 404
@@ -254,17 +250,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Deployments are immutable, so deploymentID:filePath is a stable ETag.
 	// http.ServeFile checks If-None-Match and returns 304 when it matches.
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, filePath))
-	h.serveFileCompressed(w, r, resolvedRoot, fullPath)
+	h.serveFileCompressed(w, r, fullPath)
 }
 
 func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resolvedRoot, deploymentID, indexPage string, cfg storage.SiteConfig) {
 	indexPath := filepath.Join(resolvedRoot, indexPage)
-	resolved, err := filepath.EvalSymlinks(indexPath)
-	if err != nil {
-		h.serveDefault404(w)
-		return
-	}
-	if !isUnderRoot(resolved, resolvedRoot) {
+	if _, err := os.Stat(indexPath); err != nil {
 		h.serveDefault404(w)
 		return
 	}
@@ -272,7 +263,7 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resol
 	w.Header().Set("Cache-Control", defaultCacheControl(indexPage))
 	h.applyHeaders(w, indexPage, cfg)
 	w.Header().Set("ETag", fmt.Sprintf(`"%s:%s"`, deploymentID, indexPage))
-	h.serveFileCompressed(w, r, resolvedRoot, indexPath)
+	h.serveFileCompressed(w, r, indexPath)
 }
 
 func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storage.SiteConfig) {
@@ -356,7 +347,7 @@ func isMixedAlphanumeric(s string) bool {
 // serveFileCompressed serves a file, preferring a precompressed variant on
 // disk (.br, .gz) before falling back to on-the-fly compression.
 // Priority: precompressed .br > precompressed .gz > on-the-fly br > on-the-fly gzip.
-func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, resolvedRoot, path string) {
+func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
 	// Set Vary unconditionally for compressible types so caches know the
 	// response can differ by encoding, even when served uncompressed.
 	if ct := mime.TypeByExtension(filepath.Ext(path)); isCompressible(ct) {
@@ -368,12 +359,12 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, re
 
 	// Prefer precompressed files (higher compression quality than on-the-fly).
 	if br {
-		if servePrecompressed(w, r, resolvedRoot, path, ".br", "br") {
+		if servePrecompressed(w, r, path, ".br", "br") {
 			return
 		}
 	}
 	if gz {
-		if servePrecompressed(w, r, resolvedRoot, path, ".gz", "gzip") {
+		if servePrecompressed(w, r, path, ".gz", "gzip") {
 			return
 		}
 	}
@@ -415,15 +406,8 @@ func serveFileContent(w http.ResponseWriter, r *http.Request, name string) {
 // servePrecompressed tries to serve a precompressed variant of origPath
 // (e.g. style.css.br for style.css). Returns true if the file existed
 // and was served.
-func servePrecompressed(w http.ResponseWriter, r *http.Request, resolvedRoot, origPath, ext, encoding string) bool {
+func servePrecompressed(w http.ResponseWriter, r *http.Request, origPath, ext, encoding string) bool {
 	compPath := origPath + ext
-	resolved, err := filepath.EvalSymlinks(compPath)
-	if err != nil {
-		return false
-	}
-	if !isUnderRoot(resolved, resolvedRoot) {
-		return false
-	}
 	f, err := os.Open(compPath)
 	if err != nil {
 		return false
@@ -657,16 +641,12 @@ func (h *Handler) serve404(w http.ResponseWriter, resolvedRoot string, cfg stora
 		notFoundPage = "404.html"
 	}
 	custom404 := filepath.Join(resolvedRoot, notFoundPage)
-	if resolved, err := filepath.EvalSymlinks(custom404); err == nil {
-		if isUnderRoot(resolved, resolvedRoot) {
-			if content, err := os.ReadFile(resolved); err == nil {
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
-				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write(content)
-				return
-			}
-		}
+	if content, err := os.ReadFile(custom404); err == nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write(content)
+		return
 	}
 	h.serveDefault404(w)
 }
