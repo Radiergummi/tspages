@@ -296,6 +296,7 @@ func registerRoutes(
 	mux.Handle("POST /sites/{site}/submissions/{id}/delete", withAuth(h.DeleteSubmission))
 	mux.Handle("DELETE /sites/{site}/submissions", withAuth(h.BulkDeleteSubmissions))
 	mux.Handle("POST /sites/{site}/submissions/delete", withAuth(h.BulkDeleteSubmissions))
+	mux.Handle("GET /sites/{site}/submissions/analytics.json", withAuth(h.SubmissionAnalytics))
 	mux.Handle("GET /sites/{site}/submissions/export", withAuth(h.ExportSubmissions))
 	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
 	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))

@@ -248,6 +248,72 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(subs)
 }
 
+// --- GET /sites/{site}/submissions/analytics.json ---
+
+type SubmissionAnalyticsHandler struct{ handlerDeps }
+
+type SubmissionAnalyticsData struct {
+	Total         int64                  `json:"total"`
+	Submitters    int64                  `json:"unique_submitters"`
+	TimeSeries    []analytics.TimeBucket `json:"time_series"`
+	HourlyPattern []analytics.HourCount  `json:"hourly_pattern"`
+	Paths         []analytics.FormPath   `json:"paths"`
+}
+
+func (h *SubmissionAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	siteName := trimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.CanDeploy(caps, siteName) {
+		RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	path := r.URL.Query().Get("path")
+	now := time.Now()
+	var from time.Time
+
+	paths, _ := h.recorder.FormPaths(siteName)
+	var total int64
+	if path != "" {
+		for _, fp := range paths {
+			if fp.Path == path {
+				total = fp.Count
+				break
+			}
+		}
+	} else {
+		for _, fp := range paths {
+			total += fp.Count
+		}
+	}
+
+	ts, _ := h.recorder.SubmissionsOverTime(siteName, path, from, now)
+	if ts == nil {
+		ts = []analytics.TimeBucket{}
+	}
+	submitters, _ := h.recorder.UniqueSubmitters(siteName, path, from, now)
+	hourly, _ := h.recorder.HourlySubmissionPattern(siteName, path, from, now)
+	if hourly == nil {
+		hourly = []analytics.HourCount{}
+	}
+	if paths == nil {
+		paths = []analytics.FormPath{}
+	}
+
+	writeJSON(w, SubmissionAnalyticsData{
+		Total:         total,
+		Submitters:    submitters,
+		TimeSeries:    ts,
+		HourlyPattern: hourly,
+		Paths:         paths,
+	})
+}
+
 func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName string, subs []analytics.Submission) {
 	// Collect all unique field keys across submissions.
 	fieldKeySet := map[string]struct{}{}

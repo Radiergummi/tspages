@@ -36,6 +36,12 @@ type SubmissionsPageData struct {
 	TotalCount    int64
 	Admin         bool
 	Sort          []analytics.SortField // current sort (up to 2 fields)
+
+	// Analytics fields.
+	TimeSeries    []analytics.TimeBucket `json:"time_series,omitempty"`
+	Submitters    int64                  `json:"unique_submitters"`
+	HourlyPattern []analytics.HourCount  `json:"hourly_pattern,omitempty"`
+	FormPaths     []analytics.FormPath   `json:"paths,omitempty"`
 }
 
 // sortPosition returns the 0-based index of col in the sort list, or -1 if absent.
@@ -215,6 +221,20 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 	data.CurrentPath = currentPath
 
+	if currentPath == "" {
+		for _, fp := range formPaths {
+			data.TotalCount += fp.Count
+		}
+		data.FormPaths = formPaths // expose for per-form breakdown chart
+	}
+
+	// Analytics — scoped to selected path (or all forms if no path selected).
+	now := time.Now()
+	var from time.Time // zero = all time
+	data.TimeSeries, _ = h.recorder.SubmissionsOverTime(siteName, currentPath, from, now)
+	data.Submitters, _ = h.recorder.UniqueSubmitters(siteName, currentPath, from, now)
+	data.HourlyPattern, _ = h.recorder.HourlySubmissionPattern(siteName, currentPath, from, now)
+
 	if currentPath != "" {
 		data.FormName = formNameFromConfig(merged, currentPath)
 		data.FormDesc = formDescFromConfig(merged, currentPath)
@@ -325,6 +345,11 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		data.Summary = summary
 		data.HasSummary = hasSummary
 		data.DateSummary = dateSummary
+	}
+
+	if wantsJSON(r) {
+		writeJSON(w, data)
+		return
 	}
 
 	renderPage(w, r, submissionsTmpl, "sites", data)

@@ -115,7 +115,8 @@ type Handlers struct {
 	SubmissionDetail      *SubmissionDetailHandler
 	DeleteSubmission     *DeleteSubmissionHandler
 	BulkDeleteSubmissions *BulkDeleteSubmissionsHandler
-	ExportSubmissions    *ExportSubmissionsHandler
+	ExportSubmissions     *ExportSubmissionsHandler
+	SubmissionAnalytics  *SubmissionAnalyticsHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
@@ -148,7 +149,8 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		SubmissionDetail:     &SubmissionDetailHandler{d},
 		DeleteSubmission:     &DeleteSubmissionHandler{d},
 		BulkDeleteSubmissions: &BulkDeleteSubmissionsHandler{d},
-		ExportSubmissions:    &ExportSubmissionsHandler{d},
+		ExportSubmissions:     &ExportSubmissionsHandler{d},
+		SubmissionAnalytics:  &SubmissionAnalyticsHandler{d},
 	}
 }
 

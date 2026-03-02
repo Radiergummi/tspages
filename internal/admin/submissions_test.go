@@ -340,6 +340,66 @@ func TestExportSubmissions_CSV(t *testing.T) {
 	}
 }
 
+func TestSubmissionAnalyticsHandler(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	seedSubmissions(t, rec)
+
+	h := &SubmissionAnalyticsHandler{handlerDeps{recorder: rec}}
+	r := reqWithAuth("GET", "/sites/docs/submissions/analytics.json", adminCaps, adminID)
+	r.SetPathValue("site", "docs")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	var data SubmissionAnalyticsData
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	if data.Total != 3 {
+		t.Errorf("total = %d, want 3", data.Total)
+	}
+	if data.Submitters == 0 {
+		t.Error("unique_submitters = 0, want > 0")
+	}
+	if data.TimeSeries == nil {
+		t.Error("time_series is nil, want non-nil array")
+	}
+	if data.HourlyPattern == nil {
+		t.Error("hourly_pattern is nil, want non-nil array")
+	}
+	if len(data.Paths) != 2 {
+		t.Errorf("paths length = %d, want 2", len(data.Paths))
+	}
+}
+
+func TestSubmissionAnalyticsHandler_PathFilter(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	seedSubmissions(t, rec)
+
+	h := &SubmissionAnalyticsHandler{handlerDeps{recorder: rec}}
+	r := reqWithAuth("GET", "/sites/docs/submissions/analytics.json?path=/contact", adminCaps, adminID)
+	r.SetPathValue("site", "docs")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	var data SubmissionAnalyticsData
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	if data.Total != 2 {
+		t.Errorf("total = %d, want 2 (only /contact)", data.Total)
+	}
+}
+
 func TestSubmissions_Forbidden(t *testing.T) {
 	rec := newSubmissionsRecorder(t)
 	deps := handlerDeps{recorder: rec}
