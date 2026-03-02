@@ -3,6 +3,7 @@
 .DS_Store
 .env
 /.idea/
+/benchmarks/
 /docs/plans/
 /internal/admin/assets/dist/
 /node_modules/
