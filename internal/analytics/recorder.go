@@ -11,6 +11,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"tspages/internal/sqlmigrate"
+	"tspages/internal/timeseries"
 )
 
 // Event represents a single recorded request.
@@ -184,63 +185,7 @@ func (r *Recorder) Close() error {
 	return r.db.Close()
 }
 
-// bucketSQL is the SQL expression that truncates a timestamp to a bucket
-// boundary using epoch-based rounding. It requires two int parameters: the
-// step size in seconds, passed twice.
-const bucketSQL = `strftime('%Y-%m-%dT%H:%M:%SZ', (CAST(strftime('%s', ts) AS INTEGER) / ?) * ?, 'unixepoch')`
-
-// bucketStep returns the largest "nice" step that produces at least 64 buckets.
-func bucketStep(from, to time.Time) time.Duration {
-	d := to.Sub(from)
-	steps := []time.Duration{
-		24 * time.Hour,
-		12 * time.Hour,
-		8 * time.Hour,
-		6 * time.Hour,
-		4 * time.Hour,
-		2 * time.Hour,
-		time.Hour,
-		30 * time.Minute,
-		15 * time.Minute,
-	}
-	for _, s := range steps {
-		if d/s >= 64 {
-			return s
-		}
-	}
-	return 15 * time.Minute
-}
-
-// fillBuckets takes sparse SQL results and returns a complete series with
-// zero-filled gaps from `from` to `to`.
-func fillBuckets(sparse []TimeBucket, from, to time.Time) []TimeBucket {
-	if from.IsZero() && len(sparse) > 0 {
-		// "all" range: derive from from the first bucket
-		t, err := time.Parse(time.RFC3339, sparse[0].Time)
-		if err == nil {
-			from = t
-		}
-	}
-	if from.IsZero() {
-		return sparse
-	}
-
-	step := bucketStep(from, to)
-	from = from.UTC().Truncate(step)
-
-	// Index sparse results by their time key.
-	lookup := make(map[string]int64, len(sparse))
-	for _, b := range sparse {
-		lookup[b.Time] = b.Count
-	}
-
-	var out []TimeBucket
-	for t := from; !t.After(to.UTC()); t = t.Add(step) {
-		key := t.Format(time.RFC3339)
-		out = append(out, TimeBucket{Time: key, Count: lookup[key]})
-	}
-	return out
-}
+var bucketSQL = timeseries.BucketSQL("ts")
 
 // --- Query types ---
 
@@ -313,33 +258,6 @@ func (r *Recorder) RequestsOverTime(site string, from, to time.Time) ([]TimeBuck
 	return r.RequestsOverTimeMulti([]string{site}, from, to)
 }
 
-func fillStatusBuckets(sparse []StatusTimeBucket, from, to time.Time) []StatusTimeBucket {
-	if from.IsZero() && len(sparse) > 0 {
-		t, err := time.Parse(time.RFC3339, sparse[0].Time)
-		if err == nil {
-			from = t
-		}
-	}
-	if from.IsZero() {
-		return sparse
-	}
-	step := bucketStep(from, to)
-	from = from.UTC().Truncate(step)
-	lookup := make(map[string]StatusTimeBucket, len(sparse))
-	for _, b := range sparse {
-		lookup[b.Time] = b
-	}
-	var out []StatusTimeBucket
-	for t := from; !t.After(to.UTC()); t = t.Add(step) {
-		key := t.Format(time.RFC3339)
-		if b, ok := lookup[key]; ok {
-			out = append(out, b)
-		} else {
-			out = append(out, StatusTimeBucket{Time: key})
-		}
-	}
-	return out
-}
 
 func (r *Recorder) RequestsOverTimeByStatus(site string, from, to time.Time) ([]StatusTimeBucket, error) {
 	return r.RequestsOverTimeByStatusMulti([]string{site}, from, to)
@@ -446,7 +364,7 @@ func (r *Recorder) RequestsOverTimeMulti(sites []string, from, to time.Time) ([]
 	if len(sites) == 0 {
 		return nil, nil
 	}
-	stepSecs := int(bucketStep(from, to).Seconds())
+	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
 	inClause, siteArgs := siteFilter(sites)
 	timeCond, timeArgs := timeFilter(from, to)
 	args := append([]any{stepSecs, stepSecs}, siteArgs...)
@@ -469,14 +387,17 @@ func (r *Recorder) RequestsOverTimeMulti(sites []string, from, to time.Time) ([]
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return fillBuckets(sparse, from, to), nil
+	return timeseries.FillBuckets(sparse, from, to,
+		func(b TimeBucket) string { return b.Time },
+		func(t string) TimeBucket { return TimeBucket{Time: t} },
+	), nil
 }
 
 func (r *Recorder) RequestsOverTimeByStatusMulti(sites []string, from, to time.Time) ([]StatusTimeBucket, error) {
 	if len(sites) == 0 {
 		return nil, nil
 	}
-	stepSecs := int(bucketStep(from, to).Seconds())
+	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
 	inClause, siteArgs := siteFilter(sites)
 	timeCond, timeArgs := timeFilter(from, to)
 	args := append([]any{stepSecs, stepSecs}, siteArgs...)
@@ -504,7 +425,10 @@ func (r *Recorder) RequestsOverTimeByStatusMulti(sites []string, from, to time.T
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return fillStatusBuckets(sparse, from, to), nil
+	return timeseries.FillBuckets(sparse, from, to,
+		func(b StatusTimeBucket) string { return b.Time },
+		func(t string) StatusTimeBucket { return StatusTimeBucket{Time: t} },
+	), nil
 }
 
 func (r *Recorder) SiteBreakdown(sites []string, from, to time.Time) ([]SiteCount, error) {

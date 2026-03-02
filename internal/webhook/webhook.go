@@ -19,6 +19,7 @@ import (
 
 	"tspages/internal/sqlmigrate"
 	"tspages/internal/storage"
+	"tspages/internal/timeseries"
 )
 
 // Notifier sends webhook notifications for site events.
@@ -193,69 +194,14 @@ type DeliveryTimeBucket struct {
 	Failed    int64  `json:"failed"`
 }
 
+
 // EventCount represents an event type with its delivery count.
 type EventCount struct {
 	Event string `json:"event"`
 	Count int64  `json:"count"`
 }
 
-// deliveryBucketSQL is the SQL expression that truncates created_at to a bucket
-// boundary using epoch-based rounding. It requires two int parameters: the
-// step size in seconds, passed twice.
-const deliveryBucketSQL = `strftime('%Y-%m-%dT%H:%M:%SZ', (CAST(strftime('%s', created_at) AS INTEGER) / ?) * ?, 'unixepoch')`
-
-// deliveryBucketStep returns the largest "nice" step that produces at least 64 buckets.
-func deliveryBucketStep(from, to time.Time) time.Duration {
-	d := to.Sub(from)
-	steps := []time.Duration{
-		24 * time.Hour,
-		12 * time.Hour,
-		8 * time.Hour,
-		6 * time.Hour,
-		4 * time.Hour,
-		2 * time.Hour,
-		time.Hour,
-		30 * time.Minute,
-		15 * time.Minute,
-	}
-	for _, s := range steps {
-		if d/s >= 64 {
-			return s
-		}
-	}
-	return 15 * time.Minute
-}
-
-// fillDeliveryBuckets takes sparse SQL results and returns a complete series
-// with zero-filled gaps from `from` to `to`.
-func fillDeliveryBuckets(sparse []DeliveryTimeBucket, from, to time.Time) []DeliveryTimeBucket {
-	if from.IsZero() && len(sparse) > 0 {
-		t, err := time.Parse(time.RFC3339, sparse[0].Time)
-		if err == nil {
-			from = t
-		}
-	}
-	if from.IsZero() {
-		return sparse
-	}
-
-	step := deliveryBucketStep(from, to)
-	from = from.UTC().Truncate(step)
-
-	type pair struct{ succeeded, failed int64 }
-	lookup := make(map[string]pair, len(sparse))
-	for _, b := range sparse {
-		lookup[b.Time] = pair{b.Succeeded, b.Failed}
-	}
-
-	var out []DeliveryTimeBucket
-	for t := from; !t.After(to.UTC()); t = t.Add(step) {
-		key := t.Format(time.RFC3339)
-		p := lookup[key]
-		out = append(out, DeliveryTimeBucket{Time: key, Succeeded: p.succeeded, Failed: p.failed})
-	}
-	return out
-}
+var deliveryBucketSQL = timeseries.BucketSQL("created_at")
 
 // deliveryFilter builds a WHERE clause and args for webhook delivery queries.
 // Extra conditions (e.g. "duration_ms > 0") can be appended via extra.
@@ -295,7 +241,7 @@ func (n *Notifier) DeliveryStats(site string, from, to time.Time) (total, succee
 
 // DeliveriesOverTime returns time-bucketed delivery counts.
 func (n *Notifier) DeliveriesOverTime(site string, from, to time.Time) ([]DeliveryTimeBucket, error) {
-	stepSecs := int(deliveryBucketStep(from, to).Seconds())
+	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
 	whereClause, filterArgs := deliveryFilter(site, from, to)
 	// bucket step args come first, then filter args
 	args := append([]any{stepSecs, stepSecs}, filterArgs...)
@@ -328,7 +274,10 @@ func (n *Notifier) DeliveriesOverTime(site string, from, to time.Time) ([]Delive
 		return nil, fmt.Errorf("iterate buckets: %w", err)
 	}
 
-	return fillDeliveryBuckets(buckets, from, to), nil
+	return timeseries.FillBuckets(buckets, from, to,
+		func(b DeliveryTimeBucket) string { return b.Time },
+		func(t string) DeliveryTimeBucket { return DeliveryTimeBucket{Time: t} },
+	), nil
 }
 
 // LatencyStats holds aggregate latency values across a time range.
@@ -377,7 +326,7 @@ type LatencyTimeBucket struct {
 
 // LatencyOverTime returns time-bucketed latency percentiles.
 func (n *Notifier) LatencyOverTime(site string, from, to time.Time) ([]LatencyTimeBucket, error) {
-	stepSecs := int(deliveryBucketStep(from, to).Seconds())
+	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
 	whereClause, filterArgs := deliveryFilter(site, from, to, "duration_ms > 0")
 	args := append([]any{stepSecs, stepSecs}, filterArgs...)
 
