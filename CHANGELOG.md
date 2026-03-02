@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Column sorting on the submissions table. Click any column header to sort; click again to toggle
   direction. Supports sorting by submitter, date, and any dynamic field column via `sort` and `dir`
   query parameters.
+- Submission analytics on the submissions page: time-series chart, summary cards (total submissions,
+  unique submitters, form count), hourly submission pattern, and per-form breakdown chart.
+- Submission analytics JSON API at `GET /sites/{site}/submissions/analytics.json`.
 
 ### Fixed
 

@@ -670,6 +670,61 @@ paths:
       security:
         - tailscale: [deploy]
 
+  /sites/{site}/submissions/analytics.json:
+    get:
+      operationId: submissionAnalytics
+      summary: Submission analytics
+      description: Returns analytics data for form submissions on a site.
+      tags: [submissions]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Filter to a specific form path.
+      responses:
+        "200":
+          description: Analytics data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    description: Total submission count.
+                  unique_submitters:
+                    type: integer
+                    description: Number of distinct submitters.
+                  time_series:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        time:
+                          type: string
+                          format: date-time
+                        count:
+                          type: integer
+                  hourly_pattern:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        hour:
+                          type: integer
+                          minimum: 0
+                          maximum: 23
+                        count:
+                          type: integer
+                  paths:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FormPath"
+      security:
+        - tailscale: [deploy]
+
   /sites/{site}/config:
     get:
       operationId: getSiteConfig
@@ -1284,6 +1339,15 @@ components:
           type: string
           format: date-time
       required: [id, site, path, fields, submitter, node, ip, created_at]
+
+    FormPath:
+      type: object
+      properties:
+        path:
+          type: string
+        count:
+          type: integer
+      required: [path, count]
 
     SiteConfig:
       type: object

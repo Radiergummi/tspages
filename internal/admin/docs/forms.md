@@ -193,6 +193,19 @@ grouped by form path -- select a path to see its submissions in a transposed tab
 
 The submissions page is accessible to users with the `deploy` capability for the site.
 
+### Analytics
+
+The submissions page includes analytics charts above the table:
+
+- **Summary cards** -- total submissions, unique submitters, and form count
+- **Submissions over time** -- line chart showing submission volume across the full history
+- **Hourly pattern** -- bar chart showing which hours of the day receive the most submissions
+- **Per-form breakdown** -- doughnut chart comparing submission volume across forms (shown only in the global view when no specific form is selected)
+
+Analytics are scoped to the selected form path. When no path is selected, they show aggregate data across all forms on the site.
+
+A JSON API is also available at `GET /sites/{site}/submissions/analytics.json?path={path}` returning `total`, `unique_submitters`, `time_series`, `hourly_pattern`, and `paths`.
+
 ## Submissions API
 
 All endpoints are on the control plane. Read operations require the `deploy` capability; delete
