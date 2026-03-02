@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/andybalholm/brotli"
 )
@@ -63,6 +64,9 @@ func isCompressible(contentType string) bool {
 // Level 4 balances compression ratio with CPU cost for dynamic content.
 const brotliLevel = 4
 
+var gzipPool = sync.Pool{New: func() any { return gzip.NewWriter(io.Discard) }}
+var brotliPool = sync.Pool{New: func() any { return brotli.NewWriterLevel(io.Discard, brotliLevel) }}
+
 // compressWriter wraps an http.ResponseWriter to transparently compress
 // responses (gzip or brotli) when the content type is compressible and
 // the body is large enough to benefit.
@@ -103,9 +107,13 @@ func (cw *compressWriter) Write(b []byte) (int, error) {
 			if err != nil || cl >= compressMinBytes {
 				switch cw.encoding {
 				case "br":
-					cw.enc = brotli.NewWriterLevel(cw.ResponseWriter, brotliLevel)
+					w := brotliPool.Get().(*brotli.Writer)
+					w.Reset(cw.ResponseWriter)
+					cw.enc = w
 				default:
-					cw.enc = gzip.NewWriter(cw.ResponseWriter)
+					w := gzipPool.Get().(*gzip.Writer)
+					w.Reset(cw.ResponseWriter)
+					cw.enc = w
 				}
 				cw.Header().Del("Content-Length")
 				cw.Header().Set("Content-Encoding", cw.encoding)
@@ -129,7 +137,14 @@ func (cw *compressWriter) Close() error {
 		cw.ResponseWriter.WriteHeader(cw.statusCode)
 	}
 	if cw.enc != nil {
-		return cw.enc.Close()
+		err := cw.enc.Close()
+		switch cw.encoding {
+		case "br":
+			brotliPool.Put(cw.enc)
+		default:
+			gzipPool.Put(cw.enc)
+		}
+		return err
 	}
 	return nil
 }
