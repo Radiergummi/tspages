@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Grid view for the sites index with preview cards showing og:image, favicon, and description
   extracted from each site's index page at deploy time. Toggle between list and grid views; the
   preference is saved in the browser. Preview metadata is also available in the sites API response.
+- Form processing for static sites. Enable with `[forms] enabled = true` in `tspages.toml` to
+  accept POST submissions on any path. Submissions are stored in SQLite and optionally forwarded via
+  `form.submission` webhook events.
+- Form metadata via `[[forms.endpoints]]` in `tspages.toml` for adding names, descriptions, and
+  field labels/types to forms. Unannotated forms infer display names automatically.
+- Submissions API: list, get, delete, bulk delete, and CSV/JSON export at
+  `/sites/{site}/submissions`.
+- Submissions admin UI with transposed table view, grouped by form path, with CSV export.
 
 ### Fixed
 
