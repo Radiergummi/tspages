@@ -1,7 +1,7 @@
 import { confirmAction } from "../lib/api";
 
 function main(): void {
-  const mainNode = document.querySelector<HTMLElement>("[data-site]")!
+  const mainNode = document.querySelector<HTMLElement>("[data-site]")!;
   const siteName = mainNode.dataset.site!;
 
   // region Activate deployment

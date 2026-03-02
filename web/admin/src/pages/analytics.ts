@@ -36,7 +36,11 @@ async function main(): Promise<void> {
   const response = await fetch(window.location.href, {
     headers: { Accept: "application/json" },
   });
-  if (!response.ok) return;
+
+  if (!response.ok) {
+    return;
+  }
+
   const { nodes, os, range, sites, status_time_series, time_series }: AnalyticsData =
     await response.json();
 

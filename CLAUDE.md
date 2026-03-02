@@ -145,3 +145,9 @@ gauge), webhook delivery log.
 
 **CLI:** `tspages deploy <path> <site>` with `--no-activate`, `--server` flag, env var, or
 auto-discovery via Tailscale API.
+
+When adding new pages to the admin dashboard, ensure there is an equivalent API endpoint for any user-facing data, and
+that the API is documented in the OpenAPI spec.
+
+When adding or updating features, update the documentation in `internal/admin/docs/` and add appropriate test coverage.
+For deploy features, ensure the CLI supports them as well.
