@@ -88,6 +88,29 @@ var migrations = []func(*sql.Tx) error{
 		_, _ = tx.Exec(`ALTER TABLE requests ADD COLUMN profile_pic_url TEXT NOT NULL DEFAULT ''`)
 		return nil
 	},
+
+	// 2: form submissions table.
+	func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`
+			CREATE TABLE IF NOT EXISTS form_submissions (
+				id         TEXT PRIMARY KEY,
+				site       TEXT NOT NULL,
+				path       TEXT NOT NULL,
+				fields     TEXT NOT NULL,
+				submitter  TEXT NOT NULL DEFAULT '',
+				node       TEXT NOT NULL DEFAULT '',
+				ip         TEXT NOT NULL DEFAULT '',
+				created_at TEXT NOT NULL
+			);
+		`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_created ON form_submissions(site, created_at)`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_path ON form_submissions(site, path)`)
+		return err
+	},
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full
