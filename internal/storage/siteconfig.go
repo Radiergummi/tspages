@@ -233,6 +233,9 @@ func ParseHeadersFile(data []byte) (map[string]map[string]string, error) {
 // ReadSiteConfig reads site-level config overrides from data/sites/{site}/config.toml.
 // Returns a zero SiteConfig if the file does not exist.
 func (s *Store) ReadSiteConfig(site string) (SiteConfig, error) {
+	if !ValidSiteName(site) {
+		return SiteConfig{}, fmt.Errorf("invalid site name: %q", site)
+	}
 	path := filepath.Join(s.dataDir, "sites", site, siteConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -269,6 +272,12 @@ func (s *Store) WriteDeploymentConfig(site, id string, cfg SiteConfig) error {
 
 // ReadDeploymentConfig reads per-deployment config from the deployment directory.
 func (s *Store) ReadDeploymentConfig(site, id string) (SiteConfig, error) {
+	if !ValidSiteName(site) {
+		return SiteConfig{}, fmt.Errorf("invalid site name: %q", site)
+	}
+	if !ValidDeploymentID(id) {
+		return SiteConfig{}, fmt.Errorf("invalid deployment ID: %q", id)
+	}
 	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, siteConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {

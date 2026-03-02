@@ -192,6 +192,9 @@ func (s *Store) ReadManifest(site, id string) (Manifest, error) {
 }
 
 func (s *Store) CurrentDeployment(site string) (string, error) {
+	if !ValidSiteName(site) {
+		return "", fmt.Errorf("invalid site name: %q", site)
+	}
 	link := filepath.Join(s.dataDir, "sites", site, "current")
 	target, err := os.Readlink(link)
 	if err != nil {
