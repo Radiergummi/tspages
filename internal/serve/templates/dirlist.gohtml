@@ -24,21 +24,120 @@
         }
 
         main {
-            max-width: 720px;
+            max-width: 860px;
             margin: 0 auto;
             padding: 2rem 1rem;
         }
 
+        /* region Header */
+
         h1 {
-            font-size: 1rem;
+            font-size: 1.5rem;
             font-weight: 600;
-            margin-bottom: 1rem;
-            color: light-dark(#6f6e69, #878580);
+            margin-bottom: 3rem;
         }
 
-        h1 span {
-            color: light-dark(#100f0f, #cecdc3);
+        /* endregion */
+        /* region Breadcrumbs */
+
+        nav {
+            font-size: .875rem;
+            margin-bottom: 1.25rem;
+            color: light-dark(#878580, #6f6e69);
+            font-weight: 600;
+            user-select: none;
+
+            & a {
+                padding: .3rem .375rem;
+                color: light-dark(#205ea6, #4385be);
+                text-decoration: none;
+
+                &:hover {
+                    text-decoration: underline;
+                }
+            }
+
+            & .current {
+                padding: .3rem .375rem;
+                color: light-dark(#100f0f, #cecdc3);
+            }
+
+            & .sep {
+                margin: 0 .125rem;
+                font-weight: normal;
+            }
         }
+
+        /* endregion */
+        /* region Filter pills */
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .375rem;
+            margin-bottom: 1rem;
+            user-select: none;
+
+            & input[type="radio"] {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            & label {
+                display: inline-block;
+                padding: .3rem .35rem .3rem .7rem;
+                font-size: .75rem;
+                font-weight: 500;
+                border-radius: 9999px;
+                cursor: pointer;
+                user-select: none;
+                color: light-dark(#6f6e69, #878580);
+                background: light-dark(#f2f0e5, #282726);
+                border: 1px solid light-dark(#e6e4d9, #343331);
+                transition: all .15s ease;
+
+                &:hover {
+                    color: light-dark(#100f0f, #cecdc3);
+                    background: light-dark(#e6e4d9, #343331);
+                }
+            }
+
+            & input:checked + label {
+                color: #fff;
+                background: light-dark(#205ea6, #4385be);
+                border-color: light-dark(#205ea6, #4385be);
+            }
+
+            & input:focus-visible + label {
+                outline: 2px solid light-dark(#205ea6, #4385be);
+                outline-offset: 2px;
+            }
+
+            & .count {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 1.25rem;
+                height: 1.25rem;
+                padding: 0 .35rem;
+                margin-left: .25rem;
+                font-size: .625rem;
+                font-weight: 600;
+                line-height: 1;
+                border-radius: 9999px;
+                background: light-dark(#e6e4d9, #343331);
+                color: light-dark(#6f6e69, #878580);
+            }
+
+            & input:checked + label .count {
+                background: light-dark(#1a4f8a, #2d6da0);
+                color: rgba(255, 255, 255, .8);
+            }
+        }
+
+        /* endregion */
+        /* region Table */
 
         table {
             width: 100%;
@@ -55,59 +154,281 @@
             letter-spacing: .05em;
             color: light-dark(#878580, #6f6e69);
             border-bottom: 2px solid light-dark(#e6e4d9, #343331);
-        }
 
-        th:last-child {
-            text-align: right;
+            &.col-modified,
+            &.col-size {
+                text-align: right;
+            }
         }
 
         td {
             padding: .5rem .75rem;
             border-bottom: 1px solid light-dark(#e6e4d9, #343331);
-        }
 
-        td:last-child {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-            color: light-dark(#878580, #6f6e69);
+            &.col-name {
+                display: flex;
+                align-items: center;
+                gap: .5rem;
+            }
+
+            &.col-modified,
+            &.col-size {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                color: light-dark(#878580, #6f6e69);
+                white-space: nowrap;
+            }
         }
 
         a {
             color: light-dark(#205ea6, #4385be);
             text-decoration: none;
+
+            &:hover {
+                text-decoration: underline;
+            }
         }
 
-        a:hover {
-            text-decoration: underline;
-        }
-
-        .dir a::after {
+        tr[data-type="folder"] .col-name a::after {
             content: "/";
             color: light-dark(#878580, #6f6e69);
         }
+
+        /* endregion */
+        /* region Icons */
+
+        .icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            color: light-dark(#878580, #6f6e69);
+        }
+
+        tr[data-type="folder"] .icon {
+            color: light-dark(#ad8301, #d0a215);
+        }
+
+        tr[data-type="image"] .icon {
+            color: light-dark(#7b5ea7, #9b7fcc);
+        }
+
+        tr[data-type="code"] .icon {
+            color: light-dark(#24837b, #3aa99f);
+        }
+
+        tr[data-type="archive"] .icon {
+            color: light-dark(#a02c2d, #d14d41);
+        }
+
+        /* endregion */
+        /* region CSS-only filtering */
+
+        .filters:has(input[value="folder"]:checked) ~ table tr:not([data-type="folder"]) {
+            display: none
+        }
+
+        .filters:has(input[value="image"]:checked) ~ table tr:not([data-type="image"]) {
+            display: none
+        }
+
+        .filters:has(input[value="code"]:checked) ~ table tr:not([data-type="code"]) {
+            display: none
+        }
+
+        .filters:has(input[value="document"]:checked) ~ table tr:not([data-type="document"]) {
+            display: none
+        }
+
+        .filters:has(input[value="archive"]:checked) ~ table tr:not([data-type="archive"]) {
+            display: none
+        }
+
+        .filters:has(input[value="media"]:checked) ~ table tr:not([data-type="media"]) {
+            display: none
+        }
+
+        .filters:has(input[value="file"]:checked) ~ table tr:not([data-type="file"]) {
+            display: none
+        }
+
+        /* endregion */
+        /* region Empty state */
+
+        .empty {
+            padding: 2rem;
+            text-align: center;
+            color: light-dark(#878580, #6f6e69);
+        }
+
+        /* endregion */
+        /* region Responsive */
+
+        @media (max-width: 600px) {
+            td.col-modified, th.col-modified {
+                display: none;
+            }
+        }
+
+        /* endregion */
     </style>
 </head>
 <body>
 <main>
-    <h1>Index of <span>{{.Path}}</span></h1>
+    <!-- Icon sprite -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <symbol
+                id="i-folder"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </symbol>
+        <symbol
+                id="i-image"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+        </symbol>
+        <symbol
+                id="i-code"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <polyline points="16 18 22 12 16 6" />
+            <polyline points="8 6 2 12 8 18" />
+        </symbol>
+        <symbol
+                id="i-document"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+            <line x1="8" x2="16" y1="13" y2="13" />
+            <line x1="8" x2="16" y1="17" y2="17" />
+        </symbol>
+        <symbol
+                id="i-archive"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <rect width="20" height="5" x="2" y="3" rx="1" />
+            <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+            <path d="M10 12h4" />
+        </symbol>
+        <symbol
+                id="i-media"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <polygon points="6 3 20 12 6 21 6 3" />
+        </symbol>
+        <symbol
+                id="i-file"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+        >
+            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+        </symbol>
+    </svg>
+
+    <h1>{{.Site}}</h1>
+    <nav>{{if .Breadcrumbs}}<a href="/">~</a>{{range .Breadcrumbs}}
+            <span class="sep">/</span>{{if eq .Href $.Path}}<span class="current">{{.Name}}</span>{{else}}
+                <a href="{{.Href}}">{{.Name}}</a>{{end}}{{end}}{{else}}<span class="current">~</span>{{end}}</nav>
+
+    {{if gt (len .TypeCounts) 1}}
+        <div class="filters">
+            <input type="radio" name="filter" id="f-all" value="all" checked>
+            <label for="f-all">All <span class="count">{{len .Entries}}</span></label>
+            {{- if index .TypeCounts "folder"}}
+                <input type="radio" name="filter" id="f-folder" value="folder">
+                <label for="f-folder">Folders <span class="count">{{index .TypeCounts "folder"}}</span></label>
+            {{- end}}
+            {{- if index .TypeCounts "image"}}
+                <input type="radio" name="filter" id="f-image" value="image">
+                <label for="f-image">Images <span class="count">{{index .TypeCounts "image"}}</span></label>
+            {{- end}}
+            {{- if index .TypeCounts "code"}}
+                <input type="radio" name="filter" id="f-code" value="code">
+                <label for="f-code">Code <span class="count">{{index .TypeCounts "code"}}</span></label>
+            {{- end}}
+            {{- if index .TypeCounts "document"}}
+                <input type="radio" name="filter" id="f-document" value="document">
+                <label for="f-document">Documents <span class="count">{{index .TypeCounts "document"}}</span></label>
+            {{- end}}
+            {{- if index .TypeCounts "archive"}}
+                <input type="radio" name="filter" id="f-archive" value="archive">
+                <label for="f-archive">Archives <span class="count">{{index .TypeCounts "archive"}}</span></label>
+            {{- end}}
+            {{- if index .TypeCounts "media"}}
+                <input type="radio" name="filter" id="f-media" value="media">
+                <label for="f-media">Media <span class="count">{{index .TypeCounts "media"}}</span></label>
+            {{- end}}
+            {{- if index .TypeCounts "file"}}
+                <input type="radio" name="filter" id="f-file" value="file">
+                <label for="f-file">Other <span class="count">{{index .TypeCounts "file"}}</span></label>
+            {{- end}}
+        </div>
+    {{end}}
+
     <table>
         <thead>
         <tr>
-            <th>Name</th>
-            <th>Size</th>
+            <th class="col-name">Name</th>
+            <th class="col-modified">Modified</th>
+            <th class="col-size">Size</th>
         </tr>
         </thead>
         <tbody>
-        {{if .Parent}}
-            <tr>
-                <td><a href="{{.Parent}}">..</a></td>
-                <td></td>
+        {{range .Entries}}
+            <tr data-type="{{.Type}}">
+                <td class="col-name">
+                    <svg class="icon">
+                        <use href="#i-{{.Type}}" />
+                    </svg>
+                    <a href="{{.Href}}">{{.Name}}</a>
+                </td>
+                <td class="col-modified">{{if .ModISO}}
+                        <time datetime="{{.ModISO}}">{{.ModTime}}</time>{{end}}</td>
+                <td class="col-size">{{.Size}}</td>
             </tr>
         {{end}}
-        {{range .Entries}}
+        {{if not .Entries}}
             <tr>
-                <td {{if .IsDir}}class="dir"{{end}}><a href="{{.Href}}">{{.Name}}</a></td>
-                <td>{{.Size}}</td>
+                <td colspan="3" class="empty">This directory is empty.</td>
             </tr>
         {{end}}
         </tbody>

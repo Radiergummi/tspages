@@ -18,6 +18,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
@@ -34,6 +35,36 @@ var dirlistTmplStr string
 
 var placeholderTmpl = template.Must(template.New("placeholder").Parse(placeholderTmplStr))
 var dirlistTmpl = template.Must(template.New("dirlist").Parse(dirlistTmplStr))
+
+var (
+	devModeFlag atomic.Bool
+	devTmplDir  string // set once before server starts, read-only after
+)
+
+// EnableDevMode activates development mode: serve templates are re-parsed
+// from disk on every request. Must be called before the HTTP server starts.
+func EnableDevMode(tmplDir string) {
+	devTmplDir = tmplDir
+	devModeFlag.Store(true)
+}
+
+func devTemplate(name, embedded string) *template.Template {
+	if devModeFlag.Load() {
+		p := filepath.Join(devTmplDir, name+".gohtml")
+		b, err := os.ReadFile(p)
+		if err != nil {
+			slog.Error("dev template read failed", "path", p, "err", err)
+			return template.Must(template.New(name).Parse(embedded))
+		}
+		t, err := template.New(name).Parse(string(b))
+		if err != nil {
+			slog.Error("dev template parse failed", "path", p, "err", err)
+			return template.Must(template.New(name).Parse(embedded))
+		}
+		return t
+	}
+	return nil
+}
 
 type Handler struct {
 	store     *storage.Store
@@ -653,10 +684,18 @@ func (h *Handler) checkRedirects(reqPath string, cfg storage.SiteConfig) (string
 }
 
 type dirlistEntry struct {
-	Name  string
-	Href  string
-	IsDir bool
-	Size  string
+	Name    string
+	Href    string
+	IsDir   bool
+	Size    string
+	Type    string // icon/filter category: folder, image, code, document, archive, media, file
+	ModTime string // formatted modification time
+	ModISO  string // ISO 8601 for <time datetime>
+}
+
+type breadcrumb struct {
+	Name string
+	Href string
 }
 
 const maxDirEntries = 10_000
@@ -684,38 +723,52 @@ func (h *Handler) serveDirectoryListing(w http.ResponseWriter, dirPath, reqPath 
 		reqPath += "/"
 	}
 
+	now := time.Now()
+	typeCounts := make(map[string]int)
 	var items []dirlistEntry
 	for _, e := range entries {
 		name := e.Name()
 		href := reqPath + name
 		size := ""
-		if !e.IsDir() {
-			if info, err := e.Info(); err == nil {
+		modTime := ""
+		modISO := ""
+		ftype := "file"
+		if e.IsDir() {
+			ftype = "folder"
+		} else {
+			ftype = fileType(strings.ToLower(filepath.Ext(name)))
+		}
+		if info, err := e.Info(); err == nil {
+			if !e.IsDir() {
 				size = formatBytes(info.Size())
 			}
+			modTime = relativeTime(now, info.ModTime())
+			modISO = info.ModTime().UTC().Format(time.RFC3339)
 		}
+		typeCounts[ftype]++
 		items = append(items, dirlistEntry{
-			Name:  name,
-			Href:  href,
-			IsDir: e.IsDir(),
-			Size:  size,
+			Name:    name,
+			Href:    href,
+			IsDir:   e.IsDir(),
+			Size:    size,
+			Type:    ftype,
+			ModTime: modTime,
+			ModISO:  modISO,
 		})
 	}
 
-	parent := ""
-	if reqPath != "/" {
-		parent = path.Dir(strings.TrimRight(reqPath, "/"))
-		if parent != "/" {
-			parent += "/"
-		}
+	t := dirlistTmpl
+	if dt := devTemplate("dirlist", dirlistTmplStr); dt != nil {
+		t = dt
 	}
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = dirlistTmpl.Execute(w, struct {
-		Path    string
-		Parent  string
-		Entries []dirlistEntry
-	}{reqPath, parent, items})
+	_ = t.Execute(w, struct {
+		Site        string
+		Path        string
+		Breadcrumbs []breadcrumb
+		Entries     []dirlistEntry
+		TypeCounts  map[string]int
+	}{h.site, reqPath, buildBreadcrumbs(reqPath), items, typeCounts})
 }
 
 func formatBytes(b int64) string {
@@ -734,6 +787,68 @@ func formatBytes(b int64) string {
 	default:
 		return fmt.Sprintf("%d B", b)
 	}
+}
+
+var fileTypeMap = map[string]string{
+	// image
+	".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image",
+	".svg": "image", ".webp": "image", ".ico": "image", ".bmp": "image",
+	// code
+	".go": "code", ".js": "code", ".ts": "code", ".py": "code",
+	".rs": "code", ".rb": "code", ".java": "code", ".c": "code",
+	".h": "code", ".cpp": "code", ".css": "code", ".html": "code",
+	".json": "code", ".toml": "code", ".yaml": "code", ".yml": "code",
+	".xml": "code", ".md": "code", ".sh": "code", ".sql": "code",
+	".jsx": "code", ".tsx": "code", ".vue": "code", ".svelte": "code",
+	// document
+	".pdf": "document", ".doc": "document", ".docx": "document",
+	".xls": "document", ".xlsx": "document", ".ppt": "document",
+	".pptx": "document", ".txt": "document", ".csv": "document", ".rtf": "document",
+	// archive
+	".zip": "archive", ".tar": "archive", ".gz": "archive", ".xz": "archive",
+	".bz2": "archive", ".7z": "archive", ".rar": "archive", ".tgz": "archive",
+	// media
+	".mp3": "media", ".mp4": "media", ".wav": "media", ".mov": "media",
+	".avi": "media", ".mkv": "media", ".flac": "media", ".ogg": "media", ".webm": "media",
+}
+
+func fileType(ext string) string {
+	if t, ok := fileTypeMap[ext]; ok {
+		return t
+	}
+	return "file"
+}
+
+func relativeTime(now, t time.Time) string {
+	d := now.Sub(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	case d < 7*24*time.Hour:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	default:
+		return t.Format("Jan 2, 2006")
+	}
+}
+
+func buildBreadcrumbs(reqPath string) []breadcrumb {
+	trimmed := strings.Trim(reqPath, "/")
+	if trimmed == "" {
+		return nil
+	}
+	parts := strings.Split(trimmed, "/")
+	crumbs := make([]breadcrumb, len(parts))
+	for i, p := range parts {
+		crumbs[i] = breadcrumb{
+			Name: p,
+			Href: "/" + strings.Join(parts[:i+1], "/") + "/",
+		}
+	}
+	return crumbs
 }
 
 // checkTrailingSlash returns a redirect target if the request path needs
@@ -794,8 +909,12 @@ func (h *Handler) servePlaceholder(w http.ResponseWriter) {
 	if h.dnsSuffix != "" {
 		controlPlane = fmt.Sprintf("https://pages.%s", h.dnsSuffix)
 	}
+	t := placeholderTmpl
+	if dt := devTemplate("placeholder", placeholderTmplStr); dt != nil {
+		t = dt
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = placeholderTmpl.Execute(w, struct {
+	_ = t.Execute(w, struct {
 		Site         string
 		ControlPlane string
 	}{h.site, controlPlane})

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/andybalholm/brotli"
 
@@ -1477,8 +1478,13 @@ func TestHandler_DirectoryListing_Enabled(t *testing.T) {
 	if !strings.Contains(body, "guide.pdf") {
 		t.Error("listing should contain guide.pdf")
 	}
-	if !strings.Contains(body, "Index of") {
-		t.Error("listing should contain 'Index of' heading")
+	// File type attributes for CSS filtering.
+	if !strings.Contains(body, `data-type="document"`) {
+		t.Error("listing should have data-type attributes for CSS filtering")
+	}
+	// Icons reference the SVG sprite.
+	if !strings.Contains(body, `#i-document`) {
+		t.Error("listing should contain icon references")
 	}
 }
 
@@ -1640,7 +1646,7 @@ func TestHandler_DirectoryListing_SiteConfigAfterCache(t *testing.T) {
 	}
 }
 
-func TestHandler_DirectoryListing_ParentLink(t *testing.T) {
+func TestHandler_DirectoryListing_Breadcrumbs(t *testing.T) {
 	store := storage.New(t.TempDir())
 	dir, _ := store.CreateDeployment("files", "aaa11111")
 	contentDir := filepath.Join(dir, "content", "a", "b")
@@ -1664,8 +1670,12 @@ func TestHandler_DirectoryListing_ParentLink(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "..") {
-		t.Error("nested directory should show parent link")
+	// Breadcrumb nav should link to parent directories.
+	if !strings.Contains(body, `href="/a/"`) {
+		t.Error("breadcrumbs should link to parent directory /a/")
+	}
+	if !strings.Contains(body, `href="/"`) {
+		t.Error("breadcrumbs should link to root /")
 	}
 }
 
@@ -2166,6 +2176,80 @@ func TestFormatBytes(t *testing.T) {
 	for _, tt := range tests {
 		if got := formatBytes(tt.input); got != tt.want {
 			t.Errorf("formatBytes(%d) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestFileType(t *testing.T) {
+	tests := []struct {
+		ext  string
+		want string
+	}{
+		{".png", "image"},
+		{".jpg", "image"},
+		{".svg", "image"},
+		{".go", "code"},
+		{".ts", "code"},
+		{".json", "code"},
+		{".md", "code"},
+		{".pdf", "document"},
+		{".csv", "document"},
+		{".zip", "archive"},
+		{".tar", "archive"},
+		{".mp4", "media"},
+		{".mp3", "media"},
+		{".bin", "file"},
+		{"", "file"},
+		{".xyz", "file"},
+	}
+	for _, tt := range tests {
+		if got := fileType(tt.ext); got != tt.want {
+			t.Errorf("fileType(%q) = %q, want %q", tt.ext, got, tt.want)
+		}
+	}
+}
+
+func TestRelativeTime(t *testing.T) {
+	now := time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		offset time.Duration
+		want   string
+	}{
+		{30 * time.Second, "just now"},
+		{5 * time.Minute, "5m ago"},
+		{3 * time.Hour, "3h ago"},
+		{2 * 24 * time.Hour, "2d ago"},
+		{30 * 24 * time.Hour, "Jan 31, 2026"},
+	}
+	for _, tt := range tests {
+		past := now.Add(-tt.offset)
+		if got := relativeTime(now, past); got != tt.want {
+			t.Errorf("relativeTime(-%v) = %q, want %q", tt.offset, got, tt.want)
+		}
+	}
+}
+
+func TestBuildBreadcrumbs(t *testing.T) {
+	tests := []struct {
+		path  string
+		names []string
+		hrefs []string
+	}{
+		{"/", nil, nil},
+		{"/docs/", []string{"docs"}, []string{"/docs/"}},
+		{"/a/b/c/", []string{"a", "b", "c"}, []string{"/a/", "/a/b/", "/a/b/c/"}},
+	}
+	for _, tt := range tests {
+		crumbs := buildBreadcrumbs(tt.path)
+		if len(crumbs) != len(tt.names) {
+			t.Errorf("buildBreadcrumbs(%q): got %d crumbs, want %d", tt.path, len(crumbs), len(tt.names))
+			continue
+		}
+		for i, c := range crumbs {
+			if c.Name != tt.names[i] || c.Href != tt.hrefs[i] {
+				t.Errorf("buildBreadcrumbs(%q)[%d] = {%q, %q}, want {%q, %q}",
+					tt.path, i, c.Name, c.Href, tt.names[i], tt.hrefs[i])
+			}
 		}
 	}
 }

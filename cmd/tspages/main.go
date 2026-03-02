@@ -22,6 +22,7 @@ import (
 	"tspages/internal/httplog"
 	"tspages/internal/metrics"
 	"tspages/internal/multihost"
+	"tspages/internal/serve"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
 	"tspages/internal/webhook"
@@ -164,6 +165,12 @@ func main() {
 			log.Fatalf("resolving template dir: %v", err)
 		}
 		admin.EnableDevMode(tmplDir)
+
+		serveTmplDir, err := filepath.Abs("internal/serve/templates")
+		if err != nil {
+			log.Fatalf("resolving serve template dir: %v", err)
+		}
+		serve.EnableDevMode(serveTmplDir)
 
 		// Vite asset proxy on the main mux so it works on both listeners.
 		proxy := admin.DevAssetProxy()
