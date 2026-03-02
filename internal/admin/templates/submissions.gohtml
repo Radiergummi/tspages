@@ -103,19 +103,19 @@
                         </tr>
                         </thead>
                         <tbody class="[&>tr:last-child>td]:border-b-0">
-                        {{range .Submissions}}
+                        {{range $sub := .Submissions}}
                             <tr class="hover:bg-base-50/50 dark:hover:bg-base-900/50">
                                 <td class="px-4 py-3 border-b border-default whitespace-nowrap">
-                                    {{.Submitter}}
+                                    {{$sub.Submitter}}
                                 </td>
                                 <td class="px-4 py-3 border-b border-default whitespace-nowrap text-muted">
-                                    <time datetime="{{abstime .CreatedAt}}" title="{{abstime .CreatedAt}}">
-                                        {{reltime .CreatedAt}}
+                                    <time datetime="{{abstime $sub.CreatedAt}}" title="{{abstime $sub.CreatedAt}}">
+                                        {{reltime $sub.CreatedAt}}
                                     </time>
                                 </td>
                                 {{range $key := $.FieldKeys}}
-                                    <td class="px-4 py-3 border-b border-default max-w-64 truncate" title="{{index .ParsedFields $key}}">
-                                        {{index .ParsedFields $key}}
+                                    <td class="px-4 py-3 border-b border-default max-w-64 truncate" title="{{index $sub.ParsedFields $key}}">
+                                        {{index $sub.ParsedFields $key}}
                                     </td>
                                 {{end}}
                             </tr>
