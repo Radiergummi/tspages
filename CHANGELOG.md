@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Serve handler no longer calls `filepath.EvalSymlinks` per request, significantly reducing syscalls
   and allocations on the hot path. Path containment is enforced during deployment.
+- Serve handler uses the in-memory file index to answer all existence checks (`os.Stat`) and
+  precompressed-file probes (`os.Open` for `.br`/`.gz`), eliminating avoidable syscalls for
+  deployments that include a file index.
 - Gzip and Brotli compression writers are now pooled via `sync.Pool`, eliminating per-request
   allocations for compressed responses.
 - SPA routing and directory listing are now validated as mutually exclusive.

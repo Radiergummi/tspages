@@ -45,11 +45,23 @@ type Handler struct {
 	cachedCfg   storage.SiteConfig
 	hintCache   map[string][]string
 	cachedFiles map[string]struct{}
+	cachedDirs  map[string]struct{} // inferred from file paths
 }
 
 // isUnderRoot reports whether path is equal to root or a child of it.
 func isUnderRoot(path, root string) bool {
 	return path == root || strings.HasPrefix(path, root+string(os.PathSeparator))
+}
+
+// fileExists reports whether filePath exists as a regular file, using the
+// in-memory index when available and falling back to os.Stat otherwise.
+func (h *Handler) fileExists(filePath, fullPath string) bool {
+	if h.cachedFiles != nil {
+		_, ok := h.cachedFiles[filePath]
+		return ok
+	}
+	_, err := os.Stat(fullPath)
+	return err == nil
 }
 
 func NewHandler(store *storage.Store, site, dnsSuffix string, defaults storage.SiteConfig) *Handler {
@@ -108,10 +120,20 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 
 	if files, err := h.store.ReadFileIndex(h.site, id); err == nil {
 		m := make(map[string]struct{}, len(files))
+		dirs := make(map[string]struct{})
 		for _, f := range files {
 			m[f.Path] = struct{}{}
+			dir := filepath.Dir(f.Path)
+			for dir != "." && dir != "" {
+				if _, ok := dirs[dir]; ok {
+					break
+				}
+				dirs[dir] = struct{}{}
+				dir = filepath.Dir(dir)
+			}
 		}
 		h.cachedFiles = m
+		h.cachedDirs = dirs
 	}
 
 	h.cachedID = id
@@ -133,6 +155,7 @@ func (h *Handler) InvalidateConfig() {
 	h.cachedCfg = storage.SiteConfig{}.Merge(h.defaults)
 	h.hintCache = nil
 	h.cachedFiles = nil
+	h.cachedDirs = nil
 	h.mu.Unlock()
 }
 
@@ -224,18 +247,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := os.Stat(fullPath)
-	if err != nil {
+	var isFile, isDir bool
+	if h.cachedFiles != nil {
+		_, isFile = h.cachedFiles[filePath]
+		if !isFile {
+			_, isDir = h.cachedDirs[filePath]
+		}
+	} else {
+		if info, err := os.Stat(fullPath); err == nil {
+			isDir = info.IsDir()
+			isFile = !isDir
+		}
+	}
+
+	if !isFile && !isDir {
 		// Clean URL fallback: try path + ".html" before SPA/404.
 		if cleanURLs {
-			htmlPath := fullPath + ".html"
-			if _, err := os.Stat(htmlPath); err == nil {
-				htmlFilePath := filePath + ".html"
+			htmlFilePath := filePath + ".html"
+			if h.fileExists(htmlFilePath, fullPath+".html") {
+				htmlPath := fullPath + ".html"
 				h.sendEarlyHints(w, deploymentID, htmlFilePath, htmlPath)
 				w.Header().Set("Cache-Control", defaultCacheControl(htmlFilePath))
 				h.applyHeaders(w, htmlFilePath, cfg)
 				w.Header().Set("ETag", `"`+deploymentID+":"+htmlFilePath+`"`)
-				h.serveFileCompressed(w, r, htmlPath)
+				h.serveFileCompressed(w, r, htmlFilePath, htmlPath)
 				return
 			}
 		}
@@ -249,15 +284,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If the path is a directory, try to serve its index file or a listing.
-	if info.IsDir() {
+	if isDir {
+		indexFilePath := filepath.Join(filePath, indexPage)
 		dirIndexPath := filepath.Join(fullPath, indexPage)
-		if _, err := os.Stat(dirIndexPath); err == nil {
-			indexFilePath := filepath.Join(filePath, indexPage)
+		if h.fileExists(indexFilePath, dirIndexPath) {
 			h.sendEarlyHints(w, deploymentID, indexFilePath, dirIndexPath)
 			w.Header().Set("Cache-Control", defaultCacheControl(indexFilePath))
 			h.applyHeaders(w, indexFilePath, cfg)
 			w.Header().Set("ETag", `"`+deploymentID+":"+indexFilePath+`"`)
-			h.serveFileCompressed(w, r, dirIndexPath)
+			h.serveFileCompressed(w, r, indexFilePath, dirIndexPath)
 			return
 		}
 		// No index file — try directory listing
@@ -282,12 +317,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Deployments are immutable, so deploymentID:filePath is a stable ETag.
 	// http.ServeFile checks If-None-Match and returns 304 when it matches.
 	w.Header().Set("ETag", `"`+deploymentID+":"+filePath+`"`)
-	h.serveFileCompressed(w, r, fullPath)
+	h.serveFileCompressed(w, r, filePath, fullPath)
 }
 
 func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resolvedRoot, deploymentID, indexPage string, cfg storage.SiteConfig) {
 	indexPath := filepath.Join(resolvedRoot, indexPage)
-	if _, err := os.Stat(indexPath); err != nil {
+	if !h.fileExists(indexPage, indexPath) {
 		h.serveDefault404(w)
 		return
 	}
@@ -295,7 +330,7 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resol
 	w.Header().Set("Cache-Control", defaultCacheControl(indexPage))
 	h.applyHeaders(w, indexPage, cfg)
 	w.Header().Set("ETag", `"`+deploymentID+":"+indexPage+`"`)
-	h.serveFileCompressed(w, r, indexPath)
+	h.serveFileCompressed(w, r, indexPage, indexPath)
 }
 
 func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storage.SiteConfig) {
@@ -378,11 +413,13 @@ func isMixedAlphanumeric(s string) bool {
 
 // serveFileCompressed serves a file, preferring a precompressed variant on
 // disk (.br, .gz) before falling back to on-the-fly compression.
+// filePath is the deployment-relative path (for cache existence checks);
+// fullPath is the absolute filesystem path.
 // Priority: precompressed .br > precompressed .gz > on-the-fly br > on-the-fly gzip.
-func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, path string) {
+func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, filePath, fullPath string) {
 	// Set Vary unconditionally for compressible types so caches know the
 	// response can differ by encoding, even when served uncompressed.
-	if ct := mime.TypeByExtension(filepath.Ext(path)); isCompressible(ct) {
+	if ct := mime.TypeByExtension(filepath.Ext(fullPath)); isCompressible(ct) {
 		w.Header().Set("Vary", "Accept-Encoding")
 	}
 
@@ -390,13 +427,13 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, pa
 	gz := acceptsGzip(r)
 
 	// Prefer precompressed files (higher compression quality than on-the-fly).
-	if br {
-		if servePrecompressed(w, r, path, ".br", "br") {
+	if br && h.fileExists(filePath+".br", fullPath+".br") {
+		if servePrecompressed(w, r, fullPath, ".br", "br") {
 			return
 		}
 	}
-	if gz {
-		if servePrecompressed(w, r, path, ".gz", "gzip") {
+	if gz && h.fileExists(filePath+".gz", fullPath+".gz") {
+		if servePrecompressed(w, r, fullPath, ".gz", "gzip") {
 			return
 		}
 	}
@@ -409,11 +446,11 @@ func (h *Handler) serveFileCompressed(w http.ResponseWriter, r *http.Request, pa
 		}
 		cw := &compressWriter{ResponseWriter: w, encoding: encoding}
 		defer cw.Close() //nolint:errcheck // best-effort flush on response end
-		serveFileContent(cw, r, path)
+		serveFileContent(cw, r, fullPath)
 		return
 	}
 
-	serveFileContent(w, r, path)
+	serveFileContent(w, r, fullPath)
 }
 
 // serveFileContent opens a file and serves it with http.ServeContent.
@@ -676,12 +713,14 @@ func (h *Handler) serve404(w http.ResponseWriter, resolvedRoot string, cfg stora
 		notFoundPage = "404.html"
 	}
 	custom404 := filepath.Join(resolvedRoot, notFoundPage)
-	if content, err := os.ReadFile(custom404); err == nil {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write(content)
-		return
+	if h.fileExists(notFoundPage, custom404) {
+		if content, err := os.ReadFile(custom404); err == nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write(content)
+			return
+		}
 	}
 	h.serveDefault404(w)
 }
