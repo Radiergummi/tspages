@@ -105,6 +105,92 @@
         </header>
 
         {{if .Paths}}
+            <!-- region Analytics -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <section
+                        class="col-span-1 sm:col-span-3 bg-surface dark:ring-1 dark:ring-base-500/25
+                        rounded-md overflow-hidden m-0"
+                >
+                    <header class="flex items-end justify-end gap-10 px-5 h-14">
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Submissions
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .TotalCount}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Submitters
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Submitters}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Forms
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{len .Paths}}
+                            </code>
+                        </div>
+                    </header>
+
+                    {{if .TimeSeries}}
+                        <div class="relative pt-4">
+                            <canvas
+                                    id="submissions-chart"
+                                    height="180"
+                                    aria-label="Submissions over time"
+                                    role="img"
+                            ></canvas>
+                        </div>
+                    {{end}}
+                </section>
+
+                {{if .HourlyPattern}}
+                    <section
+                            class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md
+                            overflow-hidden m-0"
+                    >
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                By hour
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas
+                                    id="hourly-chart"
+                                    aria-label="Submissions by hour of day"
+                                    role="img"
+                            ></canvas>
+                        </div>
+                    </section>
+                {{end}}
+
+                {{if and .FormPaths (gt (len .FormPaths) 1)}}
+                    <section
+                            class="col-span-1 sm:col-span-2 bg-surface dark:ring-1
+                            dark:ring-base-500/25 rounded-md overflow-hidden m-0"
+                    >
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                By form
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas
+                                    id="forms-chart"
+                                    aria-label="Submissions by form"
+                                    role="img"
+                            ></canvas>
+                        </div>
+                    </section>
+                {{end}}
+            </div>
+            <!-- endregion -->
             <!-- region Forms Navigation -->
             {{if (gt (len .Paths) 1)}}
                 <nav aria-label="Form paths" class="flex flex-wrap gap-1">
@@ -523,4 +609,8 @@
             <!-- endregion -->
         {{end}}
     </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/submissions.ts"}}"></script>
 {{end}}
