@@ -107,9 +107,14 @@ type Handlers struct {
 	Feed             *FeedHandler
 	SiteFeed         *SiteFeedHandler
 	SiteHealth       *SiteHealthHandler
-	SiteConfig       *SiteConfigHandler
-	UpdateSiteConfig *UpdateSiteConfigHandler
-	PostSiteConfig   *PostSiteConfigHandler
+	SiteConfig            *SiteConfigHandler
+	UpdateSiteConfig     *UpdateSiteConfigHandler
+	PostSiteConfig       *PostSiteConfigHandler
+	Submissions          *SubmissionsHandler
+	SubmissionDetail     *SubmissionDetailHandler
+	DeleteSubmission     *DeleteSubmissionHandler
+	BulkDeleteSubmissions *BulkDeleteSubmissionsHandler
+	ExportSubmissions    *ExportSubmissionsHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
@@ -134,9 +139,14 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		Feed:             &FeedHandler{d},
 		SiteFeed:         &SiteFeedHandler{d},
 		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
-		SiteConfig:       &SiteConfigHandler{d},
-		UpdateSiteConfig: &UpdateSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
-		PostSiteConfig:   &PostSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		SiteConfig:            &SiteConfigHandler{d},
+		UpdateSiteConfig:     &UpdateSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		PostSiteConfig:       &PostSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		Submissions:          &SubmissionsHandler{d},
+		SubmissionDetail:     &SubmissionDetailHandler{d},
+		DeleteSubmission:     &DeleteSubmissionHandler{d},
+		BulkDeleteSubmissions: &BulkDeleteSubmissionsHandler{d},
+		ExportSubmissions:    &ExportSubmissionsHandler{d},
 	}
 }
 
