@@ -501,6 +501,175 @@ paths:
       security:
         - tailscale: [deploy]
 
+  /sites/{site}/submissions.json:
+    get:
+      operationId: listSubmissions
+      summary: List submissions
+      description: Returns form submissions for a site, filtered and paginated.
+      tags: [submissions]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Filter by form path.
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Lower bound (RFC 3339).
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Upper bound (RFC 3339).
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Submissions list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Submission"
+      security:
+        - tailscale: [deploy]
+
+  /sites/{site}/submissions/{id}:
+    get:
+      operationId: getSubmission
+      summary: Get a submission
+      description: Returns a single form submission.
+      tags: [submissions]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - $ref: "#/components/parameters/submissionId"
+      responses:
+        "200":
+          description: Submission detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+        "404":
+          description: Submission not found.
+      security:
+        - tailscale: [deploy]
+
+    delete:
+      operationId: deleteSubmission
+      summary: Delete a submission
+      description: Removes a single form submission.
+      tags: [submissions]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - $ref: "#/components/parameters/submissionId"
+      responses:
+        "204":
+          description: Submission deleted.
+        "404":
+          description: Submission not found.
+      security:
+        - tailscale: [admin]
+
+  /sites/{site}/submissions:
+    delete:
+      operationId: bulkDeleteSubmissions
+      summary: Bulk delete submissions
+      description: |
+        Deletes submissions matching the given filters. At least one of `path`
+        or `before` must be provided.
+      tags: [submissions]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Only delete submissions from this path.
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Only delete submissions before this date.
+      responses:
+        "200":
+          description: Deletion result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                    format: int64
+                required: [deleted]
+        "400":
+          description: No filter provided.
+      security:
+        - tailscale: [admin]
+
+  /sites/{site}/submissions/export:
+    get:
+      operationId: exportSubmissions
+      summary: Export submissions
+      description: Exports submissions as CSV or JSON.
+      tags: [submissions]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, json]
+            default: json
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Filter by form path.
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Exported data.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Submission"
+            text/csv:
+              schema:
+                type: string
+      security:
+        - tailscale: [deploy]
+
   /sites/{site}/config:
     get:
       operationId: getSiteConfig
@@ -766,6 +935,14 @@ components:
         enum: [PT24H, P7D, P30D, P1Y, all]
         default: PT24H
       description: Time range as ISO 8601 duration.
+
+    submissionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Form submission ID.
 
     webhookId:
       name: id
@@ -1082,6 +1259,32 @@ components:
             $ref: "#/components/schemas/NodeCount"
       required: [range, total, unique_visitors]
 
+    Submission:
+      type: object
+      properties:
+        id:
+          type: string
+        site:
+          type: string
+        path:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
+        submitter:
+          type: string
+        submitter_pic_url:
+          type: string
+          format: uri
+        node:
+          type: string
+        ip:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required: [id, site, path, fields, submitter, node, ip, created_at]
+
     SiteConfig:
       type: object
       properties:
@@ -1120,6 +1323,42 @@ components:
             type: string
         webhook_secret:
           type: string
+        forms:
+          $ref: "#/components/schemas/FormsConfig"
+
+    FormsConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        endpoints:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              fields:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    label:
+                      type: string
+                    type:
+                      type: string
+                      enum: [text, email, number, url, tel, date]
+                    aggregate:
+                      type: string
+                      enum: [unique, total, count_empty, count_not_empty, percent_empty, percent_not_empty, sum, avg, mean, median, min, max, range]
+                  required: [key]
+            required: [path]
 
     RedirectRule:
       type: object

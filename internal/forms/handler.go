@@ -4,6 +4,7 @@ import (
 	crypto_rand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"mime"
 	"net/http"
 	"strings"
@@ -54,7 +55,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch ct {
 	case "application/x-www-form-urlencoded":
 		if err := r.ParseForm(); err != nil {
-			if err.Error() == "http: request body too large" {
+			if errors.As(err, new(*http.MaxBytesError)) {
 				http.Error(w, "Payload Too Large", http.StatusRequestEntityTooLarge)
 				return
 			}
@@ -63,7 +64,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "multipart/form-data":
 		if err := r.ParseMultipartForm(64 << 10); err != nil {
-			if err.Error() == "http: request body too large" {
+			if errors.As(err, new(*http.MaxBytesError)) {
 				http.Error(w, "Payload Too Large", http.StatusRequestEntityTooLarge)
 				return
 			}
@@ -94,14 +95,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	info := auth.RequestInfoFromContext(r.Context())
 
 	sub := analytics.Submission{
-		ID:        id,
-		Site:      h.site,
-		Path:      r.URL.Path,
-		Fields:    fieldsJSON,
-		Submitter: info.UserLogin,
-		Node:      info.NodeName,
-		IP:        info.NodeIP,
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		ID:              id,
+		Site:            h.site,
+		Path:            r.URL.Path,
+		Fields:          fieldsJSON,
+		Submitter:       info.UserLogin,
+		SubmitterName:   info.UserName,
+		SubmitterPicURL: info.ProfilePicURL,
+		Node:            info.NodeName,
+		IP:              info.NodeIP,
+		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
 
 	if err := h.recorder.RecordSubmission(sub); err != nil {

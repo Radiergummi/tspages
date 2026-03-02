@@ -293,6 +293,7 @@ func registerRoutes(
 	mux.Handle("GET /sites/{site}/submissions.json", withAuth(h.Submissions))
 	mux.Handle("GET /sites/{site}/submissions/{id}", withAuth(h.SubmissionDetail))
 	mux.Handle("DELETE /sites/{site}/submissions/{id}", withAuth(h.DeleteSubmission))
+	mux.Handle("POST /sites/{site}/submissions/{id}/delete", withAuth(h.DeleteSubmission))
 	mux.Handle("DELETE /sites/{site}/submissions", withAuth(h.BulkDeleteSubmissions))
 	mux.Handle("POST /sites/{site}/submissions/delete", withAuth(h.BulkDeleteSubmissions))
 	mux.Handle("GET /sites/{site}/submissions/export", withAuth(h.ExportSubmissions))

@@ -53,9 +53,10 @@ type FormEndpoint struct {
 
 // FormField describes an expected field in a form endpoint.
 type FormField struct {
-	Key   string `toml:"key" json:"key"`
-	Label string `toml:"label" json:"label,omitempty"`
-	Type  string `toml:"type" json:"type,omitempty"`
+	Key       string `toml:"key" json:"key"`
+	Label     string `toml:"label" json:"label,omitempty"`
+	Type      string `toml:"type" json:"type,omitempty"`
+	Aggregate string `toml:"aggregate" json:"aggregate,omitempty"`
 }
 
 const siteConfigFile = "config.toml"
@@ -141,12 +142,25 @@ func (c SiteConfig) Validate() error {
 				"tel":    true,
 				"date":   true,
 			}
+			validAggregates := map[string]bool{
+				"": true,
+				// General (any type).
+				"unique": true, "total": true,
+				"count_empty": true, "count_not_empty": true,
+				"percent_empty": true, "percent_not_empty": true,
+				// Numeric.
+				"sum": true, "avg": true, "mean": true, "median": true,
+				"min": true, "max": true, "range": true,
+			}
 			for j, f := range ep.Fields {
 				if f.Key == "" {
 					return fmt.Errorf("forms.endpoints[%d].fields[%d]: key is required", i, j)
 				}
 				if !validFieldTypes[f.Type] {
 					return fmt.Errorf("forms.endpoints[%d].fields[%d]: invalid type %q", i, j, f.Type)
+				}
+				if !validAggregates[f.Aggregate] {
+					return fmt.Errorf("forms.endpoints[%d].fields[%d]: invalid aggregate %q", i, j, f.Aggregate)
 				}
 			}
 		}

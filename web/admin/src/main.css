@@ -141,8 +141,15 @@
     @apply border border-default bg-surface rounded-lg shadow-lg p-1 min-w-40;
     inset: unset;
     margin: 0;
-    top: anchor(bottom, 0.25rem);
-    right: anchor(right);
+  }
+
+  /* Anchor positioning for browsers that support it (Chrome 125+);
+     others get browser-default popover placement. */
+  @supports (top: anchor(bottom)) {
+    .popover-menu {
+      top: anchor(bottom, 0.25rem);
+      right: anchor(right);
+    }
   }
 
   .popover-menu button,
@@ -160,12 +167,14 @@
 
   .popover-detail {
     @apply border border-default bg-surface rounded-lg shadow-2xl p-0 w-full max-w-lg;
+    inset: 0;
+    margin: auto;
     max-height: 80vh;
     overflow-y: auto;
   }
 
   .popover-detail::backdrop {
-    background: rgb(0 0 0 / 25%);
+    @apply bg-black/25 backdrop-blur-md backdrop-saturate-150;
   }
 
   .toggle-track {

@@ -41,7 +41,7 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := q.Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			opts.Limit = n
+			opts.Limit = min(n, 1000)
 		}
 	}
 	if v := q.Get("offset"); v != "" {
@@ -119,8 +119,22 @@ func (h *DeleteSubmissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	id := r.PathValue("id")
-	if err := h.recorder.DeleteSubmission(siteName, id); err != nil {
+	deleted, err := h.recorder.DeleteSubmission(siteName, id)
+	if err != nil {
 		RenderError(w, r, http.StatusInternalServerError, "deleting submission")
+		return
+	}
+	if !deleted {
+		RenderError(w, r, http.StatusNotFound, "submission not found")
+		return
+	}
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			RenderError(w, r, http.StatusBadRequest, "invalid form data")
+			return
+		}
+		path := r.FormValue("path")
+		http.Redirect(w, r, "/sites/"+siteName+"/submissions?path="+path, http.StatusSeeOther)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -166,9 +180,19 @@ func (h *BulkDeleteSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.
 		}
 	}
 
+	if opts.Path == "" && opts.Before.IsZero() {
+		RenderError(w, r, http.StatusBadRequest, "path or before filter is required")
+		return
+	}
+
 	deleted, err := h.recorder.BulkDeleteSubmissions(siteName, opts)
 	if err != nil {
 		RenderError(w, r, http.StatusInternalServerError, "deleting submissions")
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		http.Redirect(w, r, "/sites/"+siteName+"/submissions?path="+opts.Path, http.StatusSeeOther)
 		return
 	}
 	writeJSON(w, map[string]int64{"deleted": deleted})
@@ -192,7 +216,7 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	q := r.URL.Query()
-	opts := analytics.ListSubmissionsOpts{Path: q.Get("path")}
+	opts := analytics.ListSubmissionsOpts{Path: q.Get("path"), Limit: 10000}
 	if v := q.Get("since"); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
 			opts.Since = t
@@ -232,7 +256,7 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 	for i, s := range subs {
 		var m map[string]any
 		if len(s.Fields) > 0 {
-			json.Unmarshal(s.Fields, &m)
+			json.Unmarshal(s.Fields, &m) // best-effort: export partial data rather than fail
 		}
 		parsed[i] = m
 		for k := range m {
@@ -250,11 +274,11 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 
 	cw := csv.NewWriter(w)
 	// Header row: fixed columns + dynamic field columns.
-	header := append([]string{"id", "path", "created_at", "submitter", "node", "ip"}, fieldKeys...)
+	header := append([]string{"id", "path", "created_at", "submitter", "submitter_name", "node", "ip"}, fieldKeys...)
 	cw.Write(header)
 
 	for i, s := range subs {
-		row := []string{s.ID, s.Path, s.CreatedAt, s.Submitter, s.Node, s.IP}
+		row := []string{s.ID, s.Path, s.CreatedAt, s.Submitter, s.SubmitterName, s.Node, s.IP}
 		for _, k := range fieldKeys {
 			val := ""
 			if v, ok := parsed[i][k]; ok {

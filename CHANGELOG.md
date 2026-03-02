@@ -17,9 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `form.submission` webhook events.
 - Form metadata via `[[forms.endpoints]]` in `tspages.toml` for adding names, descriptions, and
   field labels/types to forms. Unannotated forms infer display names automatically.
+- Smart column summaries in the submissions table: numeric fields show min–max and average,
+  categorical fields show unique count, and free-text fields omit the stat. Configurable per-field
+  via the `aggregate` option in field descriptors.
 - Submissions API: list, get, delete, bulk delete, and CSV/JSON export at
   `/sites/{site}/submissions`.
 - Submissions admin UI with transposed table view, grouped by form path, with CSV export.
+- Per-row actions menu on submissions table with "View details" (full submission data overlay) and
+  "Delete" (admin-only) actions, using the HTML Popover API.
+- Column sorting on the submissions table. Click any column header to sort; click again to toggle
+  direction. Supports sorting by submitter, date, and any dynamic field column via `sort` and `dir`
+  query parameters.
 
 ### Fixed
 

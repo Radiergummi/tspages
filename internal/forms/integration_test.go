@@ -138,8 +138,10 @@ func TestFormSubmissionIntegration(t *testing.T) {
 	}
 
 	// 9. DELETE the submission.
-	if err := rec.DeleteSubmission("testsite", sub.ID); err != nil {
+	if deleted, err := rec.DeleteSubmission("testsite", sub.ID); err != nil {
 		t.Fatal(err)
+	} else if !deleted {
+		t.Error("expected deleted=true")
 	}
 
 	// 10. Verify it's gone.

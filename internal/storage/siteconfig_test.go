@@ -1055,6 +1055,37 @@ func TestValidateSiteConfig_FormsValidFieldTypes(t *testing.T) {
 	}
 }
 
+func TestValidateSiteConfig_FormsValidAggregates(t *testing.T) {
+	valid := []string{"", "unique", "total", "count_empty", "count_not_empty",
+		"percent_empty", "percent_not_empty", "sum", "avg", "mean", "median",
+		"min", "max", "range"}
+	for _, agg := range valid {
+		cfg := SiteConfig{
+			Forms: &FormsConfig{
+				Endpoints: []FormEndpoint{
+					{Path: "/f", Fields: []FormField{{Key: "k", Aggregate: agg}}},
+				},
+			},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("aggregate %q should be valid, got: %v", agg, err)
+		}
+	}
+}
+
+func TestValidateSiteConfig_FormsInvalidAggregate(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{
+				{Path: "/f", Fields: []FormField{{Key: "k", Aggregate: "bogus"}}},
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for invalid aggregate")
+	}
+}
+
 func TestSiteConfig_Merge_FormsEnabled(t *testing.T) {
 	defaults := SiteConfig{
 		Forms: &FormsConfig{Enabled: boolPtr(true)},

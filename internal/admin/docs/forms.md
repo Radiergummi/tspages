@@ -82,13 +82,55 @@ Metadata is optional and purely for display in the admin dashboard. Paths withou
 
 ### Field descriptors
 
-| Field   | Type     | Description                                                    |
-| ------- | -------- | -------------------------------------------------------------- |
-| `key`   | `string` | Form field name (matches `<input name="...">` in HTML).        |
-| `label` | `string` | Display label in the dashboard (overrides automatic inference). |
-| `type`  | `string` | Display hint: `text`, `email`, `number`, `url`, `tel`, `date`. |
+| Field       | Type     | Description                                                    |
+| ----------- | -------- | -------------------------------------------------------------- |
+| `key`       | `string` | Form field name (matches `<input name="...">` in HTML).        |
+| `label`     | `string` | Display label in the dashboard (overrides automatic inference). |
+| `type`      | `string` | Display hint: `text`, `email`, `number`, `url`, `tel`, `date`. |
+| `aggregate` | `string` | Summary function for the table footer (see below).             |
 
 Field `type` is a display hint only -- it does not enforce server-side validation.
+
+### Column summary
+
+The submissions table footer shows a summary statistic per column. By default, tspages auto-detects
+the appropriate summary:
+
+- **Numeric columns** (all values parse as numbers): shows `<min>–<max>, Ø <avg>`
+- **Categorical columns** (some values repeat): shows the count of unique values
+- **All-unique columns** (e.g., free-text messages): omitted (the count would equal the row count)
+
+Set `aggregate` on a field descriptor to override auto-detection:
+
+```toml
+[[forms.endpoints.fields]]
+key = "rating"
+label = "Rating"
+aggregate = "avg"
+```
+
+**General aggregates** (work on any value type):
+
+| Value             | Output          | Description                    |
+| ----------------- | --------------- | ------------------------------ |
+| `unique`          | `3 unique`      | Count of distinct values       |
+| `total`           | `5`             | Total number of submissions    |
+| `count_empty`     | `2`             | Count of empty values          |
+| `count_not_empty` | `5`             | Count of non-empty values      |
+| `percent_empty`   | `29%`           | Percentage empty               |
+| `percent_not_empty`| `71%`          | Percentage non-empty           |
+
+**Numeric aggregates** (non-numeric values are skipped):
+
+| Value    | Output     | Description                   |
+| -------- | ---------- | ----------------------------- |
+| `sum`    | `150`      | Sum of all values             |
+| `avg`    | `Ø 4.2`   | Arithmetic mean               |
+| `mean`   | `Ø 4.2`   | Alias for `avg`               |
+| `median` | `4`        | Median value                  |
+| `min`    | `1`        | Minimum value                 |
+| `max`    | `10`       | Maximum value                 |
+| `range`  | `1–10`     | Min and max                   |
 
 ## How submissions work
 
@@ -169,7 +211,7 @@ Query parameters:
 | `path`    | `string` | --      | Filter by form path          |
 | `since`   | `string` | --      | Lower bound (RFC 3339)       |
 | `until`   | `string` | --      | Upper bound (RFC 3339)       |
-| `limit`   | `int`    | `50`    | Max results                  |
+| `limit`   | `int`    | `50`    | Max results (capped at 1000) |
 | `offset`  | `int`    | `0`     | Pagination offset            |
 
 Returns a JSON array of submissions, ordered newest first.
@@ -188,7 +230,7 @@ Returns a single submission object, or 404 if not found.
 DELETE /sites/{site}/submissions/{id}
 ```
 
-Returns 204 No Content. Requires `admin` capability.
+Returns 204 No Content, or 404 if the submission does not exist. Requires `admin` capability.
 
 ### Bulk delete submissions
 
@@ -203,9 +245,12 @@ Query parameters:
 | `path`    | `string` | Only delete submissions from this path     |
 | `before`  | `string` | Only delete submissions before this date   |
 
+At least one filter (`path` or `before`) is required -- unfiltered bulk deletes are rejected with 400.
+
 Returns `{"deleted": N}`. Requires `admin` capability.
 
-An HTML form alias is available for browsers: `POST /sites/{site}/submissions/delete`.
+An HTML form alias is available for browsers: `POST /sites/{site}/submissions/delete` (redirects
+back to the submissions page).
 
 ### Export submissions
 

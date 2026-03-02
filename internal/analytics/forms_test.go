@@ -216,6 +216,138 @@ func TestListSubmissions_OrderDescending(t *testing.T) {
 	}
 }
 
+func TestListSubmissions_SortByDate(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "old", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"},
+		{ID: "new", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T12:00:00Z"},
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Date ASC.
+	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{Sort: []SortField{{Column: "date"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subs[0].ID != "old" {
+		t.Errorf("date ASC: first = %q, want old", subs[0].ID)
+	}
+
+	// Date DESC.
+	subs, err = r.ListSubmissions("docs", ListSubmissionsOpts{Sort: []SortField{{Column: "date", Desc: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subs[0].ID != "new" {
+		t.Errorf("date DESC: first = %q, want new", subs[0].ID)
+	}
+}
+
+func TestListSubmissions_SortBySubmitter(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "s1", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), Submitter: "zara@example.com", CreatedAt: "2026-02-24T10:00:00Z"},
+		{ID: "s2", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), Submitter: "alice@example.com", CreatedAt: "2026-02-24T11:00:00Z"},
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Submitter ASC.
+	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{Sort: []SortField{{Column: "submitter"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subs[0].ID != "s2" {
+		t.Errorf("submitter ASC: first = %q, want s2 (alice)", subs[0].ID)
+	}
+
+	// Submitter DESC.
+	subs, err = r.ListSubmissions("docs", ListSubmissionsOpts{Sort: []SortField{{Column: "submitter", Desc: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subs[0].ID != "s1" {
+		t.Errorf("submitter DESC: first = %q, want s1 (zara)", subs[0].ID)
+	}
+}
+
+func TestListSubmissions_SortByFieldKey(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "s1", Site: "docs", Path: "/a", Fields: json.RawMessage(`{"email":"zara@test.com"}`), CreatedAt: "2026-02-24T10:00:00Z"},
+		{ID: "s2", Site: "docs", Path: "/a", Fields: json.RawMessage(`{"email":"alice@test.com"}`), CreatedAt: "2026-02-24T11:00:00Z"},
+		{ID: "s3", Site: "docs", Path: "/a", Fields: json.RawMessage(`{"email":"mike@test.com"}`), CreatedAt: "2026-02-24T12:00:00Z"},
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Sort by email ASC.
+	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{Sort: []SortField{{Column: "email"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subs[0].ID != "s2" {
+		t.Errorf("email ASC: first = %q, want s2 (alice)", subs[0].ID)
+	}
+	if subs[2].ID != "s1" {
+		t.Errorf("email ASC: last = %q, want s1 (zara)", subs[2].ID)
+	}
+
+	// Sort by email DESC.
+	subs, err = r.ListSubmissions("docs", ListSubmissionsOpts{Sort: []SortField{{Column: "email", Desc: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if subs[0].ID != "s1" {
+		t.Errorf("email DESC: first = %q, want s1 (zara)", subs[0].ID)
+	}
+}
+
+func TestListSubmissions_MultiSort(t *testing.T) {
+	r := newTestRecorder(t)
+
+	for _, s := range []Submission{
+		{ID: "ms1", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), Submitter: "alice@example.com", CreatedAt: "2026-02-24T10:00:00Z"},
+		{ID: "ms2", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), Submitter: "alice@example.com", CreatedAt: "2026-02-24T12:00:00Z"},
+		{ID: "ms3", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), Submitter: "bob@example.com", CreatedAt: "2026-02-24T11:00:00Z"},
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Primary: submitter ASC, secondary: date DESC.
+	// alice (ms2 12:00, ms1 10:00), then bob (ms3 11:00).
+	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{
+		Sort: []SortField{
+			{Column: "submitter"},
+			{Column: "date", Desc: true},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 3 {
+		t.Fatalf("got %d, want 3", len(subs))
+	}
+	want := []string{"ms2", "ms1", "ms3"}
+	for i, w := range want {
+		if subs[i].ID != w {
+			t.Errorf("subs[%d].ID = %q, want %q", i, subs[i].ID, w)
+		}
+	}
+}
+
 func TestDeleteSubmission(t *testing.T) {
 	r := newTestRecorder(t)
 
@@ -225,8 +357,12 @@ func TestDeleteSubmission(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := r.DeleteSubmission("docs", "del1"); err != nil {
+	deleted, err := r.DeleteSubmission("docs", "del1")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !deleted {
+		t.Error("expected deleted=true")
 	}
 
 	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{})

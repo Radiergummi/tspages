@@ -111,6 +111,18 @@ var migrations = []func(*sql.Tx) error{
 		_, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_path ON form_submissions(site, path)`)
 		return err
 	},
+
+	// 3: add submitter_pic_url to form_submissions.
+	func(tx *sql.Tx) error {
+		_, err := tx.Exec(`ALTER TABLE form_submissions ADD COLUMN submitter_pic_url TEXT NOT NULL DEFAULT ''`)
+		return err
+	},
+
+	// 4: add submitter_name to form_submissions.
+	func(tx *sql.Tx) error {
+		_, err := tx.Exec(`ALTER TABLE form_submissions ADD COLUMN submitter_name TEXT NOT NULL DEFAULT ''`)
+		return err
+	},
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full

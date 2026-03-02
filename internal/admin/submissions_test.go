@@ -197,14 +197,87 @@ func TestBulkDeleteSubmissions_PostAlias(t *testing.T) {
 
 	h.ServeHTTP(w, r)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303; body = %s", w.Code, w.Body.String())
+	}
+	loc := w.Header().Get("Location")
+	if loc != "/sites/docs/submissions?path=/contact" {
+		t.Errorf("Location = %q", loc)
 	}
 
-	var resp map[string]int64
-	json.NewDecoder(w.Body).Decode(&resp)
-	if resp["deleted"] != 2 {
-		t.Fatalf("deleted = %d, want 2", resp["deleted"])
+	// Verify the delete actually happened.
+	subs, _ := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	if len(subs) != 1 {
+		t.Fatalf("remaining = %d, want 1", len(subs))
+	}
+}
+
+func TestBulkDeleteSubmissions_RequiresFilter(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	seedSubmissions(t, rec)
+
+	h := &BulkDeleteSubmissionsHandler{handlerDeps{recorder: rec}}
+	r := reqWithAuth("DELETE", "/sites/docs/submissions", adminCaps, adminID)
+	r.SetPathValue("site", "docs")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+
+	// Verify nothing was deleted.
+	subs, _ := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	if len(subs) != 3 {
+		t.Fatalf("remaining = %d, want 3", len(subs))
+	}
+}
+
+func TestDeleteSubmission_NotFound(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+
+	h := &DeleteSubmissionHandler{handlerDeps{recorder: rec}}
+	r := reqWithAuth("DELETE", "/sites/docs/submissions/nonexistent", adminCaps, adminID)
+	r.SetPathValue("site", "docs")
+	r.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestDeleteSubmission_PostAlias(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	seedSubmissions(t, rec)
+
+	h := &DeleteSubmissionHandler{handlerDeps{recorder: rec}}
+	r := httptest.NewRequest("POST", "/sites/docs/submissions/s1/delete", strings.NewReader("path=/contact"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx := auth.ContextWithCaps(r.Context(), adminCaps)
+	ctx = auth.ContextWithIdentity(ctx, adminID)
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+	r.SetPathValue("id", "s1")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303; body = %s", w.Code, w.Body.String())
+	}
+	loc := w.Header().Get("Location")
+	if loc != "/sites/docs/submissions?path=/contact" {
+		t.Errorf("Location = %q", loc)
+	}
+
+	// Verify deleted.
+	subs, _ := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	if len(subs) != 2 {
+		t.Fatalf("remaining = %d, want 2", len(subs))
 	}
 }
 
@@ -280,7 +353,7 @@ func TestSubmissions_Forbidden(t *testing.T) {
 		{"list", &SubmissionsHandler{deps}, "GET", "/sites/docs/submissions.json"},
 		{"detail", &SubmissionDetailHandler{deps}, "GET", "/sites/docs/submissions/s1"},
 		{"delete", &DeleteSubmissionHandler{deps}, "DELETE", "/sites/docs/submissions/s1"},
-		{"bulk-delete", &BulkDeleteSubmissionsHandler{deps}, "DELETE", "/sites/docs/submissions"},
+		{"bulk-delete", &BulkDeleteSubmissionsHandler{deps}, "DELETE", "/sites/docs/submissions?path=/x"},
 		{"export", &ExportSubmissionsHandler{deps}, "GET", "/sites/docs/submissions/export"},
 	}
 
