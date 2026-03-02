@@ -14,7 +14,7 @@ import {
 function main(): void {
   Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler);
 
-  const mainNode = document.querySelector<HTMLElement>("main")!;
+  const mainNode = document.querySelector<HTMLElement>("[data-site]")!;
   const siteName = mainNode.dataset.site!;
 
   // region Sparkline
@@ -168,28 +168,48 @@ function main(): void {
   // region Config editing (progressive enhancement)
 
   const configDetails = document.getElementById("config-details") as HTMLDetailsElement | null;
+
   if (configDetails) {
-    const spaToggle = configDetails.querySelector<HTMLInputElement>("[name='spa_routing'][type='checkbox']");
-    const dirToggle = configDetails.querySelector<HTMLInputElement>("[name='directory_listing'][type='checkbox']");
+    const spaToggle = configDetails.querySelector<HTMLInputElement>(
+      "[name='spa_routing'][type='checkbox']",
+    );
+    const dirToggle = configDetails.querySelector<HTMLInputElement>(
+      "[name='directory_listing'][type='checkbox']",
+    );
 
     spaToggle?.addEventListener("change", () => {
-      if (dirToggle) dirToggle.disabled = spaToggle.checked;
-    });
-    dirToggle?.addEventListener("change", () => {
-      if (spaToggle) spaToggle.disabled = dirToggle.checked;
+      if (dirToggle) {
+        dirToggle.disabled = spaToggle.checked;
+      }
     });
 
-    if (spaToggle?.checked && dirToggle) dirToggle.disabled = true;
-    if (dirToggle?.checked && spaToggle) spaToggle.disabled = true;
+    dirToggle?.addEventListener("change", () => {
+      if (spaToggle) {
+        spaToggle.disabled = dirToggle.checked;
+      }
+    });
+
+    if (spaToggle?.checked && dirToggle) {
+      dirToggle.disabled = true;
+    }
+
+    if (dirToggle?.checked && spaToggle) {
+      spaToggle.disabled = true;
+    }
 
     const webhookURL = configDetails.querySelector<HTMLInputElement>("[name='webhook_url']");
-    const webhookEvents = configDetails.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
+    const webhookEvents =
+      configDetails.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
     const webhookSecret = configDetails.querySelector<HTMLInputElement>("[name='webhook_secret']");
 
     function updateWebhookFields(): void {
       const hasURL = !!webhookURL?.value.trim();
       webhookEvents.forEach((cb) => (cb.disabled = !hasURL));
-      if (webhookSecret) webhookSecret.disabled = !hasURL;
+
+      if (webhookSecret) {
+        webhookSecret.disabled = !hasURL;
+      }
+
       if (hasURL && !Array.from(webhookEvents).some((cb) => cb.checked)) {
         webhookEvents.forEach((cb) => (cb.checked = true));
       }
@@ -201,12 +221,16 @@ function main(): void {
     const toggleBtn = document.querySelector<HTMLButtonElement>("[data-action='config-toggle']");
 
     function syncToggleLabel(): void {
-      if (toggleBtn) toggleBtn.textContent = configDetails.open ? "Cancel" : "Edit";
+      if (toggleBtn && configDetails) {
+        toggleBtn.textContent = configDetails.open ? "Cancel" : "Edit";
+      }
     }
 
     function closeConfig(): void {
-      configDetails.querySelector("form")?.reset();
-      configDetails.open = false;
+      if (configDetails) {
+        configDetails.querySelector("form")?.reset();
+        configDetails.open = false;
+      }
     }
 
     toggleBtn?.addEventListener("click", () => {
