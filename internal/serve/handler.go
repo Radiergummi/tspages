@@ -500,7 +500,7 @@ func serveFileContent(w http.ResponseWriter, r *http.Request, name string) {
 			return
 		}
 		// Likely FD exhaustion; ask client to retry after a random backoff.
-		w.Header().Set("Retry-After", strconv.Itoa(rand.IntN(4)+2))
+		w.Header().Set("Retry-After", strconv.Itoa(rand.IntN(4)+2)) //nolint:gosec // G404: jitter for Retry-After, not security-sensitive
 		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
