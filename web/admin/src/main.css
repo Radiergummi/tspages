@@ -54,26 +54,22 @@
   }
 
   .btn-outline {
-    @apply border-muted
-        hover:border-blue-500
-        active:bg-base-50 dark:active:bg-base-900;
+    @apply border-muted hover:border-blue-500 active:bg-base-50 dark:active:bg-base-900;
   }
 
   .btn-ghost {
-    @apply border-transparent bg-base-100 dark:bg-base-800
-        hover:bg-base-200 dark:hover:bg-base-700
-        active:bg-base-300 dark:active:bg-base-700;
+    @apply border-transparent bg-base-100 dark:bg-base-800 hover:bg-base-200 dark:hover:bg-base-700
+    active:bg-base-300 dark:active:bg-base-700;
   }
 
   .pill {
-    @apply px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline select-none outline-hidden
-        text-muted transition-all duration-150 ease-in-out
-        dark:shadow-xs dark:hover:shadow-sm hover:-translate-y-[0.5px]
-        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-        active:shadow-none active:translate-y-[0.5px]
-        focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
-        aria-[current=step]:text-white aria-[current=step]:bg-blue-500 aria-[current=step]:shadow-sm
-        aria-[current=step]:hover:bg-blue-600 aria-[current=step]:hover:text-white;
+    @apply px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline select-none outline-hidden text-muted
+    transition-all duration-150 ease-in-out dark:shadow-xs dark:hover:shadow-sm hover:-translate-y-[0.5px]
+    hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900 active:shadow-none
+    active:translate-y-[0.5px] focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2
+    focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black aria-[current=step]:text-white
+    aria-[current=step]:bg-blue-500 aria-[current=step]:shadow-sm aria-[current=step]:hover:bg-blue-600
+    aria-[current=step]:hover:text-white;
   }
 
   .btn-icon {
@@ -141,6 +137,36 @@
   :has(#view-list:checked) [data-view-panel="grid"] { display: none; }
   :has(#view-grid:checked) [data-view-panel="list"] { display: none; }
 
+  .popover-menu {
+    @apply border border-default bg-surface rounded-lg shadow-lg p-1 min-w-40;
+    inset: unset;
+    margin: 0;
+    top: anchor(bottom, 0.25rem);
+    right: anchor(right);
+  }
+
+  .popover-menu button,
+  .popover-menu a {
+    @apply flex items-center gap-2 w-full px-3 py-1.5 text-sm text-start rounded-md
+        no-underline cursor-pointer bg-transparent border-0 outline-hidden
+        transition-colors duration-150
+        hover:bg-base-100 dark:hover:bg-base-800
+        focus-visible:ring-2 focus-visible:ring-blue-500/40;
+  }
+
+  .popover-menu .menu-danger {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .popover-detail {
+    @apply border border-default bg-surface rounded-lg shadow-2xl p-0 w-full max-w-lg;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .popover-detail::backdrop {
+    background: rgb(0 0 0 / 25%);
+  }
 
   .toggle-track {
     @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
