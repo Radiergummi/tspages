@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"tspages/internal/timeseries"
 )
+
+var formBucketSQL = timeseries.BucketSQL("created_at")
 
 // Submission represents a single form submission stored in the database.
 type Submission struct {
@@ -211,4 +215,50 @@ func (r *Recorder) PurgeFormSubmissions(site string) (int64, error) {
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// SubmissionsOverTime returns time-bucketed submission counts for a site.
+// If path is non-empty, results are filtered to that path. Zero from/to values
+// are treated as unbounded on that side.
+func (r *Recorder) SubmissionsOverTime(site, path string, from, to time.Time) ([]TimeBucket, error) {
+	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
+	args := []any{stepSecs, stepSecs, site}
+	where := `site = ?`
+
+	if path != "" {
+		where += ` AND path = ?`
+		args = append(args, path)
+	}
+	if !from.IsZero() {
+		where += ` AND created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	if !to.IsZero() {
+		where += ` AND created_at <= ?`
+		args = append(args, to.UTC().Format(time.RFC3339))
+	}
+
+	rows, err := r.db.Query(
+		`SELECT `+formBucketSQL+` AS bucket, COUNT(*) FROM form_submissions WHERE `+where+` GROUP BY bucket ORDER BY bucket`, args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sparse []TimeBucket
+	for rows.Next() {
+		var b TimeBucket
+		if err := rows.Scan(&b.Time, &b.Count); err != nil {
+			return nil, err
+		}
+		sparse = append(sparse, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return timeseries.FillBuckets(sparse, from, to,
+		func(b TimeBucket) string { return b.Time },
+		func(t string) TimeBucket { return TimeBucket{Time: t} },
+	), nil
 }

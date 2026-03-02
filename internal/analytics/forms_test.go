@@ -436,6 +436,62 @@ func TestFormPaths(t *testing.T) {
 	}
 }
 
+func TestRecorder_SubmissionsOverTime(t *testing.T) {
+	r := newTestRecorder(t)
+
+	// Insert submissions across several hours and two paths.
+	for _, s := range []Submission{
+		{ID: "ot1", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"},
+		{ID: "ot2", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:05:00Z"},
+		{ID: "ot3", Site: "docs", Path: "/feedback", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T10:00:00Z"},
+		{ID: "ot4", Site: "docs", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T12:00:00Z"},
+		{ID: "ot5", Site: "other", Path: "/contact", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T08:00:00Z"},
+	} {
+		if err := r.RecordSubmission(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from := time.Date(2026, 2, 24, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 2, 25, 0, 0, 0, 0, time.UTC)
+
+	// All paths for "docs" — should count ot1..ot4 (4 total).
+	buckets, err := r.SubmissionsOverTime("docs", "", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var total int64
+	for _, b := range buckets {
+		total += b.Count
+	}
+	if total != 4 {
+		t.Errorf("total count = %d, want 4", total)
+	}
+
+	// Filter to /contact only — should count ot1, ot2, ot4 (3 total).
+	buckets, err = r.SubmissionsOverTime("docs", "/contact", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total = 0
+	for _, b := range buckets {
+		total += b.Count
+	}
+	if total != 3 {
+		t.Errorf("path-filtered total = %d, want 3", total)
+	}
+
+	// Buckets should be contiguous (FillBuckets fills gaps).
+	if len(buckets) < 2 {
+		t.Fatalf("expected multiple buckets, got %d", len(buckets))
+	}
+	for i := 1; i < len(buckets); i++ {
+		if buckets[i].Time <= buckets[i-1].Time {
+			t.Errorf("buckets not ascending at index %d: %s <= %s", i, buckets[i].Time, buckets[i-1].Time)
+		}
+	}
+}
+
 func TestPurgeFormSubmissions(t *testing.T) {
 	r := newTestRecorder(t)
 
