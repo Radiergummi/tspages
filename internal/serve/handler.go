@@ -43,9 +43,11 @@ type Handler struct {
 	cachedID    string
 	cachedRoot  string // resolved content root (no symlinks)
 	cachedCfg   storage.SiteConfig
-	hintCache   map[string][]string
-	cachedFiles map[string]struct{}
-	cachedDirs  map[string]struct{} // inferred from file paths
+	hintCache          map[string][]string
+	cachedFiles        map[string]struct{}
+	cachedDirs         map[string]struct{} // inferred from file paths
+	sortedHeaderPats   []string            // pre-sorted header patterns from cachedCfg
+	cached404Body      []byte              // custom 404 page content (nil = use default)
 }
 
 // isUnderRoot reports whether path is equal to root or a child of it.
@@ -136,6 +138,34 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 		h.cachedDirs = dirs
 	}
 
+	// Pre-sort header patterns so applyHeaders avoids per-request allocation + sort.
+	if len(merged.Headers) > 0 {
+		pats := make([]string, 0, len(merged.Headers))
+		for p := range merged.Headers {
+			pats = append(pats, p)
+		}
+		sort.Strings(pats)
+		h.sortedHeaderPats = pats
+	} else {
+		h.sortedHeaderPats = nil
+	}
+
+	// Cache custom 404 body so serve404 avoids per-request os.ReadFile.
+	h.cached404Body = nil
+	notFoundPage := merged.NotFoundPage
+	if notFoundPage == "" {
+		notFoundPage = "404.html"
+	}
+	if h.cachedFiles != nil {
+		if _, ok := h.cachedFiles[notFoundPage]; ok {
+			if body, err := os.ReadFile(filepath.Join(rr, notFoundPage)); err == nil {
+				h.cached404Body = body
+			}
+		}
+	} else if body, err := os.ReadFile(filepath.Join(rr, notFoundPage)); err == nil {
+		h.cached404Body = body
+	}
+
 	h.cachedID = id
 	h.cachedRoot = rr
 	h.cachedCfg = merged
@@ -156,6 +186,8 @@ func (h *Handler) InvalidateConfig() {
 	h.hintCache = nil
 	h.cachedFiles = nil
 	h.cachedDirs = nil
+	h.sortedHeaderPats = nil
+	h.cached404Body = nil
 	h.mu.Unlock()
 }
 
@@ -279,7 +311,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.serveSPAFallback(w, r, resolvedRoot, deploymentID, indexPage, cfg)
 			return
 		}
-		h.serve404(w, resolvedRoot, cfg)
+		h.serve404(w)
 		return
 	}
 
@@ -305,7 +337,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.serveSPAFallback(w, r, resolvedRoot, deploymentID, indexPage, cfg)
 			return
 		}
-		h.serve404(w, resolvedRoot, cfg)
+		h.serve404(w)
 		return
 	}
 
@@ -334,15 +366,9 @@ func (h *Handler) serveSPAFallback(w http.ResponseWriter, r *http.Request, resol
 }
 
 func (h *Handler) applyHeaders(w http.ResponseWriter, reqPath string, cfg storage.SiteConfig) {
-	// Sort patterns so that more specific patterns (longer, no wildcard)
-	// are applied after less specific ones, producing deterministic results
-	// when multiple patterns match.
-	patterns := make([]string, 0, len(cfg.Headers))
-	for pattern := range cfg.Headers {
-		patterns = append(patterns, pattern)
-	}
-	sort.Strings(patterns)
-	for _, pattern := range patterns {
+	// sortedHeaderPats is pre-sorted in resolve() so that more specific
+	// patterns (longer, no wildcard) are applied after less specific ones.
+	for _, pattern := range h.sortedHeaderPats {
 		if matchHeaderPath(pattern, "/"+reqPath) {
 			for name, value := range cfg.Headers[pattern] {
 				w.Header().Set(name, value)
@@ -707,20 +733,13 @@ func cleanURLRedirect(reqPath string) (string, bool) {
 	return strings.TrimSuffix(reqPath, path.Ext(reqPath)), true
 }
 
-func (h *Handler) serve404(w http.ResponseWriter, resolvedRoot string, cfg storage.SiteConfig) {
-	notFoundPage := cfg.NotFoundPage
-	if notFoundPage == "" {
-		notFoundPage = "404.html"
-	}
-	custom404 := filepath.Join(resolvedRoot, notFoundPage)
-	if h.fileExists(notFoundPage, custom404) {
-		if content, err := os.ReadFile(custom404); err == nil {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write(content)
-			return
-		}
+func (h *Handler) serve404(w http.ResponseWriter) {
+	if h.cached404Body != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, no-cache, stale-while-revalidate=60")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write(h.cached404Body)
+		return
 	}
 	h.serveDefault404(w)
 }
