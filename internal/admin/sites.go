@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -60,6 +61,16 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if !m.CreatedAt.IsZero() {
 					ss.LastDeployedAt = m.CreatedAt.Format(time.RFC3339)
 				}
+			}
+		}
+		if p, err := h.store.ReadCurrentPreview(s.Name); err == nil {
+			ss.OGTitle = p.Title
+			ss.OGDescription = p.Description
+			if p.OGImage != "" {
+				ss.OGImage = fmt.Sprintf("https://%s.%s%s", s.Name, h.dnsSuffix, p.OGImage)
+			}
+			if p.Favicon != "" {
+				ss.Favicon = fmt.Sprintf("https://%s.%s%s", s.Name, h.dnsSuffix, p.Favicon)
 			}
 		}
 		out = append(out, ss)

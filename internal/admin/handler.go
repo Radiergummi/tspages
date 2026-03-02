@@ -20,6 +20,10 @@ type SiteStatus struct {
 	LastDeployedByAvatar string `json:"last_deployed_by_avatar,omitempty"`
 	LastDeployedAt       string `json:"last_deployed_at,omitempty"`
 	CanDeploy            bool   `json:"can_deploy,omitempty"`
+	OGTitle              string `json:"og_title,omitempty"`
+	OGDescription        string `json:"og_description,omitempty"`
+	OGImage              string `json:"og_image,omitempty"`
+	Favicon              string `json:"favicon,omitempty"`
 }
 
 // SitesResponse is the JSON response for GET /sites.
