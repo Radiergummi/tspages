@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -26,6 +27,57 @@ func userVersion(t *testing.T, db *sql.DB) int {
 		t.Fatal(err)
 	}
 	return v
+}
+
+func TestMigrateFilename(t *testing.T) {
+	t.Run("renames old to new", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "old.db"), []byte("main"), 0644)
+		os.WriteFile(filepath.Join(dir, "old.db-wal"), []byte("wal"), 0644)
+		os.WriteFile(filepath.Join(dir, "old.db-shm"), []byte("shm"), 0644)
+
+		if err := MigrateFilename(dir, "old.db", "new.db"); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, name := range []string{"new.db", "new.db-wal", "new.db-shm"} {
+			if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+				t.Errorf("%s should exist: %v", name, err)
+			}
+		}
+		for _, name := range []string{"old.db", "old.db-wal", "old.db-shm"} {
+			if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+				t.Errorf("%s should not exist", name)
+			}
+		}
+	})
+
+	t.Run("no-op when new exists", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "old.db"), []byte("old"), 0644)
+		os.WriteFile(filepath.Join(dir, "new.db"), []byte("new"), 0644)
+
+		if err := MigrateFilename(dir, "old.db", "new.db"); err != nil {
+			t.Fatal(err)
+		}
+
+		// old.db should still exist (not removed)
+		if _, err := os.Stat(filepath.Join(dir, "old.db")); err != nil {
+			t.Error("old.db should still exist")
+		}
+		// new.db should have original content
+		data, _ := os.ReadFile(filepath.Join(dir, "new.db"))
+		if string(data) != "new" {
+			t.Errorf("new.db content = %q, want %q", data, "new")
+		}
+	})
+
+	t.Run("no-op when neither exists", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := MigrateFilename(dir, "old.db", "new.db"); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestApply_FreshDB(t *testing.T) {

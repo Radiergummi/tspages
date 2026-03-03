@@ -85,8 +85,13 @@ func main() {
 	store := storage.New(cfg.Server.DataDir)
 	store.CleanupOrphans()
 
+	if err := db.MigrateFilename(cfg.Server.DataDir, "analytics.db", "tspages.db"); err != nil {
+		slog.Error("migrating database filename", "component", "server", "err", err)
+		os.Exit(1)
+	}
+
 	database, err := db.Open(
-		filepath.Join(cfg.Server.DataDir, "analytics.db"),
+		filepath.Join(cfg.Server.DataDir, "tspages.db"),
 		analytics.Migrations,
 		submissions.Migrations,
 		webhooks.Migrations,

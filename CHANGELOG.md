@@ -46,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `http.CrossOriginProtection`. Cross-origin browser requests are rejected via `Sec-Fetch-Site` /
   `Origin` header checks. Non-browser API clients (CLI, webhooks) are unaffected.
 
+### Changed
+
+- The SQLite database file has been renamed from `analytics.db` to `tspages.db` to reflect that it
+  now stores submissions, webhooks, and push subscriptions in addition to analytics. Existing
+  installations are migrated automatically on startup.
+
 ### Fixed
 
 - `form.submission` webhook payloads now send multi-value fields (checkboxes, multi-selects) as JSON

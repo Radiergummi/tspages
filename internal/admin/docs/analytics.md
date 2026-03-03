@@ -6,7 +6,7 @@ category: reference
 # Analytics
 
 tspages records per-request analytics for all sites (enabled by default). Data is stored in a local
-SQLite database at `{data_dir}/analytics.db`.
+SQLite database at `{data_dir}/tspages.db`.
 
 Each event captures: timestamp, site, path, HTTP status, user identity (login name, display name),
 node info (name, IP, OS, tags), and device type. Recording is async and non-blocking -- events are

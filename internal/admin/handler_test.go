@@ -96,7 +96,7 @@ func openTestDBAt(t *testing.T, path string, migrations ...[]func(*sql.Tx) error
 
 func setupRecorder(t *testing.T) *analytics.Recorder {
 	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "analytics.db")
+	dbPath := filepath.Join(t.TempDir(), "test.db")
 	db := openTestDBAt(t, dbPath, analytics.Migrations)
 	r := analytics.NewRecorder(db)
 	for i := 0; i < 3; i++ {

@@ -8,7 +8,7 @@
 set -euo pipefail
 
 DATA="data"
-DB="$DATA/analytics.db"
+DB="$DATA/tspages.db"
 
 rm -rf "$DATA"
 mkdir -p "$DATA"

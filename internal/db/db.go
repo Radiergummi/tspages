@@ -6,10 +6,37 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
+
+// MigrateFilename renames a database file (and its WAL/SHM sidecars) from
+// oldName to newName within dir. If newName already exists, it does nothing.
+func MigrateFilename(dir, oldName, newName string) error {
+	oldPath := filepath.Join(dir, oldName)
+	newPath := filepath.Join(dir, newName)
+
+	if _, err := os.Stat(newPath); err == nil {
+		return nil // already migrated
+	}
+	if _, err := os.Stat(oldPath); errors.Is(err, os.ErrNotExist) {
+		return nil // nothing to migrate
+	}
+
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		err := os.Rename(oldPath+suffix, newPath+suffix)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("db: renaming %s to %s: %w", oldName+suffix, newName+suffix, err)
+		}
+	}
+	slog.Info("migrated database file", "component", "db", "from", oldName, "to", newName)
+	return nil
+}
 
 // Open opens a SQLite database at dbPath with WAL mode and busy timeout, then
 // applies all provided migrations in order. Each element of migrations is a
