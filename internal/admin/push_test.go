@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"tspages/internal/auth"
-	"tspages/internal/pushnotify"
 	dbpkg "tspages/internal/db"
+	"tspages/internal/pushnotify"
 
 	_ "modernc.org/sqlite"
 )
@@ -43,10 +43,10 @@ func pushReq(method, path, body string, caps []auth.Cap, id auth.Identity) *http
 }
 
 var (
-	pushAdminID   = auth.Identity{LoginName: "admin@example.com", DisplayName: "Admin"}
-	pushAdminCaps = []auth.Cap{{Access: "admin"}}
+	pushAdminID    = auth.Identity{LoginName: "admin@example.com", DisplayName: "Admin"}
+	pushAdminCaps  = []auth.Cap{{Access: "admin"}}
 	pushDeployCaps = []auth.Cap{{Access: "deploy", Sites: []string{"docs"}}}
-	pushViewerID  = auth.Identity{LoginName: "viewer@example.com"}
+	pushViewerID   = auth.Identity{LoginName: "viewer@example.com"}
 	pushViewerCaps = []auth.Cap{{Access: "view"}}
 )
 

@@ -222,7 +222,7 @@ type SubmissionsPageData struct {
 	FieldKeys     []string          `json:"field_keys,omitempty"`
 	FieldLabels   map[string]string `json:"field_labels,omitempty"`
 	NumericFields map[string]bool   `json:"numeric_fields,omitempty"` // fields where all non-empty values are numeric
-	Summary       map[string]string `json:"summary,omitempty"`       // per-field summary (auto-detected or configured)
+	Summary       map[string]string `json:"summary,omitempty"`        // per-field summary (auto-detected or configured)
 	HasSummary    bool              `json:"has_summary,omitempty"`
 	DateSummary   string            `json:"date_summary,omitempty"`
 	TotalCount    int64             `json:"total_count"`

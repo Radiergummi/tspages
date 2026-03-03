@@ -80,7 +80,6 @@ var Migrations = []func(*sql.Tx) error{
 		_, _ = tx.Exec(`ALTER TABLE requests ADD COLUMN profile_pic_url TEXT NOT NULL DEFAULT ''`)
 		return nil
 	},
-
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full
@@ -247,7 +246,6 @@ func (r *Recorder) UniquePages(site string, from, to time.Time) (int64, error) {
 func (r *Recorder) RequestsOverTime(site string, from, to time.Time) ([]TimeBucket, error) {
 	return r.RequestsOverTimeMulti([]string{site}, from, to)
 }
-
 
 func (r *Recorder) RequestsOverTimeByStatus(site string, from, to time.Time) ([]StatusTimeBucket, error) {
 	return r.RequestsOverTimeByStatusMulti([]string{site}, from, to)

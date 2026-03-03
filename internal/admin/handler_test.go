@@ -1133,4 +1133,3 @@ func TestSiteDeploymentsHandler_InvalidSite(t *testing.T) {
 		t.Errorf("status = %d, want 400", rec.Code)
 	}
 }
-

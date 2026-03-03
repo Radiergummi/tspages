@@ -45,9 +45,9 @@ var Migrations = []func(*sql.Tx) error{
 
 // Subscription holds the browser push subscription fields.
 type Subscription struct {
-	Endpoint string `json:"endpoint"`
+	Endpoint  string `json:"endpoint"`
 	KeyP256dh string `json:"key_p256dh"`
-	KeyAuth  string `json:"key_auth"`
+	KeyAuth   string `json:"key_auth"`
 }
 
 // Notifier sends Web Push notifications for form submissions.

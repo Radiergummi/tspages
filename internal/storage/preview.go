@@ -19,11 +19,11 @@ func ExtractPreview(contentDir, indexFile string) Preview {
 	defer f.Close()
 
 	var (
-		p             Preview
-		titleTag      string
-		metaDesc      string
+		p              Preview
+		titleTag       string
+		metaDesc       string
 		appleTouchHref string
-		inTitle       bool
+		inTitle        bool
 	)
 
 	z := html.NewTokenizer(f)
