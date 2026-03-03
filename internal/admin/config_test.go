@@ -254,6 +254,45 @@ func TestPostSiteConfig_FormSubmit(t *testing.T) {
 	}
 }
 
+func TestPostSiteConfig_PreservesEndpoints(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	// Pre-configure form endpoints.
+	enabled := true
+	store.WriteSiteConfig("docs", storage.SiteConfig{
+		Forms: &storage.FormsConfig{
+			Enabled:   &enabled,
+			Endpoints: []storage.FormEndpoint{{Path: "/contact", Name: "Contact"}},
+		},
+	})
+
+	caps := []auth.Cap{{Access: "admin"}}
+	id := auth.Identity{LoginName: "admin@test"}
+	body := "forms=false&forms=true&public=false&analytics=false&spa_routing=false&directory_listing=false&clean_urls=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, caps, id)
+	r.SetPathValue("site", "docs")
+
+	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+
+	cfg, err := store.ReadSiteConfig("docs")
+	if err != nil {
+		t.Fatalf("reading config: %v", err)
+	}
+	if cfg.Forms == nil || !*cfg.Forms.Enabled {
+		t.Fatal("expected forms enabled")
+	}
+	if len(cfg.Forms.Endpoints) != 1 || cfg.Forms.Endpoints[0].Path != "/contact" {
+		t.Fatalf("expected endpoints preserved, got %+v", cfg.Forms.Endpoints)
+	}
+}
+
 func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")

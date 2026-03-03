@@ -57,6 +57,7 @@ type FormField struct {
 	Label     string `toml:"label" json:"label,omitempty"`
 	Type      string `toml:"type" json:"type,omitempty"`
 	Aggregate string `toml:"aggregate" json:"aggregate,omitempty"`
+	Multiple  bool   `toml:"multiple" json:"multiple,omitempty"`
 }
 
 const siteConfigFile = "config.toml"
@@ -121,6 +122,25 @@ func (c SiteConfig) Validate() error {
 	}
 
 	if c.Forms != nil {
+		validFieldTypes := map[string]bool{
+			"":       true,
+			"text":   true,
+			"email":  true,
+			"number": true,
+			"url":    true,
+			"tel":    true,
+			"date":   true,
+		}
+		validAggregates := map[string]bool{
+			"": true,
+			// General (any type).
+			"unique": true, "total": true,
+			"count_empty": true, "count_not_empty": true,
+			"percent_empty": true, "percent_not_empty": true,
+			// Numeric.
+			"sum": true, "avg": true, "mean": true, "median": true,
+			"min": true, "max": true, "range": true,
+		}
 		seenPaths := make(map[string]bool, len(c.Forms.Endpoints))
 		for i, ep := range c.Forms.Endpoints {
 			if ep.Path == "" {
@@ -133,25 +153,6 @@ func (c SiteConfig) Validate() error {
 				return fmt.Errorf("forms.endpoints[%d]: duplicate path %q", i, ep.Path)
 			}
 			seenPaths[ep.Path] = true
-			validFieldTypes := map[string]bool{
-				"":       true,
-				"text":   true,
-				"email":  true,
-				"number": true,
-				"url":    true,
-				"tel":    true,
-				"date":   true,
-			}
-			validAggregates := map[string]bool{
-				"": true,
-				// General (any type).
-				"unique": true, "total": true,
-				"count_empty": true, "count_not_empty": true,
-				"percent_empty": true, "percent_not_empty": true,
-				// Numeric.
-				"sum": true, "avg": true, "mean": true, "median": true,
-				"min": true, "max": true, "range": true,
-			}
 			for j, f := range ep.Fields {
 				if f.Key == "" {
 					return fmt.Errorf("forms.endpoints[%d].fields[%d]: key is required", i, j)
@@ -416,7 +417,11 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 	}
 
 	if c.Forms != nil {
-		merged.Forms = c.Forms
+		cp := *c.Forms
+		if c.Forms.Endpoints != nil {
+			cp.Endpoints = append([]FormEndpoint(nil), c.Forms.Endpoints...)
+		}
+		merged.Forms = &cp
 	}
 
 	if c.WebhookURL != "" {

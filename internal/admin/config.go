@@ -20,7 +20,7 @@ func formBool(form map[string][]string, name string) bool {
 
 func boolPtr(b bool) *bool { return &b }
 
-// --- GET /sites/{site}/config ---
+// region GET /sites/{site}/config
 
 type SiteConfigHandler struct{ handlerDeps }
 
@@ -46,7 +46,7 @@ func (h *SiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, cfg)
 }
 
-// --- PATCH /sites/{site}/config ---
+// region PATCH /sites/{site}/config
 
 type UpdateSiteConfigHandler struct {
 	handlerDeps
@@ -87,7 +87,7 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, cfg)
 }
 
-// --- POST /sites/{site}/config ---
+// region POST /sites/{site}/config
 
 type PostSiteConfigHandler struct {
 	handlerDeps
@@ -138,6 +138,12 @@ func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	cfg := parseSiteConfigForm(r)
+
+	// Preserve endpoint config that the HTML form doesn't carry.
+	if existing, err := h.store.ReadSiteConfig(siteName); err == nil && existing.Forms != nil {
+		cfg.Forms.Endpoints = existing.Forms.Endpoints
+	}
+
 	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

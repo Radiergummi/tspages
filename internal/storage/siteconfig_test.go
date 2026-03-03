@@ -1144,4 +1144,14 @@ func TestSiteConfig_Merge_FormsEndpoints(t *testing.T) {
 	if merged2.Forms == nil || len(merged2.Forms.Endpoints) != 1 || merged2.Forms.Endpoints[0].Path != "/contact" {
 		t.Error("deployment should override form endpoints entirely")
 	}
+
+	// mutating merged result must not affect source
+	merged2.Forms.Endpoints = append(merged2.Forms.Endpoints, FormEndpoint{Path: "/new"})
+	if len(deploy2.Forms.Endpoints) != 1 {
+		t.Error("Merge allowed mutation of source Forms.Endpoints via merged result")
+	}
+	merged2.Forms.Enabled = boolPtr(false)
+	if !*deploy2.Forms.Enabled {
+		t.Error("Merge allowed mutation of source Forms.Enabled via merged result")
+	}
 }
