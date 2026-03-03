@@ -12,7 +12,7 @@ import (
 	"tspages/internal/webhook"
 )
 
-// --- GET /webhooks ---
+// region GET /webhooks
 
 const webhooksPageSize = 50
 
@@ -30,7 +30,7 @@ func (h *WebhooksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveWebhooks(w, r, "", "/webhooks", "webhooks", true)
 }
 
-// --- GET /sites/{site}/webhooks ---
+// region GET /sites/{site}/webhooks
 
 type SiteWebhooksHandler struct {
 	*WebhooksHandler
@@ -151,7 +151,7 @@ func (h *WebhooksHandler) serveWebhooks(w http.ResponseWriter, r *http.Request, 
 		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 
-// --- GET /webhooks/{id} ---
+// region GET /webhooks/{id}
 
 type WebhookDetailHandler struct {
 	handlerDeps
@@ -215,7 +215,7 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}{delivery, attempts, userInfo(identity, caps)})
 }
 
-// --- POST /webhooks/{id}/retry ---
+// region POST /webhooks/{id}/retry
 
 type WebhookRetryHandler struct {
 	handlerDeps

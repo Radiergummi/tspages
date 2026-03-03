@@ -16,7 +16,7 @@ import (
 	"tspages/internal/webhook"
 )
 
-// --- GET /sites ---
+// region GET /sites
 
 type SitesHandler struct{ handlerDeps }
 
@@ -99,7 +99,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{resp, canCreate, r.Host, storage.MaxSiteNameLen(h.dnsSuffix)})
 }
 
-// --- POST /sites ---
+// region POST /sites
 
 type CreateSiteHandler struct {
 	handlerDeps
@@ -150,7 +150,7 @@ func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/sites/"+name, http.StatusSeeOther)
 }
 
-// --- GET /sites/{site} ---
+// region GET /sites/{site}
 
 type SiteHandler struct {
 	handlerDeps

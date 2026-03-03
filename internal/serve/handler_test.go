@@ -939,7 +939,7 @@ func TestHandler_Redirect_FromDefaults(t *testing.T) {
 	}
 }
 
-// --- Cache-Control ---
+// region Cache-Control
 
 func TestHandler_CacheControl_HTML(t *testing.T) {
 	store := storage.New(t.TempDir())
@@ -1056,7 +1056,7 @@ func TestHasContentHash(t *testing.T) {
 	}
 }
 
-// --- Compression ---
+// region Compression
 
 func TestHandler_Gzip_CompressesHTML(t *testing.T) {
 	store := storage.New(t.TempDir())
@@ -1238,7 +1238,7 @@ func TestHandler_Gzip_CompressesCSS(t *testing.T) {
 	}
 }
 
-// --- On-the-fly Brotli ---
+// region On-the-fly Brotli
 
 func TestHandler_Brotli_CompressesHTML(t *testing.T) {
 	store := storage.New(t.TempDir())
@@ -1319,7 +1319,7 @@ func TestHandler_Brotli_PreferredOverGzip(t *testing.T) {
 	}
 }
 
-// --- Precompressed Assets ---
+// region Precompressed Assets
 
 func TestHandler_Precompressed_PrefersBrotli(t *testing.T) {
 	store := storage.New(t.TempDir())
@@ -1445,7 +1445,7 @@ func TestHandler_Precompressed_NoEncoding(t *testing.T) {
 	}
 }
 
-// --- Directory Listing ---
+// region Directory Listing
 
 func TestHandler_DirectoryListing_Enabled(t *testing.T) {
 	store := storage.New(t.TempDir())
@@ -1679,7 +1679,7 @@ func TestHandler_DirectoryListing_Breadcrumbs(t *testing.T) {
 	}
 }
 
-// --- Trailing Slash ---
+// region Trailing Slash
 
 func TestCheckTrailingSlash(t *testing.T) {
 	tests := []struct {
@@ -1820,7 +1820,7 @@ func TestHandler_TrailingSlash_FromDefaults(t *testing.T) {
 	}
 }
 
-// --- Clean URLs ---
+// region Clean URLs
 
 func TestHandler_CleanURL_Fallback(t *testing.T) {
 	store := storage.New(t.TempDir())

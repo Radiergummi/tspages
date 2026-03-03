@@ -197,7 +197,7 @@ func SwaggerUIHandler() http.Handler {
 	})
 }
 
-// --- dev mode ---
+// region dev mode
 
 var (
 	devModeFlag    atomic.Bool
@@ -280,7 +280,7 @@ func DevWebSocketProxy() http.Handler {
 	})
 }
 
-// --- manifest ---
+// region manifest
 
 // manifest maps Vite source paths to hashed output filenames.
 type manifest struct {
@@ -325,7 +325,7 @@ func AssetHandler() http.Handler {
 	return http.StripPrefix("/assets/dist/", http.FileServerFS(sub))
 }
 
-// --- templates ---
+// region templates
 
 // tmpl wraps a pre-parsed template with its source file names,
 // enabling live reloading from disk in dev mode.

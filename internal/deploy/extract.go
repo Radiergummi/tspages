@@ -278,7 +278,7 @@ func looksLikeHTML(b []byte) bool {
 	return bytes.HasPrefix(bytes.TrimLeft(b, " \t\r\n"), []byte("<"))
 }
 
-// --- ZIP (unchanged) ---
+// region ZIP (unchanged)
 
 func ExtractZip(r io.ReaderAt, size int64, destDir string, maxBytes int64) (int64, error) {
 	zr, err := zip.NewReader(r, size)

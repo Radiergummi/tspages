@@ -11,7 +11,7 @@ import (
 	"tspages/internal/storage"
 )
 
-// --- analytics shared data ---
+// region analytics shared data
 
 // AnalyticsData is the template data for both per-site and all-sites analytics.
 // SiteName is empty for the all-sites view.
@@ -122,7 +122,7 @@ func subtractISO8601(now time.Time, s string) (time.Time, bool) {
 	return from, true
 }
 
-// --- GET /sites/{site}/analytics ---
+// region GET /sites/{site}/analytics
 
 type AnalyticsHandler struct{ handlerDeps }
 
@@ -220,7 +220,7 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, r, analyticsTmpl, "sites", data)
 }
 
-// --- GET /analytics ---
+// region GET /analytics
 
 type AllAnalyticsHandler struct{ handlerDeps }
 
@@ -316,7 +316,7 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	renderPage(w, r, analyticsTmpl, "analytics", data)
 }
 
-// --- POST /sites/{site}/analytics/purge ---
+// region POST /sites/{site}/analytics/purge
 
 type PurgeAnalyticsHandler struct{ handlerDeps }
 

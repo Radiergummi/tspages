@@ -10,7 +10,7 @@ import (
 	"tspages/internal/storage"
 )
 
-// --- GET /sites/{site}/deployments/{id} ---
+// region GET /sites/{site}/deployments/{id}
 
 type DeploymentHandler struct{ handlerDeps }
 
@@ -120,7 +120,7 @@ func (h *DeploymentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- GET /deployments ---
+// region GET /deployments
 
 // DeploymentEntry is a deployment with its site name, for the global feed.
 type DeploymentEntry struct {
@@ -213,7 +213,7 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{resp, userInfo(identity, caps)})
 }
 
-// --- GET /sites/{site}/deployments ---
+// region GET /sites/{site}/deployments
 
 type SiteDeploymentsHandler struct{ handlerDeps }
 

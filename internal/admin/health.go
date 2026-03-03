@@ -10,7 +10,7 @@ import (
 	"tspages/internal/storage"
 )
 
-// --- GET /healthz ---
+// region GET /healthz
 
 // HealthHandler returns platform health. It is unauthenticated.
 type HealthHandler struct {
@@ -62,7 +62,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// --- GET /sites/{site}/healthz ---
+// region GET /sites/{site}/healthz
 
 // SiteHealthHandler returns health for a single site. It requires auth.
 type SiteHealthHandler struct {

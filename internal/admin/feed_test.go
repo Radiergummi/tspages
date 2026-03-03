@@ -40,7 +40,7 @@ type atomLink struct {
 	Rel  string `xml:"rel,attr"`
 }
 
-// --- GET /feed.atom ---
+// region GET /feed.atom
 
 func TestFeedHandler_AdminSeesAllSites(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -178,7 +178,7 @@ func TestFeedHandler_EntryContentWithoutComment(t *testing.T) {
 	}
 }
 
-// --- GET /sites/{site}/feed.atom ---
+// region GET /sites/{site}/feed.atom
 
 func TestSiteFeedHandler_ReturnsOnlySiteDeployments(t *testing.T) {
 	hs, store := setupHandlers(t)

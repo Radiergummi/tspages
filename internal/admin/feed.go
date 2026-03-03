@@ -56,7 +56,7 @@ type deploymentWithSite struct {
 	Site string
 }
 
-// --- GET /feed.atom ---
+// region GET /feed.atom
 
 type FeedHandler struct{ handlerDeps }
 
@@ -122,7 +122,7 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeFeed(w, feed)
 }
 
-// --- GET /sites/{site}/feed.atom ---
+// region GET /sites/{site}/feed.atom
 
 type SiteFeedHandler struct{ handlerDeps }
 
