@@ -152,18 +152,58 @@ func main() {
 		)
 	}
 
+	buildStack := func(site string, handler *serve.Handler, whoIs auth.WhoIsClient, isPublic bool) http.Handler {
+		var withSiteAuth func(http.Handler) http.Handler
+		if isPublic {
+			withSiteAuth = auth.MiddlewareAllowAnonymous(whoIs, cfg.Tailscale.Capability)
+		} else {
+			withSiteAuth = auth.Middleware(whoIs, cfg.Tailscale.Capability)
+		}
+
+		logged := httplog.Wrap(handler, slog.String("site", site))
+		recorded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sw := &statusWriter{ResponseWriter: w, status: 200}
+			start := time.Now()
+			logged.ServeHTTP(sw, r)
+			metrics.ObserveRequest(site, sw.status, time.Since(start))
+			if recorder != nil && handler.AnalyticsEnabled() {
+				ri := auth.RequestInfoFromContext(r.Context())
+				recorder.Record(analytics.Event{
+					Timestamp:     start,
+					Site:          site,
+					Path:          r.URL.Path,
+					Status:        sw.status,
+					UserLogin:     ri.UserLogin,
+					UserName:      ri.UserName,
+					ProfilePicURL: ri.ProfilePicURL,
+					NodeName:      ri.NodeName,
+					NodeIP:        ri.NodeIP,
+					OS:            ri.OS,
+					OSVersion:     ri.OSVersion,
+					Device:        ri.Device,
+					Tags:          ri.Tags,
+				})
+			}
+		})
+		formHandler := submissions.NewHandler(submissionStore, notifier, site, handler.Config)
+		formLogged := httplog.Wrap(formHandler, slog.String("site", site))
+		submitLimited := ratelimit.Middleware(limiter, ratelimit.Submit, nil)(formLogged)
+
+		cop := http.NewCrossOriginProtection()
+		mux := http.NewServeMux()
+		mux.Handle("GET /{path...}", withSiteAuth(recorded))
+		mux.Handle("POST /{path...}", withSiteAuth(submitLimited))
+		return cop.Handler(mux)
+	}
+
 	mgr := multihost.New(multihost.ManagerConfig{
-		Store:       store,
-		StateDir:    cfg.Tailscale.StateDir,
-		AuthKey:     cfg.Tailscale.AuthKey,
-		Capability:  cfg.Tailscale.Capability,
-		MaxSites:    cfg.Server.MaxSites,
-		Recorder:    recorder,
-		Submissions: submissionStore,
-		Notifier:    notifier,
-		DNSSuffix:   dnsSuffix,
-		Defaults:    cfg.Defaults,
-		Limiter:     limiter,
+		Store:      store,
+		StateDir:   cfg.Tailscale.StateDir,
+		AuthKey:    cfg.Tailscale.AuthKey,
+		DNSSuffix:  dnsSuffix,
+		Defaults:   cfg.Defaults,
+		MaxSites:   cfg.Server.MaxSites,
+		BuildStack: buildStack,
 	})
 	defer mgr.Close()
 
@@ -344,4 +384,18 @@ func compose(outer, inner func(http.Handler) http.Handler) func(http.Handler) ht
 	return func(h http.Handler) http.Handler {
 		return outer(inner(h))
 	}
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }

@@ -27,10 +27,12 @@ func newTestManager(t *testing.T, maxSites int) (*Manager, *startLog) {
 	t.Helper()
 	store := storage.New(t.TempDir())
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   maxSites,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: maxSites,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	sl := &startLog{}
 	m.startSite = sl.starter()
@@ -143,10 +145,12 @@ func TestStartExistingSites(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   dir,
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: dir,
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	sl := &startLog{}
 	m.startSite = sl.starter()
@@ -236,10 +240,12 @@ func TestClose(t *testing.T) {
 func TestClose_WithCloserError(t *testing.T) {
 	store := storage.New(t.TempDir())
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	m.startSite = func(site string) (*siteServer, error) {
 		return &siteServer{closer: func() error {
@@ -261,10 +267,12 @@ func TestClose_WithCloserError(t *testing.T) {
 func TestStopServer_WithCloserError(t *testing.T) {
 	store := storage.New(t.TempDir())
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	m.startSite = func(site string) (*siteServer, error) {
 		return &siteServer{closer: func() error {
@@ -292,10 +300,12 @@ func TestStartExistingSites_ListError(t *testing.T) {
 	os.WriteFile(sitesDir, []byte("not a dir"), 0644)
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	m.startSite = func(site string) (*siteServer, error) {
 		return &siteServer{closer: func() error { return nil }}, nil
@@ -311,10 +321,12 @@ func TestEnsureServer_PublicToggle_Restart(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 
 	var startCount atomic.Int32
@@ -366,10 +378,12 @@ func TestEnsureServer_PublicUnchanged_NoRestart(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 
 	var startCount atomic.Int32

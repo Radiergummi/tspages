@@ -10,15 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"tspages/internal/analytics"
 	"tspages/internal/auth"
-	"tspages/internal/httplog"
-	"tspages/internal/notify"
 	"tspages/internal/metrics"
-	"tspages/internal/ratelimit"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
-	"tspages/internal/submissions"
 	"tspages/internal/tsadapter"
 
 	"tailscale.com/tsnet"
@@ -48,35 +43,31 @@ func (ss *siteServer) Close() error {
 // creates a real tsnet.Server; tests can replace this to avoid network calls.
 type siteStarter func(site string) (*siteServer, error)
 
+// BuildStack constructs the full HTTP handler for a site, including auth
+// middleware, analytics recording, form submission handling, and rate limiting.
+type BuildStack func(site string, handler *serve.Handler, whoIs auth.WhoIsClient, isPublic bool) http.Handler
+
 // ManagerConfig holds configuration for creating a new Manager.
 type ManagerConfig struct {
-	Store       *storage.Store
-	StateDir    string
-	AuthKey     string
-	Capability  string
-	MaxSites    int
-	Recorder    *analytics.Recorder
-	Submissions *submissions.Store
-	DNSSuffix   string
-	Defaults    storage.SiteConfig
-	Notifier    notify.Notifier
-	Limiter     *ratelimit.Limiter
+	Store      *storage.Store
+	StateDir   string
+	AuthKey    string
+	DNSSuffix  string
+	Defaults   storage.SiteConfig
+	MaxSites   int
+	BuildStack BuildStack
 }
 
 // Manager tracks per-site tsnet servers.
 type Manager struct {
-	store       *storage.Store
-	stateDir    string
-	authKey     string
-	capability  string
-	maxSites    int
-	recorder    *analytics.Recorder
-	submissions *submissions.Store
-	notifier    notify.Notifier
-	dnsSuffix   string
-	defaults    storage.SiteConfig
-	limiter     *ratelimit.Limiter
-	startSite   siteStarter
+	store      *storage.Store
+	stateDir   string
+	authKey    string
+	dnsSuffix  string
+	defaults   storage.SiteConfig
+	maxSites   int
+	buildStack BuildStack
+	startSite  siteStarter
 
 	mu       sync.Mutex
 	servers  map[string]*siteServer
@@ -85,19 +76,15 @@ type Manager struct {
 
 func New(cfg ManagerConfig) *Manager {
 	m := &Manager{
-		store:       cfg.Store,
-		stateDir:    cfg.StateDir,
-		authKey:     cfg.AuthKey,
-		capability:  cfg.Capability,
-		maxSites:    cfg.MaxSites,
-		recorder:    cfg.Recorder,
-		submissions: cfg.Submissions,
-		notifier:    cfg.Notifier,
-		dnsSuffix:   cfg.DNSSuffix,
-		defaults:    cfg.Defaults,
-		limiter:     cfg.Limiter,
-		servers:     make(map[string]*siteServer),
-		starting:    make(map[string]chan struct{}),
+		store:      cfg.Store,
+		stateDir:   cfg.StateDir,
+		authKey:    cfg.AuthKey,
+		dnsSuffix:  cfg.DNSSuffix,
+		defaults:   cfg.Defaults,
+		maxSites:   cfg.MaxSites,
+		buildStack: cfg.BuildStack,
+		servers:    make(map[string]*siteServer),
+		starting:   make(map[string]chan struct{}),
 	}
 	m.startSite = m.defaultStartSite
 	return m
@@ -189,49 +176,10 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 		return nil, fmt.Errorf("local client for site %q: %w", site, err)
 	}
 
-	whoIsClient := tsadapter.New(lc)
-	var withAuth func(http.Handler) http.Handler
-	if public {
-		withAuth = auth.MiddlewareAllowAnonymous(whoIsClient, m.capability)
-	} else {
-		withAuth = auth.Middleware(whoIsClient, m.capability)
-	}
-
 	handler := serve.NewHandler(m.store, site, m.dnsSuffix, m.defaults)
 	handler.SetPublic(public)
-	logged := httplog.Wrap(handler, slog.String("site", site))
-	recorded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sw := &statusWriter{ResponseWriter: w, status: 200}
-		start := time.Now()
-		logged.ServeHTTP(sw, r)
-		metrics.ObserveRequest(site, sw.status, time.Since(start))
-		if m.recorder != nil && handler.AnalyticsEnabled() {
-			ri := auth.RequestInfoFromContext(r.Context())
-			m.recorder.Record(analytics.Event{
-				Timestamp:     start,
-				Site:          site,
-				Path:          r.URL.Path,
-				Status:        sw.status,
-				UserLogin:     ri.UserLogin,
-				UserName:      ri.UserName,
-				ProfilePicURL: ri.ProfilePicURL,
-				NodeName:      ri.NodeName,
-				NodeIP:        ri.NodeIP,
-				OS:            ri.OS,
-				OSVersion:     ri.OSVersion,
-				Device:        ri.Device,
-				Tags:          ri.Tags,
-			})
-		}
-	})
-	formHandler := submissions.NewHandler(m.submissions, m.notifier, site, handler.Config)
-	formLogged := httplog.Wrap(formHandler, slog.String("site", site))
-	submitLimited := ratelimit.Middleware(m.limiter, ratelimit.Submit, nil)(formLogged)
 
-	cop := http.NewCrossOriginProtection()
-	mux := http.NewServeMux()
-	mux.Handle("GET /{path...}", withAuth(recorded))
-	mux.Handle("POST /{path...}", withAuth(submitLimited))
+	h := m.buildStack(site, handler, tsadapter.New(lc), public)
 
 	var ln net.Listener
 	if public {
@@ -244,7 +192,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 		return nil, fmt.Errorf("listen for site %q: %w", site, err)
 	}
 
-	httpSrv := &http.Server{Handler: cop.Handler(mux)}
+	httpSrv := &http.Server{Handler: h}
 	go func() {
 		if public {
 			slog.Info("site listening", "site", site, "url", "https://"+site, "public", true)
@@ -288,20 +236,6 @@ func (m *Manager) StartExistingSites() error {
 		}
 	}
 	return nil
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w *statusWriter) Unwrap() http.ResponseWriter {
-	return w.ResponseWriter
 }
 
 // IsRunning reports whether a tsnet server is running for the given site.
