@@ -79,7 +79,7 @@ type Config struct {
 }
 
 // RegisterRoutes registers all admin UI routes on the given mux.
-func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) http.Handler, cfg Config) {
+func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(http.Handler) http.Handler, cfg Config) {
 	sites := &SitesHandler{store: cfg.Store, recorder: cfg.Recorder, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults}
 	site := &SiteHandler{store: cfg.Store, recorder: cfg.Recorder, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults, notifier: cfg.Notifier}
 	deployment := &DeploymentHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
@@ -104,12 +104,12 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) 
 	mux.Handle("POST /sites", withMutate(createSite))
 
 	// Browse routes
-	mux.Handle("GET /sites", withAuth(sites))
-	mux.Handle("GET /sites.json", withAuth(sites))
-	mux.Handle("GET /sites/{site}", withAuth(site))
-	mux.Handle("GET /sites/{site}/deployments", withAuth(siteDeployments))
-	mux.Handle("GET /sites/{site}/deployments.json", withAuth(siteDeployments))
-	mux.Handle("GET /sites/{site}/deployments/{id}", withAuth(deployment))
+	mux.Handle("GET /sites", withQuery(sites))
+	mux.Handle("GET /sites.json", withQuery(sites))
+	mux.Handle("GET /sites/{site}", withQuery(site))
+	mux.Handle("GET /sites/{site}/deployments", withQuery(siteDeployments))
+	mux.Handle("GET /sites/{site}/deployments.json", withQuery(siteDeployments))
+	mux.Handle("GET /sites/{site}/deployments/{id}", withQuery(deployment))
 
 	// Site config
 	mux.Handle("GET /sites/{site}/config", withAuth(siteConfig))
@@ -126,10 +126,10 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) 
 	mux.Handle("GET /sw.js", ServiceWorkerHandler())
 
 	// Feeds, help, assets, docs
-	mux.Handle("GET /deployments", withAuth(deployments))
-	mux.Handle("GET /deployments.json", withAuth(deployments))
-	mux.Handle("GET /feed.atom", withAuth(feed))
-	mux.Handle("GET /sites/{site}/feed.atom", withAuth(siteFeed))
+	mux.Handle("GET /deployments", withQuery(deployments))
+	mux.Handle("GET /deployments.json", withQuery(deployments))
+	mux.Handle("GET /feed.atom", withQuery(feed))
+	mux.Handle("GET /sites/{site}/feed.atom", withQuery(siteFeed))
 	mux.Handle("GET /help", withAuth(help))
 	mux.Handle("GET /help/{page...}", withAuth(help))
 	mux.Handle("GET /assets/dist/{file...}", AssetHandler())

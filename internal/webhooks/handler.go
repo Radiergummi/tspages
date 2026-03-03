@@ -22,7 +22,7 @@ var (
 )
 
 // RegisterRoutes registers all webhook admin UI routes on the given mux.
-func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) http.Handler,
+func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(http.Handler) http.Handler,
 	store *storage.Store, defaults storage.SiteConfig, notifier *Notifier) {
 
 	wh := &WebhooksHandler{store: store, defaults: defaults, notifier: notifier}
@@ -30,11 +30,11 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) 
 	det := &WebhookDetailHandler{store: store, defaults: defaults, notifier: notifier}
 	retry := &WebhookRetryHandler{store: store, defaults: defaults, notifier: notifier}
 
-	mux.Handle("GET /sites/{site}/webhooks", withAuth(swh))
-	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(swh))
-	mux.Handle("GET /webhooks", withAuth(wh))
-	mux.Handle("GET /webhooks.json", withAuth(wh))
-	mux.Handle("GET /webhooks/{id}", withAuth(det))
+	mux.Handle("GET /sites/{site}/webhooks", withQuery(swh))
+	mux.Handle("GET /sites/{site}/webhooks.json", withQuery(swh))
+	mux.Handle("GET /webhooks", withQuery(wh))
+	mux.Handle("GET /webhooks.json", withQuery(wh))
+	mux.Handle("GET /webhooks/{id}", withQuery(det))
 	mux.Handle("POST /webhooks/{id}/retry", withMutate(retry))
 }
 
