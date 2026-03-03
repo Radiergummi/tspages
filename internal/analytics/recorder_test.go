@@ -11,7 +11,7 @@ import (
 	dbpkg "tspages/internal/db"
 )
 
-func openTestDB(t *testing.T, path string) *sql.DB {
+func openTestDBAt(t *testing.T, path string) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
@@ -26,7 +26,7 @@ func openTestDB(t *testing.T, path string) *sql.DB {
 
 func TestRecorder_RecordAndClose(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	r := NewRecorder(db)
 
 	r.Record(Event{
@@ -43,7 +43,7 @@ func TestRecorder_RecordAndClose(t *testing.T) {
 	db.Close()
 
 	// Reopen to verify persistence.
-	db2 := openTestDB(t, dbPath)
+	db2 := openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db2.Close() })
 	r2 := NewRecorder(db2)
 	defer r2.Close()
@@ -59,7 +59,7 @@ func TestRecorder_RecordAndClose(t *testing.T) {
 
 func TestRecorder_MultipleEvents(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	r := NewRecorder(db)
 
 	for i := 0; i < 10; i++ {
@@ -80,7 +80,7 @@ func TestRecorder_MultipleEvents(t *testing.T) {
 	r.Close()
 	db.Close()
 
-	db2 := openTestDB(t, dbPath)
+	db2 := openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db2.Close() })
 	r2 := NewRecorder(db2)
 	defer r2.Close()
@@ -98,7 +98,7 @@ func TestRecorder_MultipleEvents(t *testing.T) {
 func setupTestRecorder(t *testing.T) *Recorder {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	r := NewRecorder(db)
 
 	base := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
@@ -114,7 +114,7 @@ func setupTestRecorder(t *testing.T) *Recorder {
 	r.Close()
 	db.Close()
 
-	db2 := openTestDB(t, dbPath)
+	db2 := openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db2.Close() })
 	r2 := NewRecorder(db2)
 	t.Cleanup(func() { r2.Close() })
@@ -238,7 +238,7 @@ func TestRecorder_RequestsOverTime(t *testing.T) {
 
 func TestRecorder_RecordAfterClose(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db.Close() })
 	r := NewRecorder(db)
 	r.Close()
@@ -323,7 +323,7 @@ func TestRecorder_HourlyPattern(t *testing.T) {
 
 func TestRecorder_MultiSiteQueries(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	r := NewRecorder(db)
 
 	base := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
@@ -338,7 +338,7 @@ func TestRecorder_MultiSiteQueries(t *testing.T) {
 	r.Close()
 	db.Close()
 
-	db2 := openTestDB(t, dbPath)
+	db2 := openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db2.Close() })
 	r2 := NewRecorder(db2)
 	defer r2.Close()
@@ -430,7 +430,7 @@ func TestRecorder_MultiSiteQueries(t *testing.T) {
 
 func TestRecorder_MultiSiteQueries_EmptySites(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db.Close() })
 	r := NewRecorder(db)
 	defer r.Close()

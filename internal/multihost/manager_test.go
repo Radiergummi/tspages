@@ -1,7 +1,6 @@
 package multihost
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,14 +13,12 @@ import (
 
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
+	"tspages/internal/db"
 	"tspages/internal/httplog"
 	"tspages/internal/notify"
 	"tspages/internal/serve"
-	dbpkg "tspages/internal/db"
 	"tspages/internal/storage"
 	"tspages/internal/submissions"
-
-	_ "modernc.org/sqlite"
 )
 
 // newTestManager creates a Manager with a fake startSite that records calls
@@ -404,24 +401,9 @@ func writeFile(t *testing.T, dir, name, content string) {
 	}
 }
 
-func newTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := dbpkg.Apply(db, append(analytics.Migrations, submissions.Migrations...)); err != nil {
-		db.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
-
 func newTestSubmissionStore(t *testing.T) *submissions.Store {
 	t.Helper()
-	return submissions.NewStore(newTestDB(t))
+	return submissions.NewStore(db.OpenTestDB(t, analytics.Migrations, submissions.Migrations))
 }
 
 type mockNotifier struct {

@@ -7,41 +7,23 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	dbpkg "tspages/internal/db"
+	"tspages/internal/db"
 	"tspages/internal/storage"
-
-	_ "modernc.org/sqlite"
 )
-
-func testDB(t *testing.T) *sql.DB {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := dbpkg.Apply(db, Migrations); err != nil {
-		db.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
 
 // testNotifier creates a Notifier with a plain HTTP client (no private-IP
 // restriction) so that tests using httptest servers on localhost work.
 func testNotifier(t *testing.T) (*Notifier, *sql.DB) {
 	t.Helper()
-	db := testDB(t)
-	n := NewNotifier(db)
+	testDB := db.OpenTestDB(t, Migrations)
+	n := NewNotifier(testDB)
 	n.client = &http.Client{Timeout: 10 * time.Second}
-	return n, db
+	return n, testDB
 }
 
 func TestNotifier_FiresWebhook(t *testing.T) {
@@ -475,8 +457,8 @@ func TestNotifier_RejectsPrivateIP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	db := testDB(t)
-	n := NewNotifier(db)
+	testDB := db.OpenTestDB(t, Migrations)
+	n := NewNotifier(testDB)
 	// Use the safe client (default from NewNotifier) — no override.
 	n.retryDelays = nil // no retries for speed
 
@@ -486,7 +468,7 @@ func TestNotifier_RejectsPrivateIP(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	var errStr string
-	if err := db.QueryRow(`SELECT error FROM webhook_deliveries LIMIT 1`).Scan(&errStr); err != nil {
+	if err := testDB.QueryRow(`SELECT error FROM webhook_deliveries LIMIT 1`).Scan(&errStr); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(errStr, "private address") {

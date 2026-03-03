@@ -77,7 +77,7 @@ func setupStore(t *testing.T) *storage.Store {
 	return store
 }
 
-func openTestDB(t *testing.T, path string, migrations ...[]func(*sql.Tx) error) *sql.DB {
+func openTestDBAt(t *testing.T, path string, migrations ...[]func(*sql.Tx) error) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
@@ -97,7 +97,7 @@ func openTestDB(t *testing.T, path string, migrations ...[]func(*sql.Tx) error) 
 func setupRecorder(t *testing.T) *analytics.Recorder {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "analytics.db")
-	db := openTestDB(t, dbPath, analytics.Migrations)
+	db := openTestDBAt(t, dbPath, analytics.Migrations)
 	r := analytics.NewRecorder(db)
 	for i := 0; i < 3; i++ {
 		r.Record(analytics.Event{
@@ -110,7 +110,7 @@ func setupRecorder(t *testing.T) *analytics.Recorder {
 	// Close and reopen to flush events.
 	r.Close()
 	db.Close()
-	db = openTestDB(t, dbPath, analytics.Migrations)
+	db = openTestDBAt(t, dbPath, analytics.Migrations)
 	t.Cleanup(func() { db.Close() })
 	r = analytics.NewRecorder(db)
 	t.Cleanup(func() { r.Close() })

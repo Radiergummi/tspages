@@ -42,7 +42,7 @@ func setupStore(t *testing.T) *storage.Store {
 func setupRecorder(t *testing.T) *Recorder {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "analytics.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	r := NewRecorder(db)
 	for i := 0; i < 3; i++ {
 		r.Record(Event{
@@ -52,7 +52,7 @@ func setupRecorder(t *testing.T) *Recorder {
 	}
 	r.Close()
 	db.Close()
-	db = openTestDB(t, dbPath)
+	db = openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db.Close() })
 	r = NewRecorder(db)
 	t.Cleanup(func() { r.Close() })
@@ -62,7 +62,7 @@ func setupRecorder(t *testing.T) *Recorder {
 func setupMultiSiteRecorder(t *testing.T) *Recorder {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "analytics.db")
-	db := openTestDB(t, dbPath)
+	db := openTestDBAt(t, dbPath)
 	r := NewRecorder(db)
 	for i := 0; i < 3; i++ {
 		r.Record(Event{
@@ -78,7 +78,7 @@ func setupMultiSiteRecorder(t *testing.T) *Recorder {
 	}
 	r.Close()
 	db.Close()
-	db = openTestDB(t, dbPath)
+	db = openTestDBAt(t, dbPath)
 	t.Cleanup(func() { db.Close() })
 	r = NewRecorder(db)
 	t.Cleanup(func() { r.Close() })
