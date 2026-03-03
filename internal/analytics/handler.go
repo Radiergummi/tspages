@@ -58,7 +58,7 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !web.AnalyticsEnabled(h.store, h.defaults, siteName) {
+	if !Enabled(h.store, h.defaults, siteName) {
 		web.RenderError(w, r, http.StatusNotFound, "analytics disabled for this site")
 		return
 	}
@@ -162,7 +162,7 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	var viewable []string
 	for _, s := range sites {
-		if auth.CanDeploy(caps, s.Name) && web.AnalyticsEnabled(h.store, h.defaults, s.Name) {
+		if auth.CanDeploy(caps, s.Name) && Enabled(h.store, h.defaults, s.Name) {
 			viewable = append(viewable, s.Name)
 		}
 	}

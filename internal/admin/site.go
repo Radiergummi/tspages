@@ -48,7 +48,7 @@ func (h *SitesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ActiveDeploymentID: s.ActiveDeploymentID,
 			CanDeploy:          auth.CanDeploy(caps, s.Name),
 		}
-		if auth.IsAdmin(caps, s.Name) && h.recorder != nil && web.AnalyticsEnabled(h.store, h.defaults, s.Name) {
+		if auth.IsAdmin(caps, s.Name) && h.recorder != nil && analytics.Enabled(h.store, h.defaults, s.Name) {
 			var err error
 			ss.Requests, err = h.recorder.TotalRequests(s.Name, time.Time{}, now)
 			if err != nil {

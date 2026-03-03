@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"tspages/internal/auth"
-	"tspages/internal/storage"
 )
 
 // UserInfo holds user display data for templates.
@@ -108,16 +107,4 @@ func subtractISO8601(now time.Time, s string) (time.Time, bool) {
 		-time.Duration(hours)*time.Hour - time.Duration(minutes)*time.Minute - time.Duration(seconds)*time.Second,
 	)
 	return from, true
-}
-
-// AnalyticsEnabled reports whether analytics are enabled for the given site
-// by reading the current deployment's config and merging with server defaults.
-func AnalyticsEnabled(store *storage.Store, defaults storage.SiteConfig, site string) bool {
-	deployCfg, _ := store.ReadCurrentDeploymentConfig(site)
-	siteCfg, _ := store.ReadSiteConfig(site)
-	merged := deployCfg.Merge(siteCfg).Merge(defaults)
-	if merged.Analytics == nil {
-		return true
-	}
-	return *merged.Analytics
 }

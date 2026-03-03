@@ -1,6 +1,21 @@
 package analytics
 
-import "tspages/internal/web"
+import (
+	"tspages/internal/storage"
+	"tspages/internal/web"
+)
+
+// Enabled reports whether analytics recording is active for a site,
+// considering the deployment config, site config, and server defaults.
+func Enabled(store *storage.Store, defaults storage.SiteConfig, site string) bool {
+	deployCfg, _ := store.ReadCurrentDeploymentConfig(site)
+	siteCfg, _ := store.ReadSiteConfig(site)
+	merged := deployCfg.Merge(siteCfg).Merge(defaults)
+	if merged.Analytics == nil {
+		return true
+	}
+	return *merged.Analytics
+}
 
 // AnalyticsData is the template data for both per-site and all-sites analytics.
 // SiteName is empty for the all-sites view.
