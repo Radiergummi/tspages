@@ -57,7 +57,7 @@ type FormField struct {
 	Label     string `toml:"label" json:"label,omitempty"`
 	Type      string `toml:"type" json:"type,omitempty"`
 	Aggregate string `toml:"aggregate" json:"aggregate,omitempty"`
-	Multiple  bool   `toml:"multiple" json:"multiple,omitempty"`
+	Multiple  *bool  `toml:"multiple" json:"multiple,omitempty"`
 }
 
 const siteConfigFile = "config.toml"

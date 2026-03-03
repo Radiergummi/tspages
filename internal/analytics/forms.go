@@ -400,6 +400,20 @@ func (r *Recorder) SubmissionsOverTimeByForm(site string, from, to time.Time) (m
 		return nil, err
 	}
 
+	// When from is zero, derive a shared start from the earliest bucket across
+	// all paths so every series gets the same bucket boundaries.
+	if from.IsZero() && len(sparse) > 0 {
+		for _, buckets := range sparse {
+			if len(buckets) > 0 {
+				if t, err := time.Parse(time.RFC3339, buckets[0].Time); err == nil {
+					if from.IsZero() || t.Before(from) {
+						from = t
+					}
+				}
+			}
+		}
+	}
+
 	result := make(map[string][]TimeBucket, len(sparse))
 	for path, buckets := range sparse {
 		result[path] = timeseries.FillBuckets(buckets, from, to,

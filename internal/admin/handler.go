@@ -50,7 +50,8 @@ type handlerDeps struct {
 }
 
 // multipleFieldKeys returns the set of field keys configured as multiple
-// across all form endpoints for the given site.
+// across all form endpoints for the given site. It reads config from disk;
+// use multipleFieldKeysFromConfig when you already have a merged config.
 func (d *handlerDeps) multipleFieldKeys(site string) map[string]bool {
 	if d.store == nil {
 		return nil
@@ -58,13 +59,19 @@ func (d *handlerDeps) multipleFieldKeys(site string) map[string]bool {
 	deployCfg, _ := d.store.ReadCurrentDeploymentConfig(site)
 	siteCfg, _ := d.store.ReadSiteConfig(site)
 	merged := deployCfg.Merge(siteCfg).Merge(d.defaults)
-	if merged.Forms == nil {
+	return multipleFieldKeysFromConfig(merged)
+}
+
+// multipleFieldKeysFromConfig returns the set of field keys configured as
+// multiple across all form endpoints in the given config.
+func multipleFieldKeysFromConfig(cfg storage.SiteConfig) map[string]bool {
+	if cfg.Forms == nil {
 		return nil
 	}
 	var keys map[string]bool
-	for _, ep := range merged.Forms.Endpoints {
+	for _, ep := range cfg.Forms.Endpoints {
 		for _, f := range ep.Fields {
-			if f.Multiple {
+			if f.Multiple != nil && *f.Multiple {
 				if keys == nil {
 					keys = make(map[string]bool)
 				}

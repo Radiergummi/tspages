@@ -37,6 +37,7 @@ type SubmissionsPageData struct {
 	TotalCount    int64                 `json:"total_count"`
 	Admin         bool                  `json:"admin,omitempty"`
 	Sort          []analytics.SortField `json:"sort,omitempty"` // current sort (up to 2 fields)
+	PageSize      int64                 `json:"page_size"`
 
 	// Analytics fields.
 	TimeSeriesByForm []formTimeSeries     `json:"time_series_by_form,omitempty"`
@@ -92,7 +93,7 @@ func (d SubmissionsPageData) SortHref(col string) string {
 	}
 
 	if s := formatSortParam(next); s != "" {
-		q += "&sort=" + s
+		q += "&sort=" + url.QueryEscape(s)
 	}
 	return q
 }
@@ -216,11 +217,13 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	const pageSize int64 = 20
 	data := SubmissionsPageData{
 		User:     userInfo(identity, caps),
 		SiteName: siteName,
 		Paths:    paths,
 		Admin:    admin,
+		PageSize: pageSize,
 	}
 
 	// Select current path.
@@ -233,7 +236,11 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	// Analytics — per-form time series for the chart, other stats scoped to selected path.
 	now := time.Now()
 	var from time.Time // zero = all time
-	byForm, _ := h.recorder.SubmissionsOverTimeByForm(siteName, from, now)
+	byForm, err := h.recorder.SubmissionsOverTimeByForm(siteName, from, now)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "fetching time series")
+		return
+	}
 	for _, p := range paths {
 		if series, ok := byForm[p.Path]; ok {
 			data.TimeSeriesByForm = append(data.TimeSeriesByForm, formTimeSeries{
@@ -243,7 +250,11 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			})
 		}
 	}
-	data.Submitters, _ = h.recorder.UniqueSubmitters(siteName, currentPath, from, now)
+	data.Submitters, err = h.recorder.UniqueSubmitters(siteName, currentPath, from, now)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "fetching submitters")
+		return
+	}
 	data.FormPaths = formPaths
 
 	if currentPath != "" {
@@ -261,7 +272,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		subs, err := h.recorder.ListSubmissions(siteName, analytics.ListSubmissionsOpts{
 			Path:  currentPath,
 			Sort:  sortFields,
-			Limit: 20,
+			Limit: int(pageSize),
 		})
 		if err != nil {
 			RenderError(w, r, http.StatusInternalServerError, "listing submissions")
@@ -288,16 +299,21 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		}
 
 		// Parse fields and collect all field keys.
+		// Use ExpandFields to consistently convert RS-encoded multi-value fields
+		// to arrays, matching the JSON API path. fieldValueString then flattens
+		// arrays to newline-joined strings for display.
+		multiKeys := multipleFieldKeysFromConfig(merged)
 		views := make([]submissionView, len(subs))
 		seen := map[string]bool{}
 		var fieldKeys []string
 		for i, s := range subs {
+			expanded := analytics.ExpandFields(s.Fields, multiKeys)
 			parsed := map[string]string{}
-			if len(s.Fields) > 0 {
+			if len(expanded) > 0 {
 				var m map[string]any
-				json.Unmarshal(s.Fields, &m) // best-effort: show partial data rather than fail the page
+				json.Unmarshal(expanded, &m) // best-effort: show partial data rather than fail the page
 				for k, v := range m {
-					parsed[k] = strings.TrimRight(strings.ReplaceAll(fieldValueString(v), analytics.FieldSeparator, "\n"), "\n")
+					parsed[k] = fieldValueString(v)
 					if !seen[k] {
 						seen[k] = true
 						fieldKeys = append(fieldKeys, k)
@@ -632,6 +648,7 @@ func stableFieldOrder(endpoint *storage.FormEndpoint, keys []string) []string {
 }
 
 // fieldValueString converts an arbitrary JSON value to a display string.
+// Arrays (from ExpandFields) are joined with newlines for display.
 func fieldValueString(v any) string {
 	if v == nil {
 		return ""
@@ -649,6 +666,14 @@ func fieldValueString(v any) string {
 			return "true"
 		}
 		return "false"
+	case []any:
+		parts := make([]string, 0, len(val))
+		for _, el := range val {
+			if s := fieldValueString(el); s != "" {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(parts, "\n")
 	default:
 		b, _ := json.Marshal(v)
 		return string(b)

@@ -47,8 +47,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit body size.
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	// Limit total body size to 64 KB.
+	const maxBodySize = 64 << 10
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
 	// Parse based on Content-Type.
 	ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -63,7 +64,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "multipart/form-data":
-		if err := r.ParseMultipartForm(64 << 10); err != nil {
+		// maxMemory controls how much form data Go buffers in RAM vs disk;
+		// the total body size is already enforced by MaxBytesReader above.
+		if err := r.ParseMultipartForm(maxBodySize); err != nil {
 			if errors.As(err, new(*http.MaxBytesError)) {
 				http.Error(w, "Payload Too Large", http.StatusRequestEntityTooLarge)
 				return

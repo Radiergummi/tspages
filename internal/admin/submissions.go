@@ -251,15 +251,17 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		subs = []analytics.Submission{}
 	}
 
+	// Expand multi-value fields before format branching so both CSV and JSON
+	// get consistent array representation.
+	multiKeys := h.multipleFieldKeys(siteName)
+	for i := range subs {
+		subs[i].Fields = analytics.ExpandFields(subs[i].Fields, multiKeys)
+	}
+
 	format := q.Get("format")
 	if format == "csv" {
 		h.exportCSV(w, siteName, subs)
 		return
-	}
-	// Default: JSON export.
-	multiKeys := h.multipleFieldKeys(siteName)
-	for i := range subs {
-		subs[i].Fields = analytics.ExpandFields(subs[i].Fields, multiKeys)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-submissions.json"`, siteName))
@@ -373,12 +375,30 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 		for _, k := range fieldKeys {
 			val := ""
 			if v, ok := parsed[i][k]; ok {
-				s := fmt.Sprintf("%v", v)
-				val = strings.TrimSuffix(strings.ReplaceAll(s, analytics.FieldSeparator, ", "), ", ")
+				val = csvFieldValue(v)
 			}
 			row = append(row, val)
 		}
 		cw.Write(row)
 	}
 	cw.Flush()
+}
+
+// csvFieldValue converts a JSON value (already expanded by ExpandFields) to a
+// CSV-friendly string. Arrays are joined with ", ".
+func csvFieldValue(v any) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case []any:
+		parts := make([]string, 0, len(val))
+		for _, el := range val {
+			if s := fmt.Sprintf("%v", el); s != "" {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(parts, ", ")
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }

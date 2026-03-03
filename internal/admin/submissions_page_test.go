@@ -399,7 +399,7 @@ func TestSortHref(t *testing.T) {
 			name: "click unsorted column pushes to primary",
 			sort: []analytics.SortField{{Column: "date", Desc: true}},
 			col:  "email",
-			want: "?path=%2Fcontact&sort=-email,-date",
+			want: "?path=%2Fcontact&sort=-email%2C-date",
 		},
 		{
 			name: "click desc column flips to asc",
@@ -423,13 +423,13 @@ func TestSortHref(t *testing.T) {
 			name: "click desc secondary flips to asc",
 			sort: []analytics.SortField{{Column: "date", Desc: true}, {Column: "email", Desc: true}},
 			col:  "email",
-			want: "?path=%2Fcontact&sort=-date,email",
+			want: "?path=%2Fcontact&sort=-date%2Cemail",
 		},
 		{
 			name: "click new column with two sorts drops old secondary",
 			sort: []analytics.SortField{{Column: "date", Desc: true}, {Column: "email"}},
 			col:  "submitter",
-			want: "?path=%2Fcontact&sort=-submitter,-date",
+			want: "?path=%2Fcontact&sort=-submitter%2C-date",
 		},
 	}
 	for _, tt := range tests {

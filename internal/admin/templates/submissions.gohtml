@@ -257,9 +257,9 @@
                 </div>
 
                 <!-- region Overflow actions -->
-                {{if gt .TotalCount 20}}
+                {{if gt .TotalCount .PageSize}}
                     <p class="text-sm text-muted">
-                        Showing 20 of {{.TotalCount}} submissions.
+                        Showing {{.PageSize}} of {{.TotalCount}} submissions.
                         <a
                                 href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
                                 class="text-blue-500 no-underline hover:underline"
