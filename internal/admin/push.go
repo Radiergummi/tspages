@@ -24,7 +24,7 @@ func (h *VAPIDKeyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // PushSubscribeHandler manages push notification subscriptions.
 type PushSubscribeHandler struct {
-	push *pushnotify.Notifier
+	push PushSubscriber
 }
 
 func (h *PushSubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

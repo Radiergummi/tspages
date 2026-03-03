@@ -112,7 +112,7 @@ type CreateSiteHandler struct {
 	dnsSuffix string
 	defaults  storage.SiteConfig
 	ensurer   SiteEnsurer
-	notifier  *webhooks.Notifier
+	notifier  DeliveryLister
 }
 
 func (h *CreateSiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +165,7 @@ type SiteHandler struct {
 	recorder  *analytics.Recorder
 	dnsSuffix string
 	defaults  storage.SiteConfig
-	notifier  *webhooks.Notifier
+	notifier  DeliveryLister
 }
 
 func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

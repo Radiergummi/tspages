@@ -221,8 +221,17 @@ func main() {
 	})))
 
 	// Per-module route registration
-	admin.RegisterRoutes(mux, withAuth, withMutate, store, recorder, dnsSuffix, mgr, mgr,
-		cfg.Defaults, webhookNotifier, pushNotifier, vapidPub)
+	admin.RegisterRoutes(mux, withAuth, withMutate, admin.Config{
+		Store:     store,
+		Recorder:  recorder,
+		DNSSuffix: dnsSuffix,
+		Ensurer:   mgr,
+		Checker:   mgr,
+		Defaults:  cfg.Defaults,
+		Notifier:  webhookNotifier,
+		Push:      pushNotifier,
+		VAPIDPub:  vapidPub,
+	})
 	webhooks.RegisterRoutes(mux, withAuth, withMutate, store, cfg.Defaults, webhookNotifier)
 	analytics.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, recorder, cfg.Defaults)
 	submissions.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, submissionStore, cfg.Defaults, vapidPub)

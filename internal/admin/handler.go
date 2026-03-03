@@ -52,28 +52,50 @@ type SiteHealthChecker interface {
 	IsRunning(site string) bool
 }
 
-// RegisterRoutes registers all admin UI routes on the given mux.
-func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) http.Handler,
-	store *storage.Store, recorder *analytics.Recorder, dnsSuffix string,
-	ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig,
-	notifier *webhooks.Notifier, pushNotifier *pushnotify.Notifier, vapidPub string) {
+// DeliveryLister provides webhook delivery data for the site detail page.
+type DeliveryLister interface {
+	Fire(event string, site string, cfg storage.SiteConfig, data map[string]any)
+	ListDeliveries(site, event, status string, limit, offset int) ([]webhooks.DeliverySummary, int, error)
+}
 
-	sites := &SitesHandler{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
-	site := &SiteHandler{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults, notifier: notifier}
-	deployment := &DeploymentHandler{store: store, dnsSuffix: dnsSuffix}
-	createSite := &CreateSiteHandler{store: store, dnsSuffix: dnsSuffix, defaults: defaults, ensurer: ensurer, notifier: notifier}
-	deployments := &DeploymentsHandler{store: store}
-	siteDeployments := &SiteDeploymentsHandler{store: store}
+// PushSubscriber manages push notification subscriptions.
+type PushSubscriber interface {
+	IsSubscribed(site, path, endpoint string) (bool, error)
+	Subscribe(site, path, userLogin string, sub pushnotify.Subscription) error
+	Unsubscribe(endpoint, site, path, userLogin string) error
+}
+
+// Config holds dependencies for admin route handlers.
+type Config struct {
+	Store     *storage.Store
+	Recorder  *analytics.Recorder
+	DNSSuffix string
+	Ensurer   SiteEnsurer
+	Checker   SiteHealthChecker
+	Defaults  storage.SiteConfig
+	Notifier  DeliveryLister
+	Push      PushSubscriber
+	VAPIDPub  string
+}
+
+// RegisterRoutes registers all admin UI routes on the given mux.
+func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate func(http.Handler) http.Handler, cfg Config) {
+	sites := &SitesHandler{store: cfg.Store, recorder: cfg.Recorder, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults}
+	site := &SiteHandler{store: cfg.Store, recorder: cfg.Recorder, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults, notifier: cfg.Notifier}
+	deployment := &DeploymentHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
+	createSite := &CreateSiteHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults, ensurer: cfg.Ensurer, notifier: cfg.Notifier}
+	deployments := &DeploymentsHandler{store: cfg.Store}
+	siteDeployments := &SiteDeploymentsHandler{store: cfg.Store}
 	help := &HelpHandler{}
 	api := &APIHandler{}
-	feed := &FeedHandler{store: store, dnsSuffix: dnsSuffix}
-	siteFeed := &SiteFeedHandler{store: store, dnsSuffix: dnsSuffix}
-	siteHealth := &SiteHealthHandler{store: store, checker: checker}
-	siteConfig := &SiteConfigHandler{store: store}
-	updateConfig := &UpdateSiteConfigHandler{store: store, ensurer: ensurer}
-	postConfig := &PostSiteConfigHandler{store: store, defaults: defaults, ensurer: ensurer}
-	vapidKey := &VAPIDKeyHandler{vapidPub: vapidPub}
-	pushSubscribe := &PushSubscribeHandler{push: pushNotifier}
+	feed := &FeedHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
+	siteFeed := &SiteFeedHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
+	siteHealth := &SiteHealthHandler{store: cfg.Store, checker: cfg.Checker}
+	siteConfig := &SiteConfigHandler{store: cfg.Store}
+	updateConfig := &UpdateSiteConfigHandler{store: cfg.Store, ensurer: cfg.Ensurer}
+	postConfig := &PostSiteConfigHandler{store: cfg.Store, defaults: cfg.Defaults, ensurer: cfg.Ensurer}
+	vapidKey := &VAPIDKeyHandler{vapidPub: cfg.VAPIDPub}
+	pushSubscribe := &PushSubscribeHandler{push: cfg.Push}
 
 	// Site health check
 	mux.Handle("GET /sites/{site}/healthz", withAuth(siteHealth))
