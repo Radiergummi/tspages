@@ -10,6 +10,7 @@ import (
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/web"
 )
 
 const feedMaxEntries = 50
@@ -58,7 +59,10 @@ type deploymentWithSite struct {
 
 // region GET /feed.atom
 
-type FeedHandler struct{ handlerDeps }
+type FeedHandler struct {
+	store     *storage.Store
+	dnsSuffix string
+}
 
 func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	caps := auth.CapsFromContext(r.Context())
@@ -124,10 +128,13 @@ func (h *FeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // region GET /sites/{site}/feed.atom
 
-type SiteFeedHandler struct{ handlerDeps }
+type SiteFeedHandler struct {
+	store     *storage.Store
+	dnsSuffix string
+}
 
 func (h *SiteFeedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
 		return
@@ -186,7 +193,7 @@ func deploymentToEntry(site string, d storage.DeploymentInfo, dnsSuffix, host st
 		author = "unknown"
 	}
 
-	body := fmt.Sprintf("Deployed to %s.%s by %s (%s)", site, dnsSuffix, author, formatBytes(d.SizeBytes))
+	body := fmt.Sprintf("Deployed to %s.%s by %s (%s)", site, dnsSuffix, author, web.FormatBytes(d.SizeBytes))
 	if d.Comment != "" {
 		body += " — " + d.Comment
 	}

@@ -1,6 +1,7 @@
 package multihost
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,10 +14,14 @@ import (
 
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
-	"tspages/internal/forms"
 	"tspages/internal/httplog"
+	"tspages/internal/notify"
 	"tspages/internal/serve"
+	dbpkg "tspages/internal/db"
 	"tspages/internal/storage"
+	"tspages/internal/submissions"
+
+	_ "modernc.org/sqlite"
 )
 
 // newTestManager creates a Manager with a fake startSite that records calls
@@ -399,6 +404,26 @@ func writeFile(t *testing.T, dir, name, content string) {
 	}
 }
 
+func newTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dbpkg.Apply(db, append(analytics.Migrations, submissions.Migrations...)); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func newTestSubmissionStore(t *testing.T) *submissions.Store {
+	t.Helper()
+	return submissions.NewStore(newTestDB(t))
+}
+
 type mockNotifier struct {
 	calls []struct{ event, site string }
 }
@@ -410,10 +435,10 @@ func (n *mockNotifier) Fire(event string, site string, cfg storage.SiteConfig, d
 // buildSiteMux constructs the same mux that defaultStartSite creates,
 // but without tsnet. This lets tests verify POST/GET routing without
 // a real tailscale server.
-func buildSiteMux(store *storage.Store, recorder *analytics.Recorder, notifier forms.Notifier, site string, defaults storage.SiteConfig) http.Handler {
+func buildSiteMux(store *storage.Store, subStore *submissions.Store, notifier notify.Notifier, site string, defaults storage.SiteConfig) http.Handler {
 	handler := serve.NewHandler(store, site, "", defaults)
 	logged := httplog.Wrap(handler)
-	formHandler := forms.NewHandler(recorder, notifier, site, handler.Config)
+	formHandler := submissions.NewHandler(subStore, notifier, site, handler.Config)
 	formLogged := httplog.Wrap(formHandler)
 	mux := http.NewServeMux()
 	mux.Handle("GET /{path...}", logged)
@@ -437,14 +462,10 @@ func TestFormHandler_POSTRoute_FormsEnabled(t *testing.T) {
 		Forms: &storage.FormsConfig{Enabled: &boolTrue},
 	})
 
-	recorder, err := analytics.NewRecorder(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { recorder.Close() })
+	subStore := newTestSubmissionStore(t)
 
 	notif := &mockNotifier{}
-	mux := buildSiteMux(store, recorder, notif, "mysite", storage.SiteConfig{})
+	mux := buildSiteMux(store, subStore, notif, "mysite", storage.SiteConfig{})
 
 	// POST with form data should NOT return 405.
 	body := "name=Alice"
@@ -475,14 +496,10 @@ func TestFormHandler_POSTRoute_FormsDisabled(t *testing.T) {
 	store.ActivateDeployment("mysite", "d1")
 
 	// No forms config — forms disabled by default.
-	recorder, err := analytics.NewRecorder(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { recorder.Close() })
+	subStore := newTestSubmissionStore(t)
 
 	notif := &mockNotifier{}
-	mux := buildSiteMux(store, recorder, notif, "mysite", storage.SiteConfig{})
+	mux := buildSiteMux(store, subStore, notif, "mysite", storage.SiteConfig{})
 
 	body := "name=Alice"
 	req := httptest.NewRequest(http.MethodPost, "/contact", strings.NewReader(body))

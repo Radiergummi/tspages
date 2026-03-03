@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Submission analytics on the submissions page: time-series chart, summary cards (total submissions,
   unique submitters, form count), hourly submission pattern, and per-form breakdown chart.
 - Submission analytics JSON API at `GET /sites/{site}/submissions/analytics.json`.
+- Browser push notifications for form submissions. Subscribe from the submissions page to receive
+  instant notifications when a specific form receives a submission, using the Web Push API
+  (RFC 8030). Subscriptions are per-form and per-browser — subscribe to individual forms
+  independently. Expired subscriptions are cleaned up automatically.
 
 ### Security
 
@@ -44,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `form.submission` webhook payloads now send multi-value fields (checkboxes, multi-selects) as JSON
+  arrays instead of RS-encoded strings. Scalar fields are unchanged.
 - Site config changes made via the admin dashboard or API (e.g. enabling directory listing) now take
   effect immediately instead of requiring a new deployment.
 - Directory listing now works for the root path (`/`) on sites without an index page.

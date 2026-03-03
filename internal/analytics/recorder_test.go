@@ -1,17 +1,33 @@
 package analytics
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
+
+	dbpkg "tspages/internal/db"
 )
 
-func TestRecorder_RecordAndClose(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	r, err := NewRecorder(dbPath)
+func openTestDB(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := dbpkg.Apply(db, Migrations); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	return db
+}
+
+func TestRecorder_RecordAndClose(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db := openTestDB(t, dbPath)
+	r := NewRecorder(db)
 
 	r.Record(Event{
 		Timestamp: time.Now(),
@@ -23,15 +39,13 @@ func TestRecorder_RecordAndClose(t *testing.T) {
 		OS:        "darwin",
 	})
 
-	if err := r.Close(); err != nil {
-		t.Fatal(err)
-	}
+	r.Close()
+	db.Close()
 
 	// Reopen to verify persistence.
-	r2, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db2 := openTestDB(t, dbPath)
+	t.Cleanup(func() { db2.Close() })
+	r2 := NewRecorder(db2)
 	defer r2.Close()
 
 	count, err := r2.TotalRequests("docs", time.Time{}, time.Now().Add(time.Hour))
@@ -45,10 +59,8 @@ func TestRecorder_RecordAndClose(t *testing.T) {
 
 func TestRecorder_MultipleEvents(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	r, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openTestDB(t, dbPath)
+	r := NewRecorder(db)
 
 	for i := 0; i < 10; i++ {
 		r.Record(Event{
@@ -66,8 +78,11 @@ func TestRecorder_MultipleEvents(t *testing.T) {
 	})
 
 	r.Close()
+	db.Close()
 
-	r2, _ := NewRecorder(dbPath)
+	db2 := openTestDB(t, dbPath)
+	t.Cleanup(func() { db2.Close() })
+	r2 := NewRecorder(db2)
 	defer r2.Close()
 
 	count, _ := r2.TotalRequests("docs", time.Time{}, time.Now().Add(time.Hour))
@@ -83,10 +98,8 @@ func TestRecorder_MultipleEvents(t *testing.T) {
 func setupTestRecorder(t *testing.T) *Recorder {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	r, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openTestDB(t, dbPath)
+	r := NewRecorder(db)
 
 	base := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
 	events := []Event{
@@ -99,11 +112,11 @@ func setupTestRecorder(t *testing.T) *Recorder {
 		r.Record(e)
 	}
 	r.Close()
+	db.Close()
 
-	r2, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db2 := openTestDB(t, dbPath)
+	t.Cleanup(func() { db2.Close() })
+	r2 := NewRecorder(db2)
 	t.Cleanup(func() { r2.Close() })
 	return r2
 }
@@ -225,10 +238,9 @@ func TestRecorder_RequestsOverTime(t *testing.T) {
 
 func TestRecorder_RecordAfterClose(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	r, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openTestDB(t, dbPath)
+	t.Cleanup(func() { db.Close() })
+	r := NewRecorder(db)
 	r.Close()
 
 	// Record after Close must not panic.
@@ -311,10 +323,8 @@ func TestRecorder_HourlyPattern(t *testing.T) {
 
 func TestRecorder_MultiSiteQueries(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	r, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openTestDB(t, dbPath)
+	r := NewRecorder(db)
 
 	base := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
 	events := []Event{
@@ -326,11 +336,11 @@ func TestRecorder_MultiSiteQueries(t *testing.T) {
 		r.Record(e)
 	}
 	r.Close()
+	db.Close()
 
-	r2, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db2 := openTestDB(t, dbPath)
+	t.Cleanup(func() { db2.Close() })
+	r2 := NewRecorder(db2)
 	defer r2.Close()
 
 	from := time.Date(2026, 2, 24, 0, 0, 0, 0, time.UTC)
@@ -420,10 +430,9 @@ func TestRecorder_MultiSiteQueries(t *testing.T) {
 
 func TestRecorder_MultiSiteQueries_EmptySites(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	r, err := NewRecorder(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openTestDB(t, dbPath)
+	t.Cleanup(func() { db.Close() })
+	r := NewRecorder(db)
 	defer r.Close()
 
 	from := time.Date(2026, 2, 24, 0, 0, 0, 0, time.UTC)

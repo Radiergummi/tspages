@@ -182,6 +182,32 @@ The payload follows the standard webhook format:
 
 See [Webhooks](webhooks) for details on delivery, retries, and signing.
 
+## Push notifications
+
+Get instant browser notifications when a form is submitted. On the submissions page, select a form
+and click **Notify me** to subscribe via the Web Push API. The browser will prompt for notification
+permission, then you'll receive a push notification for every new submission on that form.
+
+Push notifications are:
+
+- **Per-form, per-browser** -- subscribe to individual forms independently; the same browser can
+  subscribe to multiple forms across multiple sites
+- **Best-effort** -- delivery relies on the browser's push service; no retries or logging
+- **Self-cleaning** -- expired subscriptions (404/410 from the push service) are removed
+  automatically
+
+Click **Notifications on** to unsubscribe from that form. Push notifications require the `deploy`
+capability for the site.
+
+### Push API
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/push/vapidkey` | GET | Returns `{"public_key": "..."}` for client subscription |
+| `/push/subscribe?site={site}&path={path}&endpoint={endpoint}` | GET | Check subscription status |
+| `/push/subscribe` | POST | Subscribe (body: `{"site", "path", "endpoint", "key_p256dh", "key_auth"}`) |
+| `/push/subscribe` | DELETE | Unsubscribe (body: `{"endpoint", "site", "path"}`) |
+
 ## Viewing submissions
 
 The admin dashboard shows form submissions per site at `/sites/{site}/submissions`. Submissions are

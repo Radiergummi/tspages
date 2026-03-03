@@ -18,15 +18,20 @@ import (
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/cli"
+	"tspages/internal/db"
 	"tspages/internal/deploy"
 	"tspages/internal/httplog"
 	"tspages/internal/metrics"
 	"tspages/internal/multihost"
+	"tspages/internal/notify"
+	"tspages/internal/pushnotify"
 	"tspages/internal/ratelimit"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
+	"tspages/internal/submissions"
 	"tspages/internal/tsadapter"
-	"tspages/internal/webhook"
+	"tspages/internal/web"
+	"tspages/internal/webhooks"
 
 	"tailscale.com/tsnet"
 )
@@ -77,18 +82,35 @@ func main() {
 	store := storage.New(cfg.Server.DataDir)
 	store.CleanupOrphans()
 
-	recorder, err := analytics.NewRecorder(filepath.Join(cfg.Server.DataDir, "analytics.db"))
+	database, err := db.Open(
+		filepath.Join(cfg.Server.DataDir, "analytics.db"),
+		analytics.Migrations,
+		submissions.Migrations,
+		webhooks.Migrations,
+		pushnotify.Migrations,
+	)
 	if err != nil {
-		log.Fatalf("opening analytics db: %v", err)
+		log.Fatalf("opening database: %v", err)
 	}
-	defer recorder.Close() //nolint:errcheck // best-effort cleanup on shutdown
+	defer database.Close() //nolint:errcheck // best-effort cleanup on shutdown
 
-	notifier, err := webhook.NewNotifier(recorder.DB())
+	recorder := analytics.NewRecorder(database)
+	defer recorder.Close()
+
+	webhookNotifier := webhooks.NewNotifier(database)
+
+	vapidPub, vapidPriv, err := pushnotify.LoadOrCreateVAPIDKeys(cfg.Server.DataDir)
 	if err != nil {
-		log.Fatalf("creating webhook notifier: %v", err) //nolint:gocritic // exitAfterDefer is intentional — process is dying
+		log.Fatalf("loading VAPID keys: %v", err)
 	}
+	pushNotifier := pushnotify.NewNotifier(database, vapidPub, vapidPriv)
 
-	admin.SetHideFooter(cfg.Server.HideFooter)
+	submissionStore := submissions.NewStore(database)
+
+	notifier := notify.Multi{webhookNotifier, pushNotifier}
+
+	web.SetHideFooter(cfg.Server.HideFooter)
+	admin.SetupWeb()
 
 	// Control plane tsnet server — start it and listen before creating
 	// handlers so we can resolve the DNS suffix first.
@@ -131,23 +153,24 @@ func main() {
 	}
 
 	mgr := multihost.New(multihost.ManagerConfig{
-		Store:      store,
-		StateDir:   cfg.Tailscale.StateDir,
-		AuthKey:    cfg.Tailscale.AuthKey,
-		Capability: cfg.Tailscale.Capability,
-		MaxSites:   cfg.Server.MaxSites,
-		Recorder:   recorder,
-		Notifier:   notifier,
-		DNSSuffix:  dnsSuffix,
-		Defaults:   cfg.Defaults,
-		Limiter:    limiter,
+		Store:       store,
+		StateDir:    cfg.Tailscale.StateDir,
+		AuthKey:     cfg.Tailscale.AuthKey,
+		Capability:  cfg.Tailscale.Capability,
+		MaxSites:    cfg.Server.MaxSites,
+		Recorder:    recorder,
+		Submissions: submissionStore,
+		Notifier:    notifier,
+		DNSSuffix:   dnsSuffix,
+		Defaults:    cfg.Defaults,
+		Limiter:     limiter,
 	})
 	defer mgr.Close()
 
 	whoIsClient := tsadapter.New(lc)
 	withAuth := auth.Middleware(whoIsClient, cfg.Tailscale.Capability)
 	denyRateLimit := func(w http.ResponseWriter, r *http.Request) {
-		admin.RenderError(w, r, http.StatusTooManyRequests, "Rate limit exceeded. Please wait a moment and try again.")
+		web.RenderError(w, r, http.StatusTooManyRequests, "Rate limit exceeded. Please wait a moment and try again.")
 	}
 	withMutate := compose(withAuth, ratelimit.Middleware(limiter, ratelimit.Mutate, denyRateLimit))
 	withQuery := compose(withAuth, ratelimit.Middleware(limiter, ratelimit.Query, denyRateLimit))
@@ -166,13 +189,43 @@ func main() {
 	deleteDeploymentHandler := deploy.NewDeleteDeploymentHandler(store)
 	cleanupDeploymentsHandler := deploy.NewCleanupDeploymentsHandler(store)
 	activateHandler := deploy.NewActivateHandler(store, mgr)
-	h := admin.NewHandlers(store, recorder, dnsSuffix, mgr, mgr, cfg.Defaults, notifier)
 	healthHandler := admin.NewHealthHandler(store, recorder)
 
 	mux := http.NewServeMux()
-	registerRoutes(mux, withAuth, withMutate, withQuery, h, healthHandler,
-		deployHandler, listHandler, deleteHandler,
-		deleteDeploymentHandler, cleanupDeploymentsHandler, activateHandler)
+
+	// Deploy API — mutate tier
+	mux.Handle("POST /deploy/{site}", withMutate(deployHandler))
+	mux.Handle("POST /deploy/{site}/{filename}", withMutate(deployHandler))
+	mux.Handle("PUT /deploy/{site}", withMutate(deployHandler))
+	mux.Handle("PUT /deploy/{site}/{filename}", withMutate(deployHandler))
+	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
+	mux.Handle("DELETE /deploy/{site}", withMutate(deleteHandler))
+	mux.Handle("DELETE /deploy/{site}/deployments", withMutate(cleanupDeploymentsHandler))
+	mux.Handle("DELETE /deploy/{site}/{id}", withMutate(deleteDeploymentHandler))
+	mux.Handle("POST /deploy/{site}/{id}/activate", withMutate(activateHandler))
+
+	// POST aliases for HTML form submissions (forms can't send DELETE) — mutate tier
+	mux.Handle("POST /sites/{site}/delete", withMutate(deleteHandler))
+	mux.Handle("POST /sites/{site}/cleanup", withMutate(cleanupDeploymentsHandler))
+
+	// Health checks (no auth, no rate limit)
+	mux.Handle("GET /healthz", healthHandler)
+
+	// Metrics
+	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		metrics.Handler().ServeHTTP(w, r)
+	})))
+
+	// Per-module route registration
+	admin.RegisterRoutes(mux, withAuth, withMutate, store, recorder, dnsSuffix, mgr, mgr,
+		cfg.Defaults, webhookNotifier, pushNotifier, vapidPub)
+	webhooks.RegisterRoutes(mux, withAuth, withMutate, store, cfg.Defaults, webhookNotifier)
+	analytics.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, recorder, cfg.Defaults)
+	submissions.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, submissionStore, cfg.Defaults, vapidPub)
 
 	listenErr := make(chan error, 3)
 
@@ -182,7 +235,19 @@ func main() {
 		if err != nil {
 			log.Fatalf("resolving template dir: %v", err)
 		}
-		admin.EnableDevMode(tmplDir)
+		webhooksTmplDir, err := filepath.Abs("internal/webhooks/templates")
+		if err != nil {
+			log.Fatalf("resolving webhooks template dir: %v", err)
+		}
+		analyticsTmplDir, err := filepath.Abs("internal/analytics/templates")
+		if err != nil {
+			log.Fatalf("resolving analytics template dir: %v", err)
+		}
+		submissionsTmplDir, err := filepath.Abs("internal/submissions/templates")
+		if err != nil {
+			log.Fatalf("resolving submissions template dir: %v", err)
+		}
+		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir})
 
 		serveTmplDir, err := filepath.Abs("internal/serve/templates")
 		if err != nil {
@@ -219,7 +284,7 @@ func main() {
 			http.Redirect(w, r, "/sites", http.StatusFound)
 			return
 		}
-		admin.RenderError(w, r, http.StatusNotFound, "")
+		web.RenderError(w, r, http.StatusNotFound, "")
 	})
 
 	// Local health check listener (plain HTTP, localhost only).
@@ -263,103 +328,6 @@ func main() {
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown error", "err", err)
 	}
-}
-
-func registerRoutes(
-	mux *http.ServeMux,
-	withAuth func(http.Handler) http.Handler,
-	withMutate func(http.Handler) http.Handler,
-	withQuery func(http.Handler) http.Handler,
-	h *admin.Handlers,
-	healthHandler http.Handler,
-	deployHandler http.Handler,
-	listHandler http.Handler,
-	deleteHandler http.Handler,
-	deleteDeploymentHandler http.Handler,
-	cleanupDeploymentsHandler http.Handler,
-	activateHandler http.Handler,
-) {
-	// Health checks (no auth, no rate limit)
-	mux.Handle("GET /healthz", healthHandler)
-	mux.Handle("GET /sites/{site}/healthz", withAuth(h.SiteHealth))
-
-	// Deploy API — mutate tier
-	mux.Handle("POST /deploy/{site}", withMutate(deployHandler))
-	mux.Handle("POST /deploy/{site}/{filename}", withMutate(deployHandler))
-	mux.Handle("PUT /deploy/{site}", withMutate(deployHandler))
-	mux.Handle("PUT /deploy/{site}/{filename}", withMutate(deployHandler))
-	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
-	mux.Handle("DELETE /deploy/{site}", withMutate(deleteHandler))
-	mux.Handle("DELETE /deploy/{site}/deployments", withMutate(cleanupDeploymentsHandler))
-	mux.Handle("DELETE /deploy/{site}/{id}", withMutate(deleteDeploymentHandler))
-	mux.Handle("POST /deploy/{site}/{id}/activate", withMutate(activateHandler))
-
-	// POST aliases for HTML form submissions (forms can't send DELETE) — mutate tier
-	mux.Handle("POST /sites/{site}/delete", withMutate(deleteHandler))
-	mux.Handle("POST /sites/{site}/cleanup", withMutate(cleanupDeploymentsHandler))
-
-	// Site creation — mutate tier
-	mux.Handle("POST /sites", withMutate(h.CreateSite))
-
-	// Browse routes (HTML + JSON via Accept header or .json suffix) — no rate limit
-	mux.Handle("GET /sites", withAuth(h.Sites))
-	mux.Handle("GET /sites.json", withAuth(h.Sites))
-	mux.Handle("GET /sites/{site}", withAuth(h.Site))
-	mux.Handle("GET /sites/{site}/deployments", withAuth(h.SiteDeployments))
-	mux.Handle("GET /sites/{site}/deployments.json", withAuth(h.SiteDeployments))
-	mux.Handle("GET /sites/{site}/deployments/{id}", withAuth(h.Deployment))
-
-	// Analytics — query tier (expensive aggregation)
-	mux.Handle("GET /sites/{site}/analytics", withQuery(h.Analytics))
-	mux.Handle("GET /sites/{site}/analytics.json", withQuery(h.Analytics))
-	mux.Handle("GET /analytics", withQuery(h.AllAnalytics))
-	mux.Handle("GET /analytics.json", withQuery(h.AllAnalytics))
-
-	// Analytics purge — mutate tier
-	mux.Handle("POST /sites/{site}/analytics/purge", withMutate(h.PurgeAnalytics))
-
-	// Site config — mutate tier for writes
-	mux.Handle("GET /sites/{site}/config", withAuth(h.SiteConfig))
-	mux.Handle("PATCH /sites/{site}/config", withMutate(h.UpdateSiteConfig))
-	mux.Handle("POST /sites/{site}/config", withMutate(h.PostSiteConfig))
-
-	// Submissions — reads are no limit, deletes are mutate, export/analytics are query
-	mux.Handle("GET /sites/{site}/submissions", withAuth(h.SubmissionsPage))
-	mux.Handle("GET /sites/{site}/submissions.json", withAuth(h.Submissions))
-	mux.Handle("GET /sites/{site}/submissions/{id}", withAuth(h.SubmissionDetail))
-	mux.Handle("DELETE /sites/{site}/submissions/{id}", withMutate(h.DeleteSubmission))
-	mux.Handle("POST /sites/{site}/submissions/{id}/delete", withMutate(h.DeleteSubmission))
-	mux.Handle("DELETE /sites/{site}/submissions", withMutate(h.BulkDeleteSubmissions))
-	mux.Handle("POST /sites/{site}/submissions/delete", withMutate(h.BulkDeleteSubmissions))
-	mux.Handle("GET /sites/{site}/submissions/analytics.json", withQuery(h.SubmissionAnalytics))
-	mux.Handle("GET /sites/{site}/submissions/export", withQuery(h.ExportSubmissions))
-
-	// Webhooks — retry is mutate tier
-	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /webhooks", withAuth(h.Webhooks))
-	mux.Handle("GET /webhooks.json", withAuth(h.Webhooks))
-	mux.Handle("GET /webhooks/{id}", withAuth(h.WebhookDetail))
-	mux.Handle("POST /webhooks/{id}/retry", withMutate(h.WebhookRetry))
-
-	// Feeds, help, assets, docs — no rate limit
-	mux.Handle("GET /deployments", withAuth(h.Deployments))
-	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
-	mux.Handle("GET /feed.atom", withAuth(h.Feed))
-	mux.Handle("GET /sites/{site}/feed.atom", withAuth(h.SiteFeed))
-	mux.Handle("GET /help", withAuth(h.Help))
-	mux.Handle("GET /help/{page...}", withAuth(h.Help))
-	mux.Handle("GET /assets/dist/{file...}", admin.AssetHandler())
-	mux.Handle("GET /api", withAuth(h.API))
-	mux.Handle("GET /openapi.yaml", admin.OpenAPIHandler())
-	mux.Handle("GET /openapi", admin.SwaggerUIHandler())
-	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		metrics.Handler().ServeHTTP(w, r)
-	})))
 }
 
 // compose chains two middleware functions: outer runs first, then inner.

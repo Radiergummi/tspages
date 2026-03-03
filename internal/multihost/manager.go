@@ -12,12 +12,13 @@ import (
 
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
-	"tspages/internal/forms"
 	"tspages/internal/httplog"
+	"tspages/internal/notify"
 	"tspages/internal/metrics"
 	"tspages/internal/ratelimit"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
+	"tspages/internal/submissions"
 	"tspages/internal/tsadapter"
 
 	"tailscale.com/tsnet"
@@ -49,31 +50,33 @@ type siteStarter func(site string) (*siteServer, error)
 
 // ManagerConfig holds configuration for creating a new Manager.
 type ManagerConfig struct {
-	Store      *storage.Store
-	StateDir   string
-	AuthKey    string
-	Capability string
-	MaxSites   int
-	Recorder   *analytics.Recorder
-	DNSSuffix  string
-	Defaults   storage.SiteConfig
-	Notifier   forms.Notifier
-	Limiter    *ratelimit.Limiter
+	Store       *storage.Store
+	StateDir    string
+	AuthKey     string
+	Capability  string
+	MaxSites    int
+	Recorder    *analytics.Recorder
+	Submissions *submissions.Store
+	DNSSuffix   string
+	Defaults    storage.SiteConfig
+	Notifier    notify.Notifier
+	Limiter     *ratelimit.Limiter
 }
 
 // Manager tracks per-site tsnet servers.
 type Manager struct {
-	store      *storage.Store
-	stateDir   string
-	authKey    string
-	capability string
-	maxSites   int
-	recorder   *analytics.Recorder
-	notifier   forms.Notifier
-	dnsSuffix  string
-	defaults   storage.SiteConfig
-	limiter    *ratelimit.Limiter
-	startSite  siteStarter
+	store       *storage.Store
+	stateDir    string
+	authKey     string
+	capability  string
+	maxSites    int
+	recorder    *analytics.Recorder
+	submissions *submissions.Store
+	notifier    notify.Notifier
+	dnsSuffix   string
+	defaults    storage.SiteConfig
+	limiter     *ratelimit.Limiter
+	startSite   siteStarter
 
 	mu       sync.Mutex
 	servers  map[string]*siteServer
@@ -82,18 +85,19 @@ type Manager struct {
 
 func New(cfg ManagerConfig) *Manager {
 	m := &Manager{
-		store:      cfg.Store,
-		stateDir:   cfg.StateDir,
-		authKey:    cfg.AuthKey,
-		capability: cfg.Capability,
-		maxSites:   cfg.MaxSites,
-		recorder:   cfg.Recorder,
-		notifier:   cfg.Notifier,
-		dnsSuffix:  cfg.DNSSuffix,
-		defaults:   cfg.Defaults,
-		limiter:    cfg.Limiter,
-		servers:    make(map[string]*siteServer),
-		starting:   make(map[string]chan struct{}),
+		store:       cfg.Store,
+		stateDir:    cfg.StateDir,
+		authKey:     cfg.AuthKey,
+		capability:  cfg.Capability,
+		maxSites:    cfg.MaxSites,
+		recorder:    cfg.Recorder,
+		submissions: cfg.Submissions,
+		notifier:    cfg.Notifier,
+		dnsSuffix:   cfg.DNSSuffix,
+		defaults:    cfg.Defaults,
+		limiter:     cfg.Limiter,
+		servers:     make(map[string]*siteServer),
+		starting:    make(map[string]chan struct{}),
 	}
 	m.startSite = m.defaultStartSite
 	return m
@@ -220,7 +224,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 			})
 		}
 	})
-	formHandler := forms.NewHandler(m.recorder, m.notifier, site, handler.Config)
+	formHandler := submissions.NewHandler(m.submissions, m.notifier, site, handler.Config)
 	formLogged := httplog.Wrap(formHandler, slog.String("site", site))
 	submitLimited := ratelimit.Middleware(m.limiter, ratelimit.Submit, nil)(formLogged)
 

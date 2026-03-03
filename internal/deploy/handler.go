@@ -13,8 +13,8 @@ import (
 
 	"tspages/internal/auth"
 	"tspages/internal/metrics"
+	"tspages/internal/notify"
 	"tspages/internal/storage"
-	"tspages/internal/webhook"
 )
 
 // SiteManager manages per-site tsnet server lifecycle.
@@ -35,7 +35,7 @@ type Handler struct {
 	maxUploadMB    int
 	maxDeployments int
 	dnsSuffix      string
-	notifier       *webhook.Notifier
+	notifier       notify.Notifier
 	defaults       storage.SiteConfig
 }
 
@@ -46,7 +46,7 @@ type HandlerConfig struct {
 	MaxUploadMB    int
 	MaxDeployments int
 	DNSSuffix      string
-	Notifier       *webhook.Notifier
+	Notifier       notify.Notifier
 	Defaults       storage.SiteConfig
 }
 

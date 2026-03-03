@@ -6,6 +6,7 @@ import {
   pluck,
   reloadOnThemeChange,
 } from "../lib/charts";
+import { initNotifications } from "../lib/notifications";
 
 interface TimeBucket {
   time: string;
@@ -76,5 +77,19 @@ async function main(): Promise<void> {
   }
 }
 
-document.addEventListener("DOMContentLoaded", main);
+function initPushNotifications(): void {
+  const btn = document.getElementById("notify-btn") as HTMLButtonElement | null;
+  if (!btn) return;
+  const site = btn.dataset.site ?? "";
+  const path = btn.dataset.path ?? "";
+  const vapidKey = btn.dataset.vapid ?? "";
+  if (site && path && vapidKey) {
+    initNotifications(site, path, vapidKey, btn);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  main();
+  initPushNotifications();
+});
 reloadOnThemeChange();

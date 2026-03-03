@@ -22,6 +22,7 @@ export default defineConfig({
         analytics: resolve(import.meta.dirname, "web/admin/src/pages/analytics.ts"),
         webhooks: resolve(import.meta.dirname, "web/admin/src/pages/webhooks.ts"),
         submissions: resolve(import.meta.dirname, "web/admin/src/pages/submissions.ts"),
+        sw: resolve(import.meta.dirname, "web/admin/src/sw.ts"),
       },
     },
   },

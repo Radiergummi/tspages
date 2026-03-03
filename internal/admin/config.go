@@ -6,6 +6,7 @@ import (
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/web"
 )
 
 // formBool returns true if the last value for name is "true".
@@ -22,47 +23,49 @@ func boolPtr(b bool) *bool { return &b }
 
 // region GET /sites/{site}/config
 
-type SiteConfigHandler struct{ handlerDeps }
+type SiteConfigHandler struct {
+	store *storage.Store
+}
 
 func (h *SiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps, siteName) {
-		RenderError(w, r, http.StatusForbidden, "forbidden")
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	cfg, err := h.store.ReadSiteConfig(siteName)
 	if err != nil {
-		RenderError(w, r, http.StatusInternalServerError, "reading site config")
+		web.RenderError(w, r, http.StatusInternalServerError, "reading site config")
 		return
 	}
 
-	writeJSON(w, cfg)
+	web.WriteJSON(w, cfg)
 }
 
 // region PATCH /sites/{site}/config
 
 type UpdateSiteConfigHandler struct {
-	handlerDeps
+	store   *storage.Store
 	ensurer SiteEnsurer
 }
 
 func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps, siteName) {
-		RenderError(w, r, http.StatusForbidden, "forbidden")
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
@@ -84,14 +87,15 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		h.ensurer.EnsureServer(siteName)
 	}
 
-	writeJSON(w, cfg)
+	web.WriteJSON(w, cfg)
 }
 
 // region POST /sites/{site}/config
 
 type PostSiteConfigHandler struct {
-	handlerDeps
-	ensurer SiteEnsurer
+	store    *storage.Store
+	defaults storage.SiteConfig
+	ensurer  SiteEnsurer
 }
 
 func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
@@ -120,7 +124,7 @@ func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 }
 
 func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
 		http.Error(w, "invalid site name", http.StatusBadRequest)
 		return

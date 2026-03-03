@@ -60,6 +60,26 @@ type FormField struct {
 	Multiple  *bool  `toml:"multiple" json:"multiple,omitempty"`
 }
 
+// MultipleFieldKeys returns the set of field keys configured as multiple
+// across all form endpoints. Returns nil if no fields are marked multiple.
+func (c SiteConfig) MultipleFieldKeys() map[string]bool {
+	if c.Forms == nil {
+		return nil
+	}
+	var keys map[string]bool
+	for _, ep := range c.Forms.Endpoints {
+		for _, f := range ep.Fields {
+			if f.Multiple != nil && *f.Multiple {
+				if keys == nil {
+					keys = make(map[string]bool)
+				}
+				keys[f.Key] = true
+			}
+		}
+	}
+	return keys
+}
+
 const siteConfigFile = "config.toml"
 
 func (c SiteConfig) Validate() error {

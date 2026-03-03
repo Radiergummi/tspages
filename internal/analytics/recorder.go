@@ -8,9 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "modernc.org/sqlite"
-
-	"tspages/internal/sqlmigrate"
 	"tspages/internal/timeseries"
 )
 
@@ -39,25 +36,20 @@ type Recorder struct {
 	closed atomic.Bool
 }
 
-func NewRecorder(dbPath string) (*Recorder, error) {
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
-	if err != nil {
-		return nil, err
-	}
-	if err := sqlmigrate.Apply(db, migrations); err != nil {
-		db.Close()
-		return nil, err
-	}
+func NewRecorder(db *sql.DB) *Recorder {
 	r := &Recorder{
 		db: db,
 		ch: make(chan Event, 1024),
 	}
 	r.wg.Add(1)
 	go r.writer()
-	return r, nil
+	return r
 }
 
-var migrations = []func(*sql.Tx) error{
+// Migrations is the ordered list of schema migrations for the analytics tables.
+// It is exported so that the db package can include it in the unified migration
+// sequence.
+var Migrations = []func(*sql.Tx) error{
 	// 1: baseline schema with all current columns.
 	func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
@@ -89,49 +81,6 @@ var migrations = []func(*sql.Tx) error{
 		return nil
 	},
 
-	// 2: form submissions table.
-	func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`
-			CREATE TABLE IF NOT EXISTS form_submissions (
-				id         TEXT PRIMARY KEY,
-				site       TEXT NOT NULL,
-				path       TEXT NOT NULL,
-				fields     TEXT NOT NULL,
-				submitter  TEXT NOT NULL DEFAULT '',
-				node       TEXT NOT NULL DEFAULT '',
-				ip         TEXT NOT NULL DEFAULT '',
-				created_at TEXT NOT NULL
-			);
-		`); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_created ON form_submissions(site, created_at)`); err != nil {
-			return err
-		}
-		_, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_path ON form_submissions(site, path)`)
-		return err
-	},
-
-	// 3: add submitter_pic_url to form_submissions.
-	func(tx *sql.Tx) error {
-		_, err := tx.Exec(`ALTER TABLE form_submissions ADD COLUMN submitter_pic_url TEXT NOT NULL DEFAULT ''`)
-		return err
-	},
-
-	// 4: add submitter_name to form_submissions.
-	func(tx *sql.Tx) error {
-		_, err := tx.Exec(`ALTER TABLE form_submissions ADD COLUMN submitter_name TEXT NOT NULL DEFAULT ''`)
-		return err
-	},
-
-	// 5: composite index for path+time range queries; subsumes idx_form_subs_site_path.
-	func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_path_created ON form_submissions(site, path, created_at)`); err != nil {
-			return err
-		}
-		_, err := tx.Exec(`DROP INDEX IF EXISTS idx_form_subs_site_path`)
-		return err
-	},
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full
@@ -213,20 +162,17 @@ func (r *Recorder) flush(events []Event) {
 	}
 }
 
-// DB returns the underlying database connection for shared use.
-func (r *Recorder) DB() *sql.DB { return r.db }
-
 // Ping checks whether the analytics database is reachable.
 func (r *Recorder) Ping() error {
 	return r.db.Ping()
 }
 
-// Close drains the event channel and shuts down the writer.
-func (r *Recorder) Close() error {
+// Close drains the event channel and shuts down the writer. It does not close
+// the underlying database connection, which is owned by the caller.
+func (r *Recorder) Close() {
 	r.closed.Store(true)
 	close(r.ch)
 	r.wg.Wait()
-	return r.db.Close()
 }
 
 var bucketSQL = timeseries.BucketSQL("ts")

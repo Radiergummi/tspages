@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"tspages/internal/auth"
+	"tspages/internal/notify"
 	"tspages/internal/storage"
-	"tspages/internal/webhook"
 )
 
 // wantsRedirect returns true when the request came from an HTML form submission
@@ -24,11 +24,11 @@ func wantsRedirect(r *http.Request) bool {
 type DeleteHandler struct {
 	store    *storage.Store
 	manager  SiteManager
-	notifier *webhook.Notifier
+	notifier notify.Notifier
 	defaults storage.SiteConfig
 }
 
-func NewDeleteHandler(store *storage.Store, manager SiteManager, notifier *webhook.Notifier, defaults storage.SiteConfig) *DeleteHandler {
+func NewDeleteHandler(store *storage.Store, manager SiteManager, notifier notify.Notifier, defaults storage.SiteConfig) *DeleteHandler {
 	return &DeleteHandler{store: store, manager: manager, notifier: notifier, defaults: defaults}
 }
 

@@ -39,6 +39,7 @@ demo.tailnet.ts.net      → serves demo site
 ```
 cmd/tspages/main.go
   ├── config          — TOML config loading with defaults
+  ├── db              — SQLite open + unified migration runner
   ├── multihost       — manages per-site tsnet.Server lifecycle
   │     ├── serve     — static file handler (one per site)
   │     │     ├── compress — gzip/brotli compression + precompressed asset serving
@@ -47,9 +48,13 @@ cmd/tspages/main.go
   │     └── tsadapter — wraps tailscale LocalClient → auth.WhoIsClient
   ├── deploy          — ZIP upload + site/deployment management (control plane only)
   │     └── extract   — ZIP/tar/markdown extraction with zip-slip protection
-  ├── admin           — web dashboard, Atom feeds, help docs, OpenAPI (control plane only)
-  ├── webhook         — deploy/site event notifications with delivery tracking
-  ├── analytics       — SQLite-based per-request recording + queries
+  ├── admin           — sites, deployments, feeds, help docs, OpenAPI (control plane only)
+  ├── analytics       — SQLite-based per-request recording, queries + admin handlers
+  ├── submissions     — form submission handling, storage + admin pages
+  ├── webhooks        — event notifications with delivery tracking + admin pages
+  ├── pushnotify      — browser push notifications for form submissions
+  ├── notify          — Notifier interface + Multi fan-out (dependency inversion)
+  ├── web             — shared HTML rendering, templates, response helpers
   ├── metrics         — Prometheus counters/histograms/gauges
   ├── cli             — `tspages deploy` subcommand with server auto-discovery
   └── storage         — filesystem-based site/deployment storage + site config

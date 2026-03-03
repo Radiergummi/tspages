@@ -8,6 +8,7 @@ import (
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/web"
 )
 
 // region GET /healthz
@@ -66,26 +67,26 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // SiteHealthHandler returns health for a single site. It requires auth.
 type SiteHealthHandler struct {
-	handlerDeps
+	store   *storage.Store
 	checker SiteHealthChecker
 }
 
 func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.CanView(caps, siteName) {
-		RenderError(w, r, http.StatusForbidden, "forbidden")
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	site, err := h.store.GetSite(siteName)
 	if err != nil {
-		RenderError(w, r, http.StatusNotFound, "site not found")
+		web.RenderError(w, r, http.StatusNotFound, "site not found")
 		return
 	}
 

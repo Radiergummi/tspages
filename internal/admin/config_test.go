@@ -15,7 +15,7 @@ func TestGetSiteConfig_Empty(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
 
-	h := &SiteConfigHandler{handlerDeps{store: store}}
+	h := &SiteConfigHandler{store: store}
 	r := reqWithAuth("GET", "/sites/docs/config", []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
 	r.SetPathValue("site", "docs")
 	w := httptest.NewRecorder()
@@ -41,7 +41,7 @@ func TestGetSiteConfig_RequiresAdmin(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
 
-	h := &SiteConfigHandler{handlerDeps{store: store}}
+	h := &SiteConfigHandler{store: store}
 	// Only "view" access, not admin.
 	r := reqWithAuth("GET", "/sites/docs/config", []auth.Cap{{Access: "view"}}, auth.Identity{LoginName: "viewer@test"})
 	r.SetPathValue("site", "docs")
@@ -70,7 +70,7 @@ func TestPatchSiteConfig(t *testing.T) {
 	patchReq = patchReq.WithContext(ctx)
 	patchReq.SetPathValue("site", "docs")
 
-	patchHandler := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	patchHandler := &UpdateSiteConfigHandler{store: store}
 	pw := httptest.NewRecorder()
 	patchHandler.ServeHTTP(pw, patchReq)
 
@@ -79,7 +79,7 @@ func TestPatchSiteConfig(t *testing.T) {
 	}
 
 	// GET to verify the config persisted.
-	getHandler := &SiteConfigHandler{handlerDeps{store: store}}
+	getHandler := &SiteConfigHandler{store: store}
 	getReq := reqWithAuth("GET", "/sites/docs/config", caps, id)
 	getReq.SetPathValue("site", "docs")
 	gw := httptest.NewRecorder()
@@ -106,7 +106,7 @@ func TestPatchSiteConfig_InvalidatesHandler(t *testing.T) {
 	store.CreateSite("docs")
 
 	mock := &mockEnsurer{}
-	h := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}, ensurer: mock}
+	h := &UpdateSiteConfigHandler{store: store, ensurer: mock}
 
 	body := `{"directory_listing": true}`
 	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
@@ -132,7 +132,7 @@ func TestPostSiteConfig_InvalidatesHandler(t *testing.T) {
 	store.CreateSite("docs")
 
 	mock := &mockEnsurer{}
-	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}, ensurer: mock}
+	h := &PostSiteConfigHandler{store: store, ensurer: mock}
 
 	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&directory_listing=true&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
@@ -162,7 +162,7 @@ func TestPatchSiteConfig_ValidationError(t *testing.T) {
 	r = r.WithContext(ctx)
 	r.SetPathValue("site", "docs")
 
-	h := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	h := &UpdateSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -184,7 +184,7 @@ func TestPatchSiteConfig_RequiresAdmin(t *testing.T) {
 	r = r.WithContext(ctx)
 	r.SetPathValue("site", "docs")
 
-	h := &UpdateSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	h := &UpdateSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -227,7 +227,7 @@ func TestPostSiteConfig_FormSubmit(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, caps, id)
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -273,7 +273,7 @@ func TestPostSiteConfig_PreservesEndpoints(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, caps, id)
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -301,7 +301,7 @@ func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "deploy"}}, auth.Identity{LoginName: "deployer@test"})
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -319,7 +319,7 @@ func TestPostSiteConfig_ValidationError(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps: handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
