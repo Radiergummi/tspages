@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"tspages/internal/analytics"
@@ -16,7 +18,21 @@ import (
 	"tspages/internal/storage"
 )
 
-// --- GET /sites/{site}/submissions.json ---
+// parseRFC3339 parses v as RFC3339 into dst. Returns false and writes a 400 if v is non-empty and invalid.
+func parseRFC3339(w http.ResponseWriter, r *http.Request, v, name string, dst *time.Time) bool {
+	if v == "" {
+		return true
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		RenderError(w, r, http.StatusBadRequest, fmt.Sprintf("invalid %s: expected RFC3339 format", name))
+		return false
+	}
+	*dst = t
+	return true
+}
+
+// region GET /sites/{site}/submissions.json
 
 type SubmissionsHandler struct{ handlerDeps }
 
@@ -49,15 +65,11 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			opts.Offset = n
 		}
 	}
-	if v := q.Get("since"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			opts.Since = t
-		}
+	if !parseRFC3339(w, r, q.Get("since"), "since", &opts.Since) {
+		return
 	}
-	if v := q.Get("until"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			opts.Until = t
-		}
+	if !parseRFC3339(w, r, q.Get("until"), "until", &opts.Until) {
+		return
 	}
 
 	subs, err := h.recorder.ListSubmissions(siteName, opts)
@@ -68,10 +80,14 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if subs == nil {
 		subs = []analytics.Submission{}
 	}
+	multiKeys := h.multipleFieldKeys(siteName)
+	for i := range subs {
+		subs[i].Fields = analytics.ExpandFields(subs[i].Fields, multiKeys)
+	}
 	writeJSON(w, subs)
 }
 
-// --- GET /sites/{site}/submissions/{id} ---
+// region GET /sites/{site}/submissions/{id}
 
 type SubmissionDetailHandler struct{ handlerDeps }
 
@@ -98,10 +114,11 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		RenderError(w, r, http.StatusInternalServerError, "fetching submission")
 		return
 	}
+	sub.Fields = analytics.ExpandFields(sub.Fields, h.multipleFieldKeys(siteName))
 	writeJSON(w, sub)
 }
 
-// --- DELETE /sites/{site}/submissions/{id} ---
+// region DELETE /sites/{site}/submissions/{id}
 
 type DeleteSubmissionHandler struct{ handlerDeps }
 
@@ -119,6 +136,15 @@ func (h *DeleteSubmissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	id := r.PathValue("id")
+
+	// Parse form before side effects so a bad body doesn't return 400 after the row is gone.
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			RenderError(w, r, http.StatusBadRequest, "invalid form data")
+			return
+		}
+	}
+
 	deleted, err := h.recorder.DeleteSubmission(siteName, id)
 	if err != nil {
 		RenderError(w, r, http.StatusInternalServerError, "deleting submission")
@@ -129,19 +155,15 @@ func (h *DeleteSubmissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if r.Method == http.MethodPost {
-		if err := r.ParseForm(); err != nil {
-			RenderError(w, r, http.StatusBadRequest, "invalid form data")
-			return
-		}
 		path := r.FormValue("path")
-		http.Redirect(w, r, "/sites/"+siteName+"/submissions?path="+path, http.StatusSeeOther)
+		http.Redirect(w, r, "/sites/"+siteName+"/submissions?path="+url.QueryEscape(path), http.StatusSeeOther)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// --- DELETE /sites/{site}/submissions ---
-// --- POST /sites/{site}/submissions/delete (HTML form alias) ---
+// region DELETE /sites/{site}/submissions
+// region POST /sites/{site}/submissions/delete (HTML form alias)
 
 type BulkDeleteSubmissionsHandler struct{ handlerDeps }
 
@@ -165,18 +187,14 @@ func (h *BulkDeleteSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.
 			return
 		}
 		opts.Path = r.FormValue("path")
-		if v := r.FormValue("before"); v != "" {
-			if t, err := time.Parse(time.RFC3339, v); err == nil {
-				opts.Before = t
-			}
+		if !parseRFC3339(w, r, r.FormValue("before"), "before", &opts.Before) {
+			return
 		}
 	} else {
 		q := r.URL.Query()
 		opts.Path = q.Get("path")
-		if v := q.Get("before"); v != "" {
-			if t, err := time.Parse(time.RFC3339, v); err == nil {
-				opts.Before = t
-			}
+		if !parseRFC3339(w, r, q.Get("before"), "before", &opts.Before) {
+			return
 		}
 	}
 
@@ -192,13 +210,13 @@ func (h *BulkDeleteSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.
 	}
 
 	if r.Method == http.MethodPost {
-		http.Redirect(w, r, "/sites/"+siteName+"/submissions?path="+opts.Path, http.StatusSeeOther)
+		http.Redirect(w, r, "/sites/"+siteName+"/submissions?path="+url.QueryEscape(opts.Path), http.StatusSeeOther)
 		return
 	}
 	writeJSON(w, map[string]int64{"deleted": deleted})
 }
 
-// --- GET /sites/{site}/submissions/export ---
+// region GET /sites/{site}/submissions/export
 
 type ExportSubmissionsHandler struct{ handlerDeps }
 
@@ -217,15 +235,11 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	q := r.URL.Query()
 	opts := analytics.ListSubmissionsOpts{Path: q.Get("path"), Limit: 10000}
-	if v := q.Get("since"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			opts.Since = t
-		}
+	if !parseRFC3339(w, r, q.Get("since"), "since", &opts.Since) {
+		return
 	}
-	if v := q.Get("until"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			opts.Until = t
-		}
+	if !parseRFC3339(w, r, q.Get("until"), "until", &opts.Until) {
+		return
 	}
 
 	subs, err := h.recorder.ListSubmissions(siteName, opts)
@@ -243,12 +257,16 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	// Default: JSON export.
+	multiKeys := h.multipleFieldKeys(siteName)
+	for i := range subs {
+		subs[i].Fields = analytics.ExpandFields(subs[i].Fields, multiKeys)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-submissions.json"`, siteName))
 	json.NewEncoder(w).Encode(subs)
 }
 
-// --- GET /sites/{site}/submissions/analytics.json ---
+// region GET /sites/{site}/submissions/analytics.json
 
 type SubmissionAnalyticsHandler struct{ handlerDeps }
 
@@ -274,30 +292,37 @@ func (h *SubmissionAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	}
 
 	path := r.URL.Query().Get("path")
-	now := time.Now()
-	var from time.Time
+	_, from, now := parseRange(r)
 
-	paths, _ := h.recorder.FormPaths(siteName)
-	var total int64
-	if path != "" {
-		for _, fp := range paths {
-			if fp.Path == path {
-				total = fp.Count
-				break
-			}
-		}
-	} else {
-		for _, fp := range paths {
-			total += fp.Count
-		}
+	paths, err := h.recorder.FormPaths(siteName)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "listing form paths")
+		return
+	}
+	total, err := h.recorder.CountSubmissions(siteName, path, from, now)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "counting submissions")
+		return
 	}
 
-	ts, _ := h.recorder.SubmissionsOverTime(siteName, path, from, now)
+	ts, err := h.recorder.SubmissionsOverTime(siteName, path, from, now)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "fetching time series")
+		return
+	}
 	if ts == nil {
 		ts = []analytics.TimeBucket{}
 	}
-	submitters, _ := h.recorder.UniqueSubmitters(siteName, path, from, now)
-	hourly, _ := h.recorder.HourlySubmissionPattern(siteName, path, from, now)
+	submitters, err := h.recorder.UniqueSubmitters(siteName, path, from, now)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "fetching submitters")
+		return
+	}
+	hourly, err := h.recorder.HourlySubmissionPattern(siteName, path, from, now)
+	if err != nil {
+		RenderError(w, r, http.StatusInternalServerError, "fetching hourly pattern")
+		return
+	}
 	if hourly == nil {
 		hourly = []analytics.HourCount{}
 	}
@@ -348,7 +373,8 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 		for _, k := range fieldKeys {
 			val := ""
 			if v, ok := parsed[i][k]; ok {
-				val = fmt.Sprintf("%v", v)
+				s := fmt.Sprintf("%v", v)
+				val = strings.TrimSuffix(strings.ReplaceAll(s, analytics.FieldSeparator, ", "), ", ")
 			}
 			row = append(row, val)
 		}

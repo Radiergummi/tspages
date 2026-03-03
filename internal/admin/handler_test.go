@@ -117,7 +117,7 @@ var (
 	viewerCaps = []auth.Cap{{Access: "view", Sites: []string{"docs"}}}
 )
 
-// --- SitesHandler ---
+// region SitesHandler
 
 func TestSitesHandler_AdminJSON(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -240,7 +240,7 @@ func TestSitesHandler_NonAdminExclusion(t *testing.T) {
 	}
 }
 
-// --- SiteHandler ---
+// region SiteHandler
 
 func TestSiteHandler_AdminJSON(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -367,7 +367,7 @@ func TestSiteHandler_NonAdminForbidden(t *testing.T) {
 	}
 }
 
-// --- DeploymentHandler ---
+// region DeploymentHandler
 
 func TestDeploymentHandler_AdminJSON(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -595,7 +595,7 @@ func TestDiffFiles(t *testing.T) {
 	}
 }
 
-// --- DeploymentsHandler ---
+// region DeploymentsHandler
 
 func TestDeploymentsHandler_AdminJSON(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -706,7 +706,7 @@ func TestDeploymentsHandler_Pagination(t *testing.T) {
 	}
 }
 
-// --- CreateSiteHandler ---
+// region CreateSiteHandler
 
 func TestCreateSiteHandler_Success(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -847,7 +847,7 @@ func TestCreateSiteHandler_CallsEnsureServer(t *testing.T) {
 	}
 }
 
-// --- AnalyticsHandler ---
+// region AnalyticsHandler
 
 func TestAnalyticsHandler_HTML(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -950,7 +950,7 @@ func TestAnalyticsHandler_DisabledViaDefaults(t *testing.T) {
 	}
 }
 
-// --- AllAnalyticsHandler ---
+// region AllAnalyticsHandler
 
 func setupMultiSiteRecorder(t *testing.T) *analytics.Recorder {
 	t.Helper()
@@ -1139,7 +1139,7 @@ func TestAllAnalyticsHandler_NoRecorder(t *testing.T) {
 	}
 }
 
-// --- PurgeAnalyticsHandler ---
+// region PurgeAnalyticsHandler
 
 func TestPurgeAnalyticsHandler(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -1230,7 +1230,7 @@ func TestJSONResponses_LinkHeaders(t *testing.T) {
 	}
 }
 
-// --- HealthHandler ---
+// region HealthHandler
 
 func TestHealthHandler_OK(t *testing.T) {
 	store := setupStore(t)
@@ -1277,7 +1277,7 @@ func TestHealthHandler_NoAnalytics(t *testing.T) {
 	}
 }
 
-// --- SiteHealthHandler ---
+// region SiteHealthHandler
 
 func TestSiteHealthHandler_Running(t *testing.T) {
 	store := setupStore(t)
@@ -1408,7 +1408,7 @@ func TestSubtractISO8601(t *testing.T) {
 	}
 }
 
-// --- helpers for webhook handler tests ---
+// region helpers for webhook handler tests
 
 func testNotifierDB(t *testing.T) (*webhook.Notifier, *sql.DB) {
 	t.Helper()
@@ -1453,7 +1453,7 @@ func setupHandlersWithNotifier(t *testing.T) (*Handlers, *storage.Store, *webhoo
 	return NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, notifier), store, notifier, db
 }
 
-// --- SiteDeploymentsHandler ---
+// region SiteDeploymentsHandler
 
 func TestSiteDeploymentsHandler_AdminJSON(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -1526,7 +1526,7 @@ func TestSiteDeploymentsHandler_InvalidSite(t *testing.T) {
 	}
 }
 
-// --- WebhooksHandler ---
+// region WebhooksHandler
 
 func TestWebhooksHandler_AdminJSON(t *testing.T) {
 	hs, _, _, _ := setupHandlersWithNotifier(t)
@@ -1579,7 +1579,7 @@ func TestWebhooksHandler_NilNotifier(t *testing.T) {
 	}
 }
 
-// --- SiteWebhooksHandler ---
+// region SiteWebhooksHandler
 
 func TestSiteWebhooksHandler_AdminJSON(t *testing.T) {
 	hs, _, _, _ := setupHandlersWithNotifier(t)
@@ -1624,7 +1624,7 @@ func TestSiteWebhooksHandler_InvalidSite(t *testing.T) {
 	}
 }
 
-// --- WebhookDetailHandler ---
+// region WebhookDetailHandler
 
 func TestWebhookDetailHandler_JSON(t *testing.T) {
 	hs, _, _, db := setupHandlersWithNotifier(t)
@@ -1725,7 +1725,7 @@ func TestWebhookDetailHandler_MissingID(t *testing.T) {
 	}
 }
 
-// --- WebhookRetryHandler ---
+// region WebhookRetryHandler
 
 func TestWebhookRetryHandler_Forbidden(t *testing.T) {
 	hs, _, _, db := setupHandlersWithNotifier(t)

@@ -123,6 +123,15 @@ var migrations = []func(*sql.Tx) error{
 		_, err := tx.Exec(`ALTER TABLE form_submissions ADD COLUMN submitter_name TEXT NOT NULL DEFAULT ''`)
 		return err
 	},
+
+	// 5: composite index for path+time range queries; subsumes idx_form_subs_site_path.
+	func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_form_subs_site_path_created ON form_submissions(site, path, created_at)`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`DROP INDEX IF EXISTS idx_form_subs_site_path`)
+		return err
+	},
 }
 
 // Record sends an event to the writer goroutine. Non-blocking; drops on full
@@ -222,7 +231,7 @@ func (r *Recorder) Close() error {
 
 var bucketSQL = timeseries.BucketSQL("ts")
 
-// --- Query types ---
+// region Query types
 
 type TimeBucket struct {
 	Time  string `json:"time"`
@@ -269,7 +278,7 @@ type NodeCount struct {
 	Count    int64  `json:"count"`
 }
 
-// --- Query methods ---
+// region Query methods
 
 func (r *Recorder) TotalRequests(site string, from, to time.Time) (int64, error) {
 	return r.TotalRequestsMulti([]string{site}, from, to)
@@ -340,7 +349,7 @@ func (r *Recorder) NodeBreakdown(site string, from, to time.Time) ([]NodeCount, 
 	return r.NodeBreakdownMulti([]string{site}, from, to)
 }
 
-// --- Aggregate query methods (filtered to given sites) ---
+// region Aggregate query methods (filtered to given sites)
 
 type SiteCount struct {
 	Site  string `json:"site"`

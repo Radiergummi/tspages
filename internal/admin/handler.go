@@ -40,13 +40,39 @@ type SiteDetailResponse struct {
 	Deployments []storage.DeploymentInfo `json:"deployments"`
 }
 
-// --- shared deps ---
+// region shared deps
 
 type handlerDeps struct {
 	store     *storage.Store
 	recorder  *analytics.Recorder
 	dnsSuffix string
 	defaults  storage.SiteConfig
+}
+
+// multipleFieldKeys returns the set of field keys configured as multiple
+// across all form endpoints for the given site.
+func (d *handlerDeps) multipleFieldKeys(site string) map[string]bool {
+	if d.store == nil {
+		return nil
+	}
+	deployCfg, _ := d.store.ReadCurrentDeploymentConfig(site)
+	siteCfg, _ := d.store.ReadSiteConfig(site)
+	merged := deployCfg.Merge(siteCfg).Merge(d.defaults)
+	if merged.Forms == nil {
+		return nil
+	}
+	var keys map[string]bool
+	for _, ep := range merged.Forms.Endpoints {
+		for _, f := range ep.Fields {
+			if f.Multiple {
+				if keys == nil {
+					keys = make(map[string]bool)
+				}
+				keys[f.Key] = true
+			}
+		}
+	}
+	return keys
 }
 
 // analyticsEnabled reports whether analytics are enabled for the given site
@@ -107,16 +133,16 @@ type Handlers struct {
 	Feed             *FeedHandler
 	SiteFeed         *SiteFeedHandler
 	SiteHealth       *SiteHealthHandler
-	SiteConfig       *SiteConfigHandler
-	UpdateSiteConfig *UpdateSiteConfigHandler
-	PostSiteConfig   *PostSiteConfigHandler
+	SiteConfig            *SiteConfigHandler
+	UpdateSiteConfig      *UpdateSiteConfigHandler
+	PostSiteConfig        *PostSiteConfigHandler
 	SubmissionsPage       *SubmissionsPageHandler
 	Submissions           *SubmissionsHandler
 	SubmissionDetail      *SubmissionDetailHandler
-	DeleteSubmission     *DeleteSubmissionHandler
+	DeleteSubmission      *DeleteSubmissionHandler
 	BulkDeleteSubmissions *BulkDeleteSubmissionsHandler
 	ExportSubmissions     *ExportSubmissionsHandler
-	SubmissionAnalytics  *SubmissionAnalyticsHandler
+	SubmissionAnalytics   *SubmissionAnalyticsHandler
 }
 
 func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
@@ -142,19 +168,19 @@ func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix s
 		SiteFeed:         &SiteFeedHandler{d},
 		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
 		SiteConfig:            &SiteConfigHandler{d},
-		UpdateSiteConfig:     &UpdateSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
-		PostSiteConfig:       &PostSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
-		SubmissionsPage:      &SubmissionsPageHandler{d},
-		Submissions:          &SubmissionsHandler{d},
-		SubmissionDetail:     &SubmissionDetailHandler{d},
-		DeleteSubmission:     &DeleteSubmissionHandler{d},
+		UpdateSiteConfig:      &UpdateSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		PostSiteConfig:        &PostSiteConfigHandler{handlerDeps: d, ensurer: ensurer},
+		SubmissionsPage:       &SubmissionsPageHandler{d},
+		Submissions:           &SubmissionsHandler{d},
+		SubmissionDetail:      &SubmissionDetailHandler{d},
+		DeleteSubmission:      &DeleteSubmissionHandler{d},
 		BulkDeleteSubmissions: &BulkDeleteSubmissionsHandler{d},
 		ExportSubmissions:     &ExportSubmissionsHandler{d},
-		SubmissionAnalytics:  &SubmissionAnalyticsHandler{d},
+		SubmissionAnalytics:   &SubmissionAnalyticsHandler{d},
 	}
 }
 
-// --- GET /help/{page...} ---
+// region GET /help/{page...}
 
 type HelpHandler struct{}
 
@@ -197,7 +223,7 @@ func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{userInfo(identity, caps), DocNav(), *current, result.Content, result.TOC, result.Meta})
 }
 
-// --- GET /api ---
+// region GET /api
 
 type APIHandler struct{}
 

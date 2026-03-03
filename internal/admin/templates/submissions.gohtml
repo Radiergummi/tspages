@@ -108,7 +108,7 @@
             <!-- region Analytics -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <section
-                        class="col-span-1 sm:col-span-3 bg-surface dark:ring-1 dark:ring-base-500/25
+                        class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25
                         rounded-md overflow-hidden m-0"
                 >
                     <header class="flex items-end justify-end gap-10 px-5 h-14">
@@ -150,29 +150,9 @@
                     {{end}}
                 </section>
 
-                {{if .HourlyPattern}}
-                    <section
-                            class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md
-                            overflow-hidden m-0"
-                    >
-                        <header class="flex items-center justify-between px-5 h-14">
-                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
-                                By hour
-                            </h2>
-                        </header>
-                        <div class="relative px-4 pb-3 h-48">
-                            <canvas
-                                    id="hourly-chart"
-                                    aria-label="Submissions by hour of day"
-                                    role="img"
-                            ></canvas>
-                        </div>
-                    </section>
-                {{end}}
-
                 {{if and .FormPaths (gt (len .FormPaths) 1)}}
                     <section
-                            class="col-span-1 sm:col-span-2 bg-surface dark:ring-1
+                            class="bg-surface dark:ring-1
                             dark:ring-base-500/25 rounded-md overflow-hidden m-0"
                     >
                         <header class="flex items-center justify-between px-5 h-14">
@@ -197,14 +177,17 @@
                 <nav aria-label="Form paths" class="flex flex-wrap gap-1">
                     {{range .Paths}}
                         <a
-                                class="pill inline-flex items-center gap-2 pe-1.5"
+                                class="pill inline-flex items-center gap-2 pe-1.5 group"
                                 href="/sites/{{$.SiteName}}/submissions?path={{.Path}}"
                                 {{if eq .Path $.CurrentPath}}aria-current="step"{{end}}
                         >
                             <span>{{.Name}}</span>
                             <span
-                                    class="text-base-100 bg-base-950/50 rounded-full flex items-center
-                                justify-center p-1 min-w-6"
+                                    class="text-muted dark:text-base-100 bg-base-100 dark:bg-base-800/75
+                                    dark:group-hover:bg-base-800 group-aria-[current=step]:bg-blue-300/75
+                                    group-aria-[current=step]:text-paper dark:group-aria-[current=step]:bg-blue-700
+                                    group-hover:bg-base-200 rounded-full flex items-center justify-center p-1 min-w-6
+                                    transition"
                             >
                                 {{.Count}}
                             </span>
@@ -215,25 +198,27 @@
             <!-- endregion -->
 
             {{if .Submissions}}
-                <div class="flex items-center justify-between">
+                <div class="grid grid-cols-[1fr_auto] grid-rows-2">
                     {{if .FormName}}
-                        <div>
-                            <h2 class="text-lg font-semibold">
-                                {{.FormName}}
-                            </h2>
+                        <h2 class="text-lg font-semibold">
+                            {{.FormName}}
+                        </h2>
 
-                            {{if .FormDesc}}
-                                <p class="text-sm text-muted">
-                                    {{.FormDesc}}
-                                </p>
-                            {{end}}
-                        </div>
+                        {{if .FormDesc}}
+                            <p class="text-sm text-muted row-start-2">
+                                {{.FormDesc}}
+                            </p>
+                        {{else}}
+                            <span class="text-sm text-muted row-start-2">
+                                {{.CurrentPath}}
+                            </span>
+                        {{end}}
                     {{else}}
-                        <div></div>
+                        <span></span>
                     {{end}}
 
                     <!-- region Actions -->
-                    <div class="flex gap-2">
+                    <div class="flex items-center gap-2 row-span-2">
                         <a
                                 class="btn btn-outline inline-flex items-center gap-1.5 no-underline"
                                 href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
@@ -369,12 +354,15 @@
 
                                 {{range $key := $.FieldKeys}}
                                     <td
-                                            class="pe-4 last:pe-0 py-3 border-b border-default max-w-64 truncate
+                                            class="pe-4 last:pe-0 py-3 border-b border-default max-w-64
                                             data-numeric:text-end data-numeric:tabular-nums"
                                             {{if index $.NumericFields $key}}data-numeric="true"{{end}}
                                     >
                                         {{with index $sub.ParsedFields $key}}
-                                            <span title="{{.}}">{{.}}</span>
+                                            <span
+                                                    class="whitespace-pre-wrap wrap-break-word line-clamp-3"
+                                                    title="{{.}}"
+                                            >{{.}}</span>
                                         {{else}}
                                             <span class="text-muted italic">—</span>
                                         {{end}}
@@ -549,7 +537,7 @@
                                                     {{with index $sub.ParsedFields $key}}
                                                         <span
                                                                 class="whitespace-pre-wrap wrap-break-word"
-                                                        >{{index $sub.ParsedFields $key}}</span>
+                                                        >{{.}}</span>
                                                     {{else}}
                                                         <span class="text-muted italic">—</span>
                                                     {{end}}

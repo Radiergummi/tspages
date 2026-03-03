@@ -5,16 +5,10 @@ import {
   lineChart,
   pluck,
   reloadOnThemeChange,
-  stackedBar,
 } from "../lib/charts";
 
 interface TimeBucket {
   time: string;
-  count: number;
-}
-
-interface HourCount {
-  hour: number;
   count: number;
 }
 
@@ -31,7 +25,6 @@ interface FormSeries {
 
 interface SubmissionsData {
   time_series_by_form?: FormSeries[];
-  hourly_pattern?: HourCount[];
   paths?: FormPath[];
 }
 
@@ -69,23 +62,13 @@ async function main(): Promise<void> {
     );
   }
 
-  if (data.hourly_pattern?.length) {
-    const hourMap = new Map(data.hourly_pattern.map((h) => [h.hour, h.count]));
-    const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
-    const counts = Array.from({ length: 24 }, (_, i) => hourMap.get(i) ?? 0);
-
-    stackedBar(
-      document.getElementById("hourly-chart") as HTMLCanvasElement | null,
-      labels,
-      [{ label: "Submissions", data: counts, color: theme.cv("--color-blue-500") }],
-      theme,
-    );
-  }
-
   if (data.paths && data.paths.length > 1) {
+    const nameMap = new Map(
+      (data.time_series_by_form ?? []).map((f) => [f.path, f.name]),
+    );
     doughnut(
       document.getElementById("forms-chart") as HTMLCanvasElement | null,
-      pluck(data.paths, "path"),
+      data.paths.map((p) => nameMap.get(p.path) ?? p.path),
       pluck(data.paths, "count"),
       theme,
       { center: "count" },

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,33 +16,32 @@ import (
 	"tspages/internal/storage"
 )
 
-// --- GET /sites/{site}/submissions ---
+// region GET /sites/{site}/submissions
 
 type SubmissionsPageHandler struct{ handlerDeps }
 
 type SubmissionsPageData struct {
-	User          UserInfo
-	SiteName      string
-	Paths         []PathInfo
-	CurrentPath   string
-	FormName      string
-	FormDesc      string
-	Submissions   []submissionView
-	FieldKeys     []string
-	FieldLabels   map[string]string
-	NumericFields map[string]bool   // fields where all non-empty values are numeric
-	Summary       map[string]string // per-field summary (auto-detected or configured)
-	HasSummary    bool
-	DateSummary   string
-	TotalCount    int64
-	Admin         bool
-	Sort          []analytics.SortField // current sort (up to 2 fields)
+	User          UserInfo              `json:"user"`
+	SiteName      string                `json:"site_name"`
+	Paths         []PathInfo            `json:"form_paths_nav,omitempty"`
+	CurrentPath   string                `json:"current_path"`
+	FormName      string                `json:"form_name,omitempty"`
+	FormDesc      string                `json:"form_desc,omitempty"`
+	Submissions   []submissionView      `json:"submissions,omitempty"`
+	FieldKeys     []string              `json:"field_keys,omitempty"`
+	FieldLabels   map[string]string     `json:"field_labels,omitempty"`
+	NumericFields map[string]bool       `json:"numeric_fields,omitempty"` // fields where all non-empty values are numeric
+	Summary       map[string]string     `json:"summary,omitempty"`       // per-field summary (auto-detected or configured)
+	HasSummary    bool                  `json:"has_summary,omitempty"`
+	DateSummary   string                `json:"date_summary,omitempty"`
+	TotalCount    int64                 `json:"total_count"`
+	Admin         bool                  `json:"admin,omitempty"`
+	Sort          []analytics.SortField `json:"sort,omitempty"` // current sort (up to 2 fields)
 
 	// Analytics fields.
-	TimeSeriesByForm []formTimeSeries      `json:"time_series_by_form,omitempty"`
-	Submitters       int64                 `json:"unique_submitters"`
-	HourlyPattern    []analytics.HourCount `json:"hourly_pattern,omitempty"`
-	FormPaths        []analytics.FormPath  `json:"paths,omitempty"`
+	TimeSeriesByForm []formTimeSeries     `json:"time_series_by_form,omitempty"`
+	Submitters       int64                `json:"unique_submitters,omitempty"`
+	FormPaths        []analytics.FormPath `json:"paths,omitempty"`
 }
 
 type formTimeSeries struct {
@@ -65,7 +65,7 @@ func (d SubmissionsPageData) sortPosition(col string) int {
 // to secondary and dropping any old secondary. Clicking a desc column flips to asc (keeping
 // position). Clicking an asc column removes it (others shift up).
 func (d SubmissionsPageData) SortHref(col string) string {
-	q := "?path=" + d.CurrentPath
+	q := "?path=" + url.QueryEscape(d.CurrentPath)
 
 	pos := d.sortPosition(col)
 	var next []analytics.SortField
@@ -126,7 +126,10 @@ func parseSortParam(raw string) []analytics.SortField {
 	if raw == "" {
 		return nil
 	}
-	parts := strings.SplitN(raw, ",", 2)
+	parts := strings.SplitN(raw, ",", 3)
+	if len(parts) > 2 {
+		parts = parts[:2]
+	}
 	var out []analytics.SortField
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -241,7 +244,6 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	data.Submitters, _ = h.recorder.UniqueSubmitters(siteName, currentPath, from, now)
-	data.HourlyPattern, _ = h.recorder.HourlySubmissionPattern(siteName, currentPath, from, now)
 	data.FormPaths = formPaths
 
 	if currentPath != "" {
@@ -295,7 +297,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 				var m map[string]any
 				json.Unmarshal(s.Fields, &m) // best-effort: show partial data rather than fail the page
 				for k, v := range m {
-					parsed[k] = fieldValueString(v)
+					parsed[k] = strings.TrimRight(strings.ReplaceAll(fieldValueString(v), analytics.FieldSeparator, "\n"), "\n")
 					if !seen[k] {
 						seen[k] = true
 						fieldKeys = append(fieldKeys, k)
@@ -425,6 +427,20 @@ func computeFieldSummary(values []string, aggregate string) (summary string, isN
 		return "", false
 	}
 
+	// Explicit aggregate configured — delegate without detecting numeric type,
+	// since computeNumericAggregate does its own parsing.
+	if aggregate != "" {
+		// Still detect isNumeric for column alignment.
+		isNumeric = true
+		for _, v := range nonEmpty {
+			if _, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err != nil {
+				isNumeric = false
+				break
+			}
+		}
+		return computeExplicitAggregate(len(values), nonEmpty, aggregate), isNumeric
+	}
+
 	// Check if all non-empty values are numeric (used for column alignment
 	// and auto-detected numeric summaries).
 	nums := make([]float64, 0, len(nonEmpty))
@@ -436,10 +452,6 @@ func computeFieldSummary(values []string, aggregate string) (summary string, isN
 			break
 		}
 		nums = append(nums, n)
-	}
-
-	if aggregate != "" {
-		return computeExplicitAggregate(len(values), nonEmpty, aggregate), isNumeric
 	}
 
 	if isNumeric {
@@ -591,20 +603,19 @@ func stableFieldOrder(endpoint *storage.FormEndpoint, keys []string) []string {
 		return keys
 	}
 
-	present := make(map[string]bool, len(keys))
+	keySet := make(map[string]bool, len(keys))
 	for _, k := range keys {
-		present[k] = true
+		keySet[k] = true
 	}
 
 	var ordered []string
-	used := make(map[string]bool, len(keys))
 
 	// Config-declared fields first.
 	if endpoint != nil {
 		for _, f := range endpoint.Fields {
-			if present[f.Key] && !used[f.Key] {
+			if keySet[f.Key] {
 				ordered = append(ordered, f.Key)
-				used[f.Key] = true
+				delete(keySet, f.Key)
 			}
 		}
 	}
@@ -612,7 +623,7 @@ func stableFieldOrder(endpoint *storage.FormEndpoint, keys []string) []string {
 	// Remaining keys, sorted.
 	var rest []string
 	for _, k := range keys {
-		if !used[k] {
+		if keySet[k] {
 			rest = append(rest, k)
 		}
 	}
