@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -252,14 +253,11 @@ func TestFormSubmissionIntegration_ExportCSV(t *testing.T) {
 	for k := range fields {
 		fieldKeys = append(fieldKeys, k)
 	}
-	// sort for deterministic output
-	if len(fieldKeys) == 2 && fieldKeys[0] > fieldKeys[1] {
-		fieldKeys[0], fieldKeys[1] = fieldKeys[1], fieldKeys[0]
-	}
+	sort.Strings(fieldKeys)
 
-	header := append([]string{"id", "path", "created_at", "submitter", "node", "ip"}, fieldKeys...)
+	header := append([]string{"id", "path", "created_at", "submitter", "submitter_name", "node", "ip"}, fieldKeys...)
 	cw.Write(header)
-	row := []string{subs[0].ID, subs[0].Path, subs[0].CreatedAt, subs[0].Submitter, subs[0].Node, subs[0].IP}
+	row := []string{subs[0].ID, subs[0].Path, subs[0].CreatedAt, subs[0].Submitter, subs[0].SubmitterName, subs[0].Node, subs[0].IP}
 	for _, k := range fieldKeys {
 		row = append(row, fields[k])
 	}

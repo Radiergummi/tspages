@@ -11,6 +11,61 @@ import (
 
 var formBucketSQL = timeseries.BucketSQL("created_at")
 
+// FieldSeparator is the Unicode Record Separator (U+001E), used to encode
+// multi-value form fields (e.g. checkboxes, multi-selects) as a single string.
+const FieldSeparator = "\x1e"
+
+// ExpandFields rewrites stored field JSON so that any string containing
+// FieldSeparator is split into a JSON array. Keys in alwaysArray are
+// wrapped in a single-element array even without a separator, so API
+// consumers get a consistent type for fields configured as multiple.
+func ExpandFields(raw json.RawMessage, alwaysArray map[string]bool) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var m map[string]string
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw
+	}
+
+	// Copy-on-write: only allocate when a field actually needs expansion.
+	var out map[string]any
+	for k, v := range m {
+		if strings.Contains(v, FieldSeparator) {
+			if out == nil {
+				out = make(map[string]any, len(m))
+				for k2, v2 := range m {
+					out[k2] = v2
+				}
+			}
+			parts := strings.Split(v, FieldSeparator)
+			clean := make([]string, 0, len(parts))
+			for _, p := range parts {
+				if p != "" {
+					clean = append(clean, p)
+				}
+			}
+			out[k] = clean
+		} else if alwaysArray[k] {
+			if out == nil {
+				out = make(map[string]any, len(m))
+				for k2, v2 := range m {
+					out[k2] = v2
+				}
+			}
+			out[k] = []string{v}
+		}
+	}
+	if out == nil {
+		return raw
+	}
+	expanded, err := json.Marshal(out)
+	if err != nil {
+		return raw
+	}
+	return expanded
+}
+
 // Submission represents a single form submission stored in the database.
 type Submission struct {
 	ID              string          `json:"id"`
@@ -85,6 +140,8 @@ func (r *Recorder) GetSubmission(site, id string) (Submission, error) {
 func (r *Recorder) ListSubmissions(site string, opts ListSubmissionsOpts) ([]Submission, error) {
 	if len(opts.Sort) == 0 {
 		opts.Sort = []SortField{{Column: "date", Desc: true}}
+	} else if len(opts.Sort) > 2 {
+		opts.Sort = opts.Sort[:2]
 	}
 
 	query := `SELECT id, site, path, fields, submitter, submitter_name, submitter_pic_url, node, ip, created_at
@@ -123,7 +180,7 @@ func (r *Recorder) ListSubmissions(site string, opts ListSubmissionsOpts) ([]Sub
 		}
 		orderParts = append(orderParts, clause)
 	}
-	query += " ORDER BY " + strings.Join(orderParts, ", ")
+	query += " ORDER BY " + strings.Join(orderParts, ", ") + ", id ASC"
 
 	if opts.Limit > 0 {
 		query += fmt.Sprintf(` LIMIT %d`, opts.Limit)
@@ -207,6 +264,28 @@ func (r *Recorder) FormPaths(site string) ([]FormPath, error) {
 	return out, rows.Err()
 }
 
+// CountSubmissions returns the number of form submissions for a site, optionally
+// filtered by path and time range.
+func (r *Recorder) CountSubmissions(site, path string, from, to time.Time) (int64, error) {
+	query := `SELECT COUNT(*) FROM form_submissions WHERE site = ?`
+	args := []any{site}
+	if path != "" {
+		query += ` AND path = ?`
+		args = append(args, path)
+	}
+	if !from.IsZero() {
+		query += ` AND created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	if !to.IsZero() {
+		query += ` AND created_at <= ?`
+		args = append(args, to.UTC().Format(time.RFC3339))
+	}
+	var count int64
+	err := r.db.QueryRow(query, args...).Scan(&count)
+	return count, err
+}
+
 // PurgeFormSubmissions deletes all form submissions for a site and returns the
 // number of rows deleted.
 func (r *Recorder) PurgeFormSubmissions(site string) (int64, error) {
@@ -235,10 +314,8 @@ func (r *Recorder) UniqueSubmitters(site, path string, from, to time.Time) (int6
 		query += ` AND created_at >= ?`
 		args = append(args, from.UTC().Format(time.RFC3339))
 	}
-	if !to.IsZero() {
-		query += ` AND created_at <= ?`
-		args = append(args, to.UTC().Format(time.RFC3339))
-	}
+	query += ` AND created_at <= ?`
+	args = append(args, to.UTC().Format(time.RFC3339))
 
 	var count int64
 	err := r.db.QueryRow(query, args...).Scan(&count)
@@ -263,10 +340,8 @@ func (r *Recorder) HourlySubmissionPattern(site, path string, from, to time.Time
 		query += ` AND created_at >= ?`
 		args = append(args, from.UTC().Format(time.RFC3339))
 	}
-	if !to.IsZero() {
-		query += ` AND created_at <= ?`
-		args = append(args, to.UTC().Format(time.RFC3339))
-	}
+	query += ` AND created_at <= ?`
+	args = append(args, to.UTC().Format(time.RFC3339))
 
 	query += ` GROUP BY hour ORDER BY hour`
 
@@ -285,6 +360,54 @@ func (r *Recorder) HourlySubmissionPattern(site, path string, from, to time.Time
 		out = append(out, h)
 	}
 	return out, rows.Err()
+}
+
+// SubmissionsOverTimeByForm returns time-bucketed submission counts for a site,
+// grouped by form path. All series share the same bucket boundaries.
+func (r *Recorder) SubmissionsOverTimeByForm(site string, from, to time.Time) (map[string][]TimeBucket, error) {
+	if to.IsZero() {
+		to = time.Now()
+	}
+	stepSecs := int(timeseries.BucketStep(from, to).Seconds())
+	args := []any{stepSecs, stepSecs, site}
+	where := `site = ?`
+
+	if !from.IsZero() {
+		where += ` AND created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	where += ` AND created_at <= ?`
+	args = append(args, to.UTC().Format(time.RFC3339))
+
+	rows, err := r.db.Query(
+		`SELECT path, `+formBucketSQL+` AS bucket, COUNT(*) FROM form_submissions WHERE `+where+` GROUP BY path, bucket ORDER BY path, bucket`, args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sparse := make(map[string][]TimeBucket)
+	for rows.Next() {
+		var path string
+		var b TimeBucket
+		if err := rows.Scan(&path, &b.Time, &b.Count); err != nil {
+			return nil, err
+		}
+		sparse[path] = append(sparse[path], b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string][]TimeBucket, len(sparse))
+	for path, buckets := range sparse {
+		result[path] = timeseries.FillBuckets(buckets, from, to,
+			func(b TimeBucket) string { return b.Time },
+			func(t string) TimeBucket { return TimeBucket{Time: t} },
+		)
+	}
+	return result, nil
 }
 
 // SubmissionsOverTime returns time-bucketed submission counts for a site.
@@ -306,10 +429,8 @@ func (r *Recorder) SubmissionsOverTime(site, path string, from, to time.Time) ([
 		where += ` AND created_at >= ?`
 		args = append(args, from.UTC().Format(time.RFC3339))
 	}
-	if !to.IsZero() {
-		where += ` AND created_at <= ?`
-		args = append(args, to.UTC().Format(time.RFC3339))
-	}
+	where += ` AND created_at <= ?`
+	args = append(args, to.UTC().Format(time.RFC3339))
 
 	rows, err := r.db.Query(
 		`SELECT `+formBucketSQL+` AS bucket, COUNT(*) FROM form_submissions WHERE `+where+` GROUP BY bucket ORDER BY bucket`, args...,

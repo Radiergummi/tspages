@@ -76,19 +76,42 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Collect text fields (first value only).
+	// Collect text fields. Multi-value keys (checkboxes, multi-selects) are
+	// joined with the Record Separator so they round-trip as arrays in JSON.
+	// Keys ending in "[]" are treated as multi-value: the suffix is stripped
+	// and even a single value is RS-encoded so it always expands to an array.
+	// Any RS characters in the raw input are stripped first to prevent forgery.
 	fields := make(map[string]string, len(r.Form))
 	for key, values := range r.Form {
-		if len(values) > 0 {
-			fields[key] = values[0]
+		if len(values) == 0 {
+			continue
+		}
+		multi := strings.HasSuffix(key, "[]")
+		if multi {
+			key = strings.TrimSuffix(key, "[]")
+		}
+		// If both "foo" and "foo[]" exist in the form, the [] variant wins
+		// (it was explicitly declared multi-value). Skip if already set by
+		// the bracket form.
+		if _, exists := fields[key]; exists {
+			if !multi {
+				continue
+			}
+		}
+		clean := make([]string, len(values))
+		for i, v := range values {
+			clean[i] = strings.ReplaceAll(v, analytics.FieldSeparator, "")
+		}
+		if multi || len(clean) > 1 {
+			// Trailing RS ensures even a single [] value is detected as
+			// multi-valued by ExpandFields (which filters empty parts).
+			fields[key] = strings.Join(clean, analytics.FieldSeparator) + analytics.FieldSeparator
+		} else {
+			fields[key] = clean[0]
 		}
 	}
 
-	fieldsJSON, err := json.Marshal(fields)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	fieldsJSON, _ := json.Marshal(fields) // map[string]string cannot fail
 
 	id := "sub_" + randomHex(16)
 
@@ -135,6 +158,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	crypto_rand.Read(b)
+	if _, err := crypto_rand.Read(b); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }

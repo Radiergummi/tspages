@@ -80,6 +80,12 @@ func TestGetSubmission(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for wrong site, got nil")
 	}
+
+	// Non-existent ID should return error.
+	_, err = r.GetSubmission("docs", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent ID, got nil")
+	}
 }
 
 func TestListSubmissions_SiteIsolation(t *testing.T) {
@@ -179,13 +185,19 @@ func TestListSubmissions_LimitOffset(t *testing.T) {
 		t.Fatalf("got %d, want 2", len(subs))
 	}
 
-	// Offset 1, Limit 2 — should get 2 items.
+	// Offset 1, Limit 2 — should skip the newest (lo3) and return lo2, lo1.
 	subs, err = r.ListSubmissions("docs", ListSubmissionsOpts{Limit: 2, Offset: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(subs) != 2 {
 		t.Fatalf("got %d, want 2", len(subs))
+	}
+	if subs[0].ID != "lo2" {
+		t.Errorf("offset 1: first = %q, want lo2", subs[0].ID)
+	}
+	if subs[1].ID != "lo1" {
+		t.Errorf("offset 1: second = %q, want lo1", subs[1].ID)
 	}
 }
 
@@ -650,14 +662,123 @@ func TestPurgeFormSubmissions(t *testing.T) {
 	}
 
 	// docs should be empty.
-	subs, _ := r.ListSubmissions("docs", ListSubmissionsOpts{})
+	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(subs) != 0 {
 		t.Errorf("docs remaining = %d, want 0", len(subs))
 	}
 
 	// demo should be untouched.
-	subs, _ = r.ListSubmissions("demo", ListSubmissionsOpts{})
+	subs, err = r.ListSubmissions("demo", ListSubmissionsOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(subs) != 1 {
 		t.Errorf("demo remaining = %d, want 1", len(subs))
+	}
+}
+
+func TestExpandFields(t *testing.T) {
+	// Helper: marshal a map so RS bytes are properly JSON-escaped (\u001e).
+	mustJSON := func(m map[string]string) json.RawMessage {
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+
+	t.Run("scalar only", func(t *testing.T) {
+		raw := mustJSON(map[string]string{"name": "Alice"})
+		got := ExpandFields(raw, nil)
+		if string(got) != `{"name":"Alice"}` {
+			t.Errorf("got %s", got)
+		}
+	})
+
+	t.Run("multi-value", func(t *testing.T) {
+		raw := mustJSON(map[string]string{"color": "red" + FieldSeparator + "blue"})
+		got := ExpandFields(raw, nil)
+		if string(got) != `{"color":["red","blue"]}` {
+			t.Errorf("got %s", got)
+		}
+	})
+
+	t.Run("mixed", func(t *testing.T) {
+		raw := mustJSON(map[string]string{"name": "Alice", "tags": "a" + FieldSeparator + "b" + FieldSeparator + "c"})
+		got := ExpandFields(raw, nil)
+		var out map[string]any
+		json.Unmarshal(got, &out)
+		if out["name"] != "Alice" {
+			t.Errorf("name = %v", out["name"])
+		}
+		tags, ok := out["tags"].([]any)
+		if !ok || len(tags) != 3 {
+			t.Errorf("tags = %v", out["tags"])
+		}
+	})
+
+	t.Run("always array wraps scalar", func(t *testing.T) {
+		raw := mustJSON(map[string]string{"color": "red", "name": "Alice"})
+		got := ExpandFields(raw, map[string]bool{"color": true})
+		var out map[string]any
+		json.Unmarshal(got, &out)
+		colors, ok := out["color"].([]any)
+		if !ok || len(colors) != 1 || colors[0] != "red" {
+			t.Errorf("color = %v", out["color"])
+		}
+		if out["name"] != "Alice" {
+			t.Errorf("name = %v", out["name"])
+		}
+	})
+
+	t.Run("always array with RS still splits", func(t *testing.T) {
+		raw := mustJSON(map[string]string{"color": "red" + FieldSeparator + "blue"})
+		got := ExpandFields(raw, map[string]bool{"color": true})
+		if string(got) != `{"color":["red","blue"]}` {
+			t.Errorf("got %s", got)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		got := ExpandFields(json.RawMessage(`{}`), nil)
+		if string(got) != `{}` {
+			t.Errorf("got %s", got)
+		}
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		got := ExpandFields(nil, nil)
+		if got != nil {
+			t.Errorf("got %s", got)
+		}
+	})
+
+	t.Run("malformed JSON returns raw", func(t *testing.T) {
+		raw := json.RawMessage(`not json`)
+		got := ExpandFields(raw, nil)
+		if string(got) != string(raw) {
+			t.Errorf("got %s, want raw input returned unchanged", got)
+		}
+	})
+}
+
+func TestListSubmissions_OffsetBeyondTotal(t *testing.T) {
+	r := newTestRecorder(t)
+
+	if err := r.RecordSubmission(Submission{
+		ID: "only1", Site: "docs", Path: "/a", Fields: json.RawMessage(`{}`), CreatedAt: "2026-02-24T10:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	subs, err := r.ListSubmissions("docs", ListSubmissionsOpts{Limit: 10, Offset: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 0 {
+		t.Fatalf("got %d, want 0 for offset beyond total", len(subs))
 	}
 }

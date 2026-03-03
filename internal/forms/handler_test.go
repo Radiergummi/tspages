@@ -386,6 +386,92 @@ func TestHandler_FieldsStoredAsJSON(t *testing.T) {
 	}
 }
 
+func TestHandler_BracketSuffix_StrippedAndMultiValue(t *testing.T) {
+	rec := newTestRecorder(t)
+	notif := &mockNotifier{}
+	h := NewHandler(rec, notif, "docs", formsEnabled)
+
+	// "colors[]" should be stripped to "colors" and always RS-joined.
+	body := "name=Alice&colors%5B%5D=red&colors%5B%5D=blue"
+	req := httptest.NewRequest(http.MethodPost, "/feedback", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+
+	subs, err := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("got %d submissions, want 1", len(subs))
+	}
+
+	var fields map[string]string
+	if err := json.Unmarshal(subs[0].Fields, &fields); err != nil {
+		t.Fatalf("fields not valid JSON: %v", err)
+	}
+	if fields["name"] != "Alice" {
+		t.Errorf("fields[name] = %q, want Alice", fields["name"])
+	}
+	// Key should be "colors" (no []), value should contain RS separators.
+	colors, ok := fields["colors"]
+	if !ok {
+		t.Fatal("missing 'colors' key (bracket suffix not stripped?)")
+	}
+	if !strings.Contains(colors, analytics.FieldSeparator) {
+		t.Fatal("colors should contain RS separator")
+	}
+	// ExpandFields should produce a two-element array (trailing RS filtered).
+	expanded := analytics.ExpandFields(subs[0].Fields, nil)
+	var out map[string]any
+	json.Unmarshal(expanded, &out)
+	arr, ok := out["colors"].([]any)
+	if !ok || len(arr) != 2 || arr[0] != "red" || arr[1] != "blue" {
+		t.Errorf("expanded colors = %v, want [red blue]", out["colors"])
+	}
+}
+
+func TestHandler_BracketSuffix_SingleValue_StillArray(t *testing.T) {
+	rec := newTestRecorder(t)
+	notif := &mockNotifier{}
+	h := NewHandler(rec, notif, "docs", formsEnabled)
+
+	body := "tag%5B%5D=go"
+	req := httptest.NewRequest(http.MethodPost, "/feedback", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	subs, _ := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	var fields map[string]string
+	json.Unmarshal(subs[0].Fields, &fields)
+
+	// Key should be "tag" (stripped), value should contain trailing RS
+	// so ExpandFields detects it as multi-valued.
+	tag, ok := fields["tag"]
+	if !ok {
+		t.Fatal("missing 'tag' key")
+	}
+	if !strings.Contains(tag, analytics.FieldSeparator) {
+		t.Error("single [] value should contain RS for array detection")
+	}
+
+	// ExpandFields should produce a single-element array.
+	expanded := analytics.ExpandFields(subs[0].Fields, nil)
+	var out map[string]any
+	json.Unmarshal(expanded, &out)
+	arr, ok := out["tag"].([]any)
+	if !ok || len(arr) != 1 || arr[0] != "go" {
+		t.Errorf("expanded tag = %v, want [go]", out["tag"])
+	}
+}
+
 func TestHandler_FormsDisabled_NilEnabled_405(t *testing.T) {
 	rec := newTestRecorder(t)
 	notif := &mockNotifier{}
@@ -437,5 +523,92 @@ func TestHandler_NoAuthContext(t *testing.T) {
 	// Submitter should be empty when no auth context.
 	if subs[0].Submitter != "" {
 		t.Errorf("Submitter = %q, want empty", subs[0].Submitter)
+	}
+}
+
+func TestHandler_BracketAndPlainKeyCollision(t *testing.T) {
+	rec := newTestRecorder(t)
+	notif := &mockNotifier{}
+	h := NewHandler(rec, notif, "docs", formsEnabled)
+
+	// Submit both "colors" (plain) and "colors[]" (bracket) — the bracket
+	// form should win since it was explicitly declared multi-value.
+	body := "colors=injected&colors%5B%5D=red&colors%5B%5D=blue"
+	req := httptest.NewRequest(http.MethodPost, "/survey", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+
+	subs, err := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expanded := analytics.ExpandFields(subs[0].Fields, nil)
+	var out map[string]any
+	if err := json.Unmarshal(expanded, &out); err != nil {
+		t.Fatal(err)
+	}
+	arr, ok := out["colors"].([]any)
+	if !ok {
+		t.Fatalf("colors = %v (%T), want []any", out["colors"], out["colors"])
+	}
+	if len(arr) != 2 || arr[0] != "red" || arr[1] != "blue" {
+		t.Errorf("colors = %v, want [red blue]", arr)
+	}
+}
+
+func TestHandler_EmptyFormBody(t *testing.T) {
+	rec := newTestRecorder(t)
+	notif := &mockNotifier{}
+	h := NewHandler(rec, notif, "docs", formsEnabled)
+
+	req := httptest.NewRequest(http.MethodPost, "/contact", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+
+	subs, err := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("got %d submissions, want 1", len(subs))
+	}
+	// Empty body should produce empty fields object.
+	if string(subs[0].Fields) != "{}" {
+		t.Errorf("Fields = %s, want {}", subs[0].Fields)
+	}
+}
+
+func TestHandler_MultipartBodyTooLarge_413(t *testing.T) {
+	rec := newTestRecorder(t)
+	notif := &mockNotifier{}
+	h := NewHandler(rec, notif, "docs", formsEnabled)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	// Write a field larger than 64KB.
+	mw.WriteField("data", strings.Repeat("x", 70*1024))
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/contact", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusRequestEntityTooLarge)
 	}
 }
