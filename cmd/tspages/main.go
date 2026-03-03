@@ -22,6 +22,7 @@ import (
 	"tspages/internal/httplog"
 	"tspages/internal/metrics"
 	"tspages/internal/multihost"
+	"tspages/internal/ratelimit"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
@@ -119,6 +120,16 @@ func main() {
 		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
 	}
 
+	var limiter *ratelimit.Limiter
+	rl := cfg.RateLimits
+	if rl.MutateRate > 0 || rl.SubmitRate > 0 || rl.QueryRate > 0 {
+		limiter = ratelimit.New(
+			ratelimit.TierConfig{Rate: rl.MutateRate, Burst: rl.MutateBurst},
+			ratelimit.TierConfig{Rate: rl.SubmitRate, Burst: rl.SubmitBurst},
+			ratelimit.TierConfig{Rate: rl.QueryRate, Burst: rl.QueryBurst},
+		)
+	}
+
 	mgr := multihost.New(multihost.ManagerConfig{
 		Store:      store,
 		StateDir:   cfg.Tailscale.StateDir,
@@ -129,11 +140,17 @@ func main() {
 		Notifier:   notifier,
 		DNSSuffix:  dnsSuffix,
 		Defaults:   cfg.Defaults,
+		Limiter:    limiter,
 	})
 	defer mgr.Close()
 
 	whoIsClient := tsadapter.New(lc)
 	withAuth := auth.Middleware(whoIsClient, cfg.Tailscale.Capability)
+	denyRateLimit := func(w http.ResponseWriter, r *http.Request) {
+		admin.RenderError(w, r, http.StatusTooManyRequests, "Rate limit exceeded. Please wait a moment and try again.")
+	}
+	withMutate := compose(withAuth, ratelimit.Middleware(limiter, ratelimit.Mutate, denyRateLimit))
+	withQuery := compose(withAuth, ratelimit.Middleware(limiter, ratelimit.Query, denyRateLimit))
 
 	deployHandler := deploy.NewHandler(deploy.HandlerConfig{
 		Store:          store,
@@ -153,7 +170,7 @@ func main() {
 	healthHandler := admin.NewHealthHandler(store, recorder)
 
 	mux := http.NewServeMux()
-	registerRoutes(mux, withAuth, h, healthHandler,
+	registerRoutes(mux, withAuth, withMutate, withQuery, h, healthHandler,
 		deployHandler, listHandler, deleteHandler,
 		deleteDeploymentHandler, cleanupDeploymentsHandler, activateHandler)
 
@@ -251,6 +268,8 @@ func main() {
 func registerRoutes(
 	mux *http.ServeMux,
 	withAuth func(http.Handler) http.Handler,
+	withMutate func(http.Handler) http.Handler,
+	withQuery func(http.Handler) http.Handler,
 	h *admin.Handlers,
 	healthHandler http.Handler,
 	deployHandler http.Handler,
@@ -260,55 +279,72 @@ func registerRoutes(
 	cleanupDeploymentsHandler http.Handler,
 	activateHandler http.Handler,
 ) {
-	// Health checks
+	// Health checks (no auth, no rate limit)
 	mux.Handle("GET /healthz", healthHandler)
 	mux.Handle("GET /sites/{site}/healthz", withAuth(h.SiteHealth))
-	// Deploy API (JSON only)
-	mux.Handle("POST /deploy/{site}", withAuth(deployHandler))
-	mux.Handle("POST /deploy/{site}/{filename}", withAuth(deployHandler))
-	mux.Handle("PUT /deploy/{site}", withAuth(deployHandler))
-	mux.Handle("PUT /deploy/{site}/{filename}", withAuth(deployHandler))
+
+	// Deploy API — mutate tier
+	mux.Handle("POST /deploy/{site}", withMutate(deployHandler))
+	mux.Handle("POST /deploy/{site}/{filename}", withMutate(deployHandler))
+	mux.Handle("PUT /deploy/{site}", withMutate(deployHandler))
+	mux.Handle("PUT /deploy/{site}/{filename}", withMutate(deployHandler))
 	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
-	mux.Handle("DELETE /deploy/{site}", withAuth(deleteHandler))
-	mux.Handle("DELETE /deploy/{site}/deployments", withAuth(cleanupDeploymentsHandler))
-	mux.Handle("DELETE /deploy/{site}/{id}", withAuth(deleteDeploymentHandler))
-	mux.Handle("POST /deploy/{site}/{id}/activate", withAuth(activateHandler))
-	// POST aliases for HTML form submissions (forms can't send DELETE)
-	mux.Handle("POST /sites/{site}/delete", withAuth(deleteHandler))
-	mux.Handle("POST /sites/{site}/cleanup", withAuth(cleanupDeploymentsHandler))
-	// Browse routes (HTML + JSON via Accept header or .json suffix)
-	mux.Handle("POST /sites", withAuth(h.CreateSite))
+	mux.Handle("DELETE /deploy/{site}", withMutate(deleteHandler))
+	mux.Handle("DELETE /deploy/{site}/deployments", withMutate(cleanupDeploymentsHandler))
+	mux.Handle("DELETE /deploy/{site}/{id}", withMutate(deleteDeploymentHandler))
+	mux.Handle("POST /deploy/{site}/{id}/activate", withMutate(activateHandler))
+
+	// POST aliases for HTML form submissions (forms can't send DELETE) — mutate tier
+	mux.Handle("POST /sites/{site}/delete", withMutate(deleteHandler))
+	mux.Handle("POST /sites/{site}/cleanup", withMutate(cleanupDeploymentsHandler))
+
+	// Site creation — mutate tier
+	mux.Handle("POST /sites", withMutate(h.CreateSite))
+
+	// Browse routes (HTML + JSON via Accept header or .json suffix) — no rate limit
 	mux.Handle("GET /sites", withAuth(h.Sites))
 	mux.Handle("GET /sites.json", withAuth(h.Sites))
 	mux.Handle("GET /sites/{site}", withAuth(h.Site))
 	mux.Handle("GET /sites/{site}/deployments", withAuth(h.SiteDeployments))
 	mux.Handle("GET /sites/{site}/deployments.json", withAuth(h.SiteDeployments))
 	mux.Handle("GET /sites/{site}/deployments/{id}", withAuth(h.Deployment))
-	mux.Handle("GET /sites/{site}/analytics", withAuth(h.Analytics))
-	mux.Handle("GET /sites/{site}/analytics.json", withAuth(h.Analytics))
-	mux.Handle("POST /sites/{site}/analytics/purge", withAuth(h.PurgeAnalytics))
+
+	// Analytics — query tier (expensive aggregation)
+	mux.Handle("GET /sites/{site}/analytics", withQuery(h.Analytics))
+	mux.Handle("GET /sites/{site}/analytics.json", withQuery(h.Analytics))
+	mux.Handle("GET /analytics", withQuery(h.AllAnalytics))
+	mux.Handle("GET /analytics.json", withQuery(h.AllAnalytics))
+
+	// Analytics purge — mutate tier
+	mux.Handle("POST /sites/{site}/analytics/purge", withMutate(h.PurgeAnalytics))
+
+	// Site config — mutate tier for writes
 	mux.Handle("GET /sites/{site}/config", withAuth(h.SiteConfig))
-	mux.Handle("PATCH /sites/{site}/config", withAuth(h.UpdateSiteConfig))
-	mux.Handle("POST /sites/{site}/config", withAuth(h.PostSiteConfig))
+	mux.Handle("PATCH /sites/{site}/config", withMutate(h.UpdateSiteConfig))
+	mux.Handle("POST /sites/{site}/config", withMutate(h.PostSiteConfig))
+
+	// Submissions — reads are no limit, deletes are mutate, export/analytics are query
 	mux.Handle("GET /sites/{site}/submissions", withAuth(h.SubmissionsPage))
 	mux.Handle("GET /sites/{site}/submissions.json", withAuth(h.Submissions))
 	mux.Handle("GET /sites/{site}/submissions/{id}", withAuth(h.SubmissionDetail))
-	mux.Handle("DELETE /sites/{site}/submissions/{id}", withAuth(h.DeleteSubmission))
-	mux.Handle("POST /sites/{site}/submissions/{id}/delete", withAuth(h.DeleteSubmission))
-	mux.Handle("DELETE /sites/{site}/submissions", withAuth(h.BulkDeleteSubmissions))
-	mux.Handle("POST /sites/{site}/submissions/delete", withAuth(h.BulkDeleteSubmissions))
-	mux.Handle("GET /sites/{site}/submissions/analytics.json", withAuth(h.SubmissionAnalytics))
-	mux.Handle("GET /sites/{site}/submissions/export", withAuth(h.ExportSubmissions))
+	mux.Handle("DELETE /sites/{site}/submissions/{id}", withMutate(h.DeleteSubmission))
+	mux.Handle("POST /sites/{site}/submissions/{id}/delete", withMutate(h.DeleteSubmission))
+	mux.Handle("DELETE /sites/{site}/submissions", withMutate(h.BulkDeleteSubmissions))
+	mux.Handle("POST /sites/{site}/submissions/delete", withMutate(h.BulkDeleteSubmissions))
+	mux.Handle("GET /sites/{site}/submissions/analytics.json", withQuery(h.SubmissionAnalytics))
+	mux.Handle("GET /sites/{site}/submissions/export", withQuery(h.ExportSubmissions))
+
+	// Webhooks — retry is mutate tier
 	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
 	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /deployments", withAuth(h.Deployments))
-	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
 	mux.Handle("GET /webhooks", withAuth(h.Webhooks))
 	mux.Handle("GET /webhooks.json", withAuth(h.Webhooks))
 	mux.Handle("GET /webhooks/{id}", withAuth(h.WebhookDetail))
-	mux.Handle("POST /webhooks/{id}/retry", withAuth(h.WebhookRetry))
-	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
-	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
+	mux.Handle("POST /webhooks/{id}/retry", withMutate(h.WebhookRetry))
+
+	// Feeds, help, assets, docs — no rate limit
+	mux.Handle("GET /deployments", withAuth(h.Deployments))
+	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
 	mux.Handle("GET /feed.atom", withAuth(h.Feed))
 	mux.Handle("GET /sites/{site}/feed.atom", withAuth(h.SiteFeed))
 	mux.Handle("GET /help", withAuth(h.Help))
@@ -324,4 +360,11 @@ func registerRoutes(
 		}
 		metrics.Handler().ServeHTTP(w, r)
 	})))
+}
+
+// compose chains two middleware functions: outer runs first, then inner.
+func compose(outer, inner func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return outer(inner(h))
+	}
 }

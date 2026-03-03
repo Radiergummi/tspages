@@ -15,6 +15,7 @@ import (
 	"tspages/internal/forms"
 	"tspages/internal/httplog"
 	"tspages/internal/metrics"
+	"tspages/internal/ratelimit"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
@@ -57,6 +58,7 @@ type ManagerConfig struct {
 	DNSSuffix  string
 	Defaults   storage.SiteConfig
 	Notifier   forms.Notifier
+	Limiter    *ratelimit.Limiter
 }
 
 // Manager tracks per-site tsnet servers.
@@ -70,6 +72,7 @@ type Manager struct {
 	notifier   forms.Notifier
 	dnsSuffix  string
 	defaults   storage.SiteConfig
+	limiter    *ratelimit.Limiter
 	startSite  siteStarter
 
 	mu       sync.Mutex
@@ -88,6 +91,7 @@ func New(cfg ManagerConfig) *Manager {
 		notifier:   cfg.Notifier,
 		dnsSuffix:  cfg.DNSSuffix,
 		defaults:   cfg.Defaults,
+		limiter:    cfg.Limiter,
 		servers:    make(map[string]*siteServer),
 		starting:   make(map[string]chan struct{}),
 	}
@@ -218,11 +222,12 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	})
 	formHandler := forms.NewHandler(m.recorder, m.notifier, site, handler.Config)
 	formLogged := httplog.Wrap(formHandler, slog.String("site", site))
+	submitLimited := ratelimit.Middleware(m.limiter, ratelimit.Submit, nil)(formLogged)
 
 	cop := http.NewCrossOriginProtection()
 	mux := http.NewServeMux()
 	mux.Handle("GET /{path...}", withAuth(recorded))
-	mux.Handle("POST /{path...}", withAuth(formLogged))
+	mux.Handle("POST /{path...}", withAuth(submitLimited))
 
 	var ln net.Listener
 	if public {

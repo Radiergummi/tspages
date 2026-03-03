@@ -26,6 +26,14 @@ log_level = "warn"         # "debug", "info", "warn", "error" (default: "warn")
 health_addr = ":9091"      # local health check listener (default: off; see Telemetry)
 hide_footer = false        # hide the admin UI footer (default: false)
 
+[rate_limits]
+mutate_rate = 2            # mutations per second (deploy, delete, config; default: 2)
+mutate_burst = 5           # burst allowance (default: 5)
+submit_rate = 5            # form submissions per second (default: 5)
+submit_burst = 10          # burst allowance (default: 10)
+query_rate = 5             # expensive reads per second (default: 5)
+query_burst = 10           # burst allowance (default: 10)
+
 # Server-wide defaults for per-site config. Deployments can override these
 # via their own tspages.toml included in the archive.
 [defaults]
@@ -61,6 +69,33 @@ always take precedence over environment variables.
 | `TSPAGES_HEALTH_ADDR`    | `server.health_addr`      | Local health check listener    |
 | `TSPAGES_HIDE_FOOTER`    | `server.hide_footer`      | Hide the admin UI footer       |
 | `TSPAGES_SERVER`         | --                        | Used by the CLI deploy command |
+
+## Rate Limits
+
+tspages applies per-user token bucket rate limiting in three tiers. Each tier has a sustained rate
+(requests per second) and a burst allowance. Set a rate to `0` to disable that tier entirely.
+
+```toml
+[rate_limits]
+mutate_rate = 2          # deploys, deletes, config changes (default: 2/s)
+mutate_burst = 5         # (default: 5)
+submit_rate = 5          # per-site form submissions (default: 5/s)
+submit_burst = 10        # (default: 10)
+query_rate = 5           # analytics aggregation, CSV export (default: 5/s)
+query_burst = 10         # (default: 10)
+```
+
+| Variable                      | Overrides                  | Default |
+| ----------------------------- | -------------------------- | ------- |
+| `TSPAGES_RATE_MUTATE_RATE`    | `rate_limits.mutate_rate`  | 2       |
+| `TSPAGES_RATE_MUTATE_BURST`   | `rate_limits.mutate_burst` | 5       |
+| `TSPAGES_RATE_SUBMIT_RATE`    | `rate_limits.submit_rate`  | 5       |
+| `TSPAGES_RATE_SUBMIT_BURST`   | `rate_limits.submit_burst` | 10      |
+| `TSPAGES_RATE_QUERY_RATE`     | `rate_limits.query_rate`   | 5       |
+| `TSPAGES_RATE_QUERY_BURST`    | `rate_limits.query_burst`  | 10      |
+
+Rate limiting runs after authentication, so authenticated users are keyed by their Tailscale login
+name. Anonymous requests on public Funnel sites are keyed by remote IP address.
 
 ## Docker
 

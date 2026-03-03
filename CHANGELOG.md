@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Per-user token bucket rate limiting in three tiers (mutate, submit, query) to protect against
+  abuse on deploy endpoints, form submissions, and expensive analytics queries. Configurable via
+  `[rate_limits]` in `tspages.toml`; rate of 0 disables a tier. Enabled by default with sensible
+  limits.
 - Grid view for the sites index with preview cards showing og:image, favicon, and description
   extracted from each site's index page at deploy time. Toggle between list and grid views; the
   preference is saved in the browser. Preview metadata is also available in the sites API response.
