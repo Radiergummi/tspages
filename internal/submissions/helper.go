@@ -522,15 +522,23 @@ func fieldValueString(v any) string {
 // region multipleFieldKeys
 
 // multipleFieldKeys returns the set of field keys configured as multiple
-// across all form endpoints for the given site. It reads config from disk.
-func multipleFieldKeys(store *storage.Store, defaults storage.SiteConfig, site string) map[string]bool {
-	if store == nil {
+// across all form endpoints. Returns nil if no fields are marked multiple.
+func multipleFieldKeys(cfg storage.SiteConfig) map[string]bool {
+	if cfg.Forms == nil {
 		return nil
 	}
-	deployCfg, _ := store.ReadCurrentDeploymentConfig(site)
-	siteCfg, _ := store.ReadSiteConfig(site)
-	merged := deployCfg.Merge(siteCfg).Merge(defaults)
-	return merged.MultipleFieldKeys()
+	var keys map[string]bool
+	for _, ep := range cfg.Forms.Endpoints {
+		for _, f := range ep.Fields {
+			if f.Multiple != nil && *f.Multiple {
+				if keys == nil {
+					keys = make(map[string]bool)
+				}
+				keys[f.Key] = true
+			}
+		}
+	}
+	return keys
 }
 
 // endregion

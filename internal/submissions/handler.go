@@ -173,7 +173,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Fire webhook with expanded fields (RS-encoded multi-values → arrays).
 	var webhookFields map[string]any
-	expanded := ExpandFields(fieldsJSON, cfg.MultipleFieldKeys())
+	expanded := ExpandFields(fieldsJSON, multipleFieldKeys(cfg))
 	if err := json.Unmarshal(expanded, &webhookFields); err != nil {
 		webhookFields = make(map[string]any, len(fields))
 		for k, v := range fields {
@@ -479,7 +479,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		// Use ExpandFields to consistently convert RS-encoded multi-value fields
 		// to arrays, matching the JSON API path. fieldValueString then flattens
 		// arrays to newline-joined strings for display.
-		multiKeys := merged.MultipleFieldKeys()
+		multiKeys := multipleFieldKeys(merged)
 		views := make([]submissionView, len(subs))
 		seen := map[string]bool{}
 		var fieldKeys []string
@@ -612,7 +612,10 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if subs == nil {
 		subs = []Submission{}
 	}
-	multiKeys := multipleFieldKeys(h.store, h.defaults, siteName)
+	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
+	siteCfg, _ := h.store.ReadSiteConfig(siteName)
+	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	multiKeys := multipleFieldKeys(merged)
 	for i := range subs {
 		subs[i].Fields = ExpandFields(subs[i].Fields, multiKeys)
 	}
@@ -651,7 +654,10 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching submission")
 		return
 	}
-	sub.Fields = ExpandFields(sub.Fields, multipleFieldKeys(h.store, h.defaults, siteName))
+	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
+	siteCfg, _ := h.store.ReadSiteConfig(siteName)
+	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	sub.Fields = ExpandFields(sub.Fields, multipleFieldKeys(merged))
 	web.WriteJSON(w, sub)
 }
 
@@ -803,7 +809,10 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	// Expand multi-value fields before format branching so both CSV and JSON
 	// get consistent array representation.
-	multiKeys := multipleFieldKeys(h.store, h.defaults, siteName)
+	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
+	siteCfg, _ := h.store.ReadSiteConfig(siteName)
+	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	multiKeys := multipleFieldKeys(merged)
 	for i := range subs {
 		subs[i].Fields = ExpandFields(subs[i].Fields, multiKeys)
 	}
