@@ -131,12 +131,12 @@ func (r *Recorder) writer() {
 func (r *Recorder) flush(events []Event) {
 	tx, err := r.db.Begin()
 	if err != nil {
-		slog.Error("analytics: begin tx failed", "err", err)
+		slog.Error("analytics: begin tx failed", "component", "analytics", "err", err)
 		return
 	}
 	stmt, err := tx.Prepare(`INSERT INTO requests (ts, site, path, status, user_login, user_name, profile_pic_url, node_name, node_ip, os, os_version, device, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		slog.Error("analytics: prepare failed", "err", err)
+		slog.Error("analytics: prepare failed", "component", "analytics", "err", err)
 		tx.Rollback()
 		return
 	}
@@ -151,13 +151,13 @@ func (r *Recorder) flush(events []Event) {
 			e.OS, e.OSVersion, e.Device, tags,
 		)
 		if err != nil {
-			slog.Error("analytics: insert failed", "err", err)
+			slog.Error("analytics: insert failed", "component", "analytics", "err", err)
 			tx.Rollback()
 			return
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		slog.Error("analytics: commit failed", "err", err)
+		slog.Error("analytics: commit failed", "component", "analytics", "err", err)
 	}
 }
 

@@ -219,6 +219,6 @@ func writeFeed(w http.ResponseWriter, feed atomXMLFeed) {
 	enc := xml.NewEncoder(w)
 	enc.Indent("", "  ")
 	if err := enc.Encode(feed); err != nil {
-		slog.Warn("encoding atom feed failed", "err", err)
+		slog.Warn("encoding atom feed failed", "component", "admin", "err", err)
 	}
 }

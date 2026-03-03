@@ -108,7 +108,7 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 		"data":      data,
 	})
 	if err != nil {
-		slog.Error("webhook: marshal payload", "err", err)
+		slog.Error("webhook: marshal payload", "component", "webhooks", "err", err)
 		return
 	}
 
@@ -119,7 +119,7 @@ func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[
 		select {
 		case n.sem <- struct{}{}:
 		default:
-			slog.Warn("webhook: dropping delivery", "event", event, "attempt", attempt, "site", site, "reason", "too many pending deliveries")
+			slog.Warn("webhook: dropping delivery", "component", "webhooks", "event", event, "attempt", attempt, "site", site, "reason", "too many pending deliveries")
 			return
 		}
 		status, dur, sendErr := n.send(cfg.WebhookURL, cfg.WebhookSecret, msgID, ts, payload)
@@ -185,7 +185,7 @@ func (n *Notifier) logDelivery(webhookID, event, site, url, payload string, atte
 		webhookID, event, site, url, payload, attempt, status, errStr, time.Now().UTC().Format(time.RFC3339), signed, durationMs,
 	)
 	if err != nil {
-		slog.Error("webhook: log delivery", "err", err)
+		slog.Error("webhook: log delivery", "component", "webhooks", "err", err)
 	}
 }
 

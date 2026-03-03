@@ -77,7 +77,7 @@ func (n *Notifier) Fire(event string, site string, _ storage.SiteConfig, data ma
 
 	subs, err := n.subscriptionsForEvent(site, path)
 	if err != nil {
-		slog.Error("push: listing subscriptions", "site", site, "path", path, "err", err)
+		slog.Error("push: listing subscriptions", "component", "push", "site", site, "path", path, "err", err)
 		return
 	}
 	if len(subs) == 0 {
@@ -152,21 +152,21 @@ func (n *Notifier) sendPush(sub dbSubscription, payload []byte) {
 		})
 	}
 	if err != nil {
-		slog.Error("push: send failed", "endpoint", sub.endpoint, "err", err)
+		slog.Error("push: send failed", "component", "push", "endpoint", sub.endpoint, "err", err)
 		return
 	}
 	resp.Body.Close()
 
 	// 404 or 410 means the subscription is expired — clean it up.
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
-		slog.Info("push: removing expired subscription", "endpoint", sub.endpoint)
+		slog.Info("push: removing expired subscription", "component", "push", "endpoint", sub.endpoint)
 		n.deleteByID(sub.id)
 	}
 }
 
 func (n *Notifier) deleteByID(id int64) {
 	if _, err := n.db.Exec(`DELETE FROM push_subscriptions WHERE id = ?`, id); err != nil {
-		slog.Error("push: delete subscription", "id", id, "err", err)
+		slog.Error("push: delete subscription", "component", "push", "id", id, "err", err)
 	}
 }
 

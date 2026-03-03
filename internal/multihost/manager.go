@@ -34,7 +34,7 @@ func (ss *siteServer) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := ss.httpSrv.Shutdown(ctx); err != nil {
-		slog.Warn("graceful shutdown failed", "err", err)
+		slog.Warn("graceful shutdown failed", "component", "multihost", "err", err)
 	}
 	return ss.ts.Close()
 }
@@ -132,7 +132,7 @@ func (m *Manager) EnsureServer(site string) error {
 	// Close the old server (if restarting) outside the lock.
 	// The starting guard prevents concurrent starts for the same site.
 	if old != nil {
-		slog.Info("restarting site", "site", site)
+		slog.Info("restarting site", "component", "multihost", "site", site)
 		old.Close() //nolint:errcheck // best-effort shutdown of old server
 	}
 
@@ -148,7 +148,7 @@ func (m *Manager) EnsureServer(site string) error {
 	if len(m.servers) >= m.maxSites {
 		m.mu.Unlock()
 		if cerr := ss.Close(); cerr != nil {
-			slog.Warn("closing site after limit reached", "site", site, "err", cerr)
+			slog.Warn("closing site after limit reached", "component", "multihost", "site", site, "err", cerr)
 		}
 		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
@@ -168,6 +168,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 		Hostname: site,
 		Dir:      filepath.Join(m.stateDir, "sites", site),
 		AuthKey:  m.authKey,
+		UserLogf: func(format string, args ...any) { slog.Debug(fmt.Sprintf(format, args...), "component", "tsnet") },
 	}
 
 	lc, err := srv.LocalClient()
@@ -195,12 +196,12 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	httpSrv := &http.Server{Handler: h}
 	go func() {
 		if public {
-			slog.Info("site listening", "site", site, "url", "https://"+site, "public", true)
+			slog.Info("site listening", "component", "multihost", "site", site, "url", "https://"+site, "public", true)
 		} else {
-			slog.Info("site listening", "site", site, "url", "https://"+site)
+			slog.Info("site listening", "component", "multihost", "site", site, "url", "https://"+site)
 		}
 		if err := httpSrv.Serve(ln); err != http.ErrServerClosed {
-			slog.Error("site serve error", "site", site, "err", err)
+			slog.Error("site serve error", "component", "multihost", "site", site, "err", err)
 		}
 	}()
 
@@ -219,7 +220,7 @@ func (m *Manager) StopServer(site string) error {
 	metrics.SetActiveSites(len(m.servers))
 	m.mu.Unlock()
 
-	slog.Info("stopping site", "site", site)
+	slog.Info("stopping site", "component", "multihost", "site", site)
 	return ss.Close()
 }
 
@@ -232,7 +233,7 @@ func (m *Manager) StartExistingSites() error {
 	}
 	for _, s := range sites {
 		if err := m.EnsureServer(s.Name); err != nil {
-			slog.Warn("failed to start site", "site", s.Name, "err", err)
+			slog.Warn("failed to start site", "component", "multihost", "site", s.Name, "err", err)
 		}
 	}
 	return nil
@@ -264,9 +265,9 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 
 	for name, ss := range snapshot {
-		slog.Info("stopping site", "site", name)
+		slog.Info("stopping site", "component", "multihost", "site", name)
 		if err := ss.Close(); err != nil {
-			slog.Warn("closing site", "site", name, "err", err)
+			slog.Warn("closing site", "component", "multihost", "site", name, "err", err)
 		}
 	}
 }

@@ -14,6 +14,13 @@ go test -run TestHandler_ServesFile ./internal/serve/...  # run a single test
 
 No linter, Makefile, or CI configuration exists. The module is `tspages` using Go 1.25.
 
+## Logging
+
+**Always use `log/slog` for logging. Never use the `log` standard library package.** All log calls
+must include a `"component"` attribute as the first key-value pair after the message string to
+identify the subsystem. Use the package name as the component value (e.g. `"deploy"`, `"serve"`,
+`"multihost"`). For `tsnet.Server.UserLogf` callbacks, use `"component", "tsnet"`.
+
 ## Changelog
 
 **Every commit that has implications for users must include a corresponding update to `CHANGELOG.md`.** Add a bullet

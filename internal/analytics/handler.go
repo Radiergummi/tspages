@@ -67,43 +67,43 @@ func (h *AnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	total, err := h.recorder.TotalRequests(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "total_requests", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "total_requests", "site", siteName, "err", err)
 	}
 	visitors, err := h.recorder.UniqueVisitors(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "unique_visitors", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "unique_visitors", "site", siteName, "err", err)
 	}
 	pages, err := h.recorder.UniquePages(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "unique_pages", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "unique_pages", "site", siteName, "err", err)
 	}
 	timeSeries, err := h.recorder.RequestsOverTime(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "requests_over_time", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "requests_over_time", "site", siteName, "err", err)
 	}
 	statusTS, err := h.recorder.RequestsOverTimeByStatus(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "requests_by_status", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "requests_by_status", "site", siteName, "err", err)
 	}
 	topPages, err := h.recorder.TopPages(siteName, from, now, 20)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "top_pages", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "top_pages", "site", siteName, "err", err)
 	}
 	topVisitors, err := h.recorder.TopVisitors(siteName, from, now, 20)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "top_visitors", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "top_visitors", "site", siteName, "err", err)
 	}
 	statusCodes, err := h.recorder.StatusBreakdown(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "status_breakdown", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "status_breakdown", "site", siteName, "err", err)
 	}
 	osBreakdown, err := h.recorder.OSBreakdown(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "os_breakdown", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "os_breakdown", "site", siteName, "err", err)
 	}
 	nodes, err := h.recorder.NodeBreakdown(siteName, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "node_breakdown", "site", siteName, "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "node_breakdown", "site", siteName, "err", err)
 	}
 	countOK, count4xx, count5xx := statusTotals(statusCodes)
 
@@ -171,39 +171,39 @@ func (h *AllAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	total, err := h.recorder.TotalRequestsMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "total_requests_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "total_requests_multi", "err", err)
 	}
 	visitors, err := h.recorder.UniqueVisitorsMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "unique_visitors_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "unique_visitors_multi", "err", err)
 	}
 	timeSeries, err := h.recorder.RequestsOverTimeMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "requests_over_time_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "requests_over_time_multi", "err", err)
 	}
 	statusTS, err := h.recorder.RequestsOverTimeByStatusMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "requests_by_status_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "requests_by_status_multi", "err", err)
 	}
 	siteBreakdown, err := h.recorder.SiteBreakdown(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "site_breakdown", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "site_breakdown", "err", err)
 	}
 	topVisitors, err := h.recorder.TopVisitorsMulti(viewable, from, now, 20)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "top_visitors_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "top_visitors_multi", "err", err)
 	}
 	statusCodes, err := h.recorder.StatusBreakdownMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "status_breakdown_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "status_breakdown_multi", "err", err)
 	}
 	osBreakdown, err := h.recorder.OSBreakdownMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "os_breakdown_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "os_breakdown_multi", "err", err)
 	}
 	nodes, err := h.recorder.NodeBreakdownMulti(viewable, from, now)
 	if err != nil {
-		slog.Error("analytics query failed", "query", "node_breakdown_multi", "err", err)
+		slog.Error("analytics query failed", "component", "analytics", "query", "node_breakdown_multi", "err", err)
 	}
 	countOK, count4xx, count5xx := statusTotals(statusCodes)
 

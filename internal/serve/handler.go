@@ -53,12 +53,12 @@ func devTemplate(name, embedded string) *template.Template {
 		p := filepath.Join(devTmplDir, name+".gohtml")
 		b, err := os.ReadFile(p)
 		if err != nil {
-			slog.Error("dev template read failed", "path", p, "err", err)
+			slog.Error("dev template read failed", "component", "serve", "path", p, "err", err)
 			return template.Must(template.New(name).Parse(embedded))
 		}
 		t, err := template.New(name).Parse(string(b))
 		if err != nil {
-			slog.Error("dev template parse failed", "path", p, "err", err)
+			slog.Error("dev template parse failed", "component", "serve", "path", p, "err", err)
 			return template.Must(template.New(name).Parse(embedded))
 		}
 		return t
@@ -139,7 +139,7 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 	root := h.store.SiteRoot(h.site)
 	rr, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		slog.Error("resolving site root", "site", h.site, "err", err)
+		slog.Error("resolving site root", "component", "serve", "site", h.site, "err", err)
 		h.resolved = true
 		h.cachedID = ""
 		return "", "", storage.SiteConfig{}, false
@@ -147,11 +147,11 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 
 	deployCfg, err := h.store.ReadDeploymentConfig(h.site, id)
 	if err != nil {
-		slog.Error("reading deployment config", "site", h.site, "deployment", id, "err", err)
+		slog.Error("reading deployment config", "component", "serve", "site", h.site, "deployment", id, "err", err)
 	}
 	siteCfg, err := h.store.ReadSiteConfig(h.site)
 	if err != nil {
-		slog.Error("reading site config", "site", h.site, "err", err)
+		slog.Error("reading site config", "component", "serve", "site", h.site, "err", err)
 	}
 	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
 

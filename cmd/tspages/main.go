@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -44,12 +43,14 @@ func main() {
 		switch os.Args[1] {
 		case "deploy":
 			if err := cli.Deploy(os.Args[2:]); err != nil {
-				log.Fatal(err)
+				slog.Error("deploy failed", "component", "server", "err", err)
+				os.Exit(1)
 			}
 			return
 		case "init":
 			if err := cli.Init(os.Args[2:]); err != nil {
-				log.Fatal(err)
+				slog.Error("init failed", "component", "server", "err", err)
+				os.Exit(1)
 			}
 			return
 		case "version":
@@ -70,12 +71,14 @@ func main() {
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("loading config: %v", err)
+		slog.Error("loading config", "component", "server", "err", err)
+		os.Exit(1)
 	}
 
 	var logLevel slog.Level
 	if err := logLevel.UnmarshalText([]byte(cfg.Server.LogLevel)); err != nil {
-		log.Fatalf("invalid log level %q: %v", cfg.Server.LogLevel, err)
+		slog.Error("invalid log level", "component", "server", "level", cfg.Server.LogLevel, "err", err)
+		os.Exit(1)
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 
@@ -90,7 +93,8 @@ func main() {
 		pushnotify.Migrations,
 	)
 	if err != nil {
-		log.Fatalf("opening database: %v", err)
+		slog.Error("opening database", "component", "server", "err", err)
+		os.Exit(1)
 	}
 	defer database.Close() //nolint:errcheck // best-effort cleanup on shutdown
 
@@ -101,7 +105,8 @@ func main() {
 
 	vapidPub, vapidPriv, err := pushnotify.LoadOrCreateVAPIDKeys(cfg.Server.DataDir)
 	if err != nil {
-		log.Fatalf("loading VAPID keys: %v", err)
+		slog.Error("loading VAPID keys", "component", "server", "err", err)
+		os.Exit(1)
 	}
 	pushNotifier := pushnotify.NewNotifier(database, vapidPub, vapidPriv)
 
@@ -118,17 +123,20 @@ func main() {
 		Hostname: cfg.Tailscale.Hostname,
 		Dir:      cfg.Tailscale.StateDir,
 		AuthKey:  cfg.Tailscale.AuthKey,
+		UserLogf: func(format string, args ...any) { slog.Debug(fmt.Sprintf(format, args...), "component", "tsnet") },
 	}
 	defer srv.Close() //nolint:errcheck // best-effort cleanup on shutdown
 
 	lc, err := srv.LocalClient()
 	if err != nil {
-		log.Fatalf("getting local client: %v", err)
+		slog.Error("getting local client", "component", "server", "err", err)
+		os.Exit(1)
 	}
 
 	ln, err := srv.ListenTLS("tcp", ":443")
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		slog.Error("listen failed", "component", "server", "err", err)
+		os.Exit(1)
 	}
 	defer ln.Close()
 
@@ -136,7 +144,8 @@ func main() {
 	var dnsSuffix string
 	status, err := lc.StatusWithoutPeers(context.Background())
 	if err != nil {
-		log.Fatalf("getting tailnet status: %v", err)
+		slog.Error("getting tailnet status", "component", "server", "err", err)
+		os.Exit(1)
 	}
 	if status.CurrentTailnet != nil {
 		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
@@ -282,25 +291,30 @@ func main() {
 	if *dev {
 		tmplDir, err := filepath.Abs("internal/admin/templates")
 		if err != nil {
-			log.Fatalf("resolving template dir: %v", err)
+			slog.Error("resolving template dir", "component", "server", "err", err)
+			os.Exit(1)
 		}
 		webhooksTmplDir, err := filepath.Abs("internal/webhooks/templates")
 		if err != nil {
-			log.Fatalf("resolving webhooks template dir: %v", err)
+			slog.Error("resolving webhooks template dir", "component", "server", "err", err)
+			os.Exit(1)
 		}
 		analyticsTmplDir, err := filepath.Abs("internal/analytics/templates")
 		if err != nil {
-			log.Fatalf("resolving analytics template dir: %v", err)
+			slog.Error("resolving analytics template dir", "component", "server", "err", err)
+			os.Exit(1)
 		}
 		submissionsTmplDir, err := filepath.Abs("internal/submissions/templates")
 		if err != nil {
-			log.Fatalf("resolving submissions template dir: %v", err)
+			slog.Error("resolving submissions template dir", "component", "server", "err", err)
+			os.Exit(1)
 		}
 		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir})
 
 		serveTmplDir, err := filepath.Abs("internal/serve/templates")
 		if err != nil {
-			log.Fatalf("resolving serve template dir: %v", err)
+			slog.Error("resolving serve template dir", "component", "server", "err", err)
+			os.Exit(1)
 		}
 		serve.EnableDevMode(serveTmplDir)
 
@@ -313,7 +327,7 @@ func main() {
 
 		// Localhost listener with mock admin auth (no tailscale needed).
 		go func() {
-			slog.Info("dev server started", "addr", "http://localhost:8080", "hint", "run 'npx vite' for HMR")
+			slog.Info("dev server started", "component", "server", "addr", "http://localhost:8080", "hint", "run 'npx vite' for HMR")
 			if err := http.ListenAndServe(":8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
 				ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "dev@localhost", DisplayName: "Developer"})
@@ -341,7 +355,7 @@ func main() {
 		healthMux := http.NewServeMux()
 		healthMux.Handle("GET /healthz", healthHandler)
 		go func() {
-			slog.Info("health check listening", "addr", addr)
+			slog.Info("health check listening", "component", "server", "addr", addr)
 			if err := http.ListenAndServe(addr, healthMux); err != nil {
 				listenErr <- fmt.Errorf("health listener: %w", err)
 			}
@@ -350,7 +364,7 @@ func main() {
 
 	// Start servers for all sites with active deployments
 	if err := mgr.StartExistingSites(); err != nil {
-		slog.Warn("starting existing sites", "err", err)
+		slog.Warn("starting existing sites", "component", "server", "err", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -364,18 +378,18 @@ func main() {
 		}
 	}()
 
-	slog.Info("tspages control plane listening", "hostname", cfg.Tailscale.Hostname)
+	slog.Info("tspages control plane listening", "component", "server", "hostname", cfg.Tailscale.Hostname)
 	select {
 	case <-ctx.Done():
 	case err := <-listenErr:
-		slog.Error("listener failed", "err", err)
+		slog.Error("listener failed", "component", "server", "err", err)
 	}
-	slog.Info("shutting down")
+	slog.Info("shutting down", "component", "server")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("shutdown error", "err", err)
+		slog.Error("shutdown error", "component", "server", "err", err)
 	}
 }
 

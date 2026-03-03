@@ -57,7 +57,7 @@ func Load(path string) (*Config, error) {
 		for i, k := range undecoded {
 			keys[i] = k.String()
 		}
-		slog.Warn("unknown keys in config file (check for typos)", "keys", strings.Join(keys, ", "))
+		slog.Warn("unknown keys in config file (check for typos)", "component", "config", "keys", strings.Join(keys, ", "))
 	}
 
 	// All fields follow TOML > env var > default precedence.

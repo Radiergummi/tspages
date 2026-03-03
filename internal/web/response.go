@@ -28,7 +28,7 @@ func TrimSuffix(s string) string {
 func WriteJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Warn("encoding JSON response failed", "err", err)
+		slog.Warn("encoding JSON response failed", "component", "web", "err", err)
 	}
 }
 

@@ -119,7 +119,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, t *Tmpl, nav string, dat
 	if devModeFlag.Load() {
 		parsed, err := devReparse(t)
 		if err != nil {
-			slog.Error("template parse failed", "module", t.module, "err", err)
+			slog.Error("template parse failed", "component", "web", "module", t.module, "err", err)
 			RenderError(w, r, http.StatusInternalServerError, "template error")
 			return
 		}
@@ -127,14 +127,14 @@ func RenderPage(w http.ResponseWriter, r *http.Request, t *Tmpl, nav string, dat
 	}
 	tpl, err := tpl.Clone()
 	if err != nil {
-		slog.Error("template clone failed", "module", t.module, "err", err)
+		slog.Error("template clone failed", "component", "web", "module", t.module, "err", err)
 		RenderError(w, r, http.StatusInternalServerError, "rendering page")
 		return
 	}
 	tpl.Funcs(template.FuncMap{"nav": func() string { return nav }})
 	var buf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&buf, "layout", data); err != nil {
-		slog.Error("template execution failed", "module", t.module, "err", err)
+		slog.Error("template execution failed", "component", "web", "module", t.module, "err", err)
 		RenderError(w, r, http.StatusInternalServerError, "rendering page")
 		return
 	}
@@ -150,7 +150,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, code int, msg string) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
 		if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
-			slog.Warn("encoding JSON error response failed", "err", err)
+			slog.Warn("encoding JSON error response failed", "component", "web", "err", err)
 		}
 		return
 	}

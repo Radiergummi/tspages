@@ -59,7 +59,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"status": status,
 		"checks": checks,
 	}); err != nil {
-		slog.Warn("encoding health response failed", "err", err)
+		slog.Warn("encoding health response failed", "component", "admin", "err", err)
 	}
 }
 
@@ -110,6 +110,6 @@ func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"server":            map[bool]string{true: "running", false: "stopped"}[running],
 		"active_deployment": site.ActiveDeploymentID,
 	}); err != nil {
-		slog.Warn("encoding health response failed", "site", siteName, "err", err)
+		slog.Warn("encoding health response failed", "component", "admin", "site", siteName, "err", err)
 	}
 }
