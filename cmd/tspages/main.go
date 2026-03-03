@@ -225,7 +225,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	httpSrv := &http.Server{Handler: httplog.Wrap(mux)}
+	cop := http.NewCrossOriginProtection()
+	httpSrv := &http.Server{Handler: httplog.Wrap(cop.Handler(mux))}
 	go func() {
 		if err := httpSrv.Serve(ln); err != http.ErrServerClosed {
 			listenErr <- fmt.Errorf("serve: %w", err)

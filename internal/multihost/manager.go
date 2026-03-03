@@ -219,6 +219,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 	formHandler := forms.NewHandler(m.recorder, m.notifier, site, handler.Config)
 	formLogged := httplog.Wrap(formHandler, slog.String("site", site))
 
+	cop := http.NewCrossOriginProtection()
 	mux := http.NewServeMux()
 	mux.Handle("GET /{path...}", withAuth(recorded))
 	mux.Handle("POST /{path...}", withAuth(formLogged))
@@ -234,7 +235,7 @@ func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
 		return nil, fmt.Errorf("listen for site %q: %w", site, err)
 	}
 
-	httpSrv := &http.Server{Handler: mux}
+	httpSrv := &http.Server{Handler: cop.Handler(mux)}
 	go func() {
 		if public {
 			slog.Info("site listening", "site", site, "url", "https://"+site, "public", true)

@@ -159,7 +159,7 @@ func TestBulkDeleteSubmissions_PathFilter(t *testing.T) {
 	seedSubmissions(t, rec)
 
 	h := &BulkDeleteSubmissionsHandler{handlerDeps{recorder: rec}}
-	r := reqWithAuth("DELETE", "/sites/docs/submissions?path=/contact", adminCaps, adminID)
+	r := reqWithAuth("DELETE", "/sites/docs/submissions?path=%2Fcontact", adminCaps, adminID)
 	r.SetPathValue("site", "docs")
 	w := httptest.NewRecorder()
 
@@ -201,7 +201,7 @@ func TestBulkDeleteSubmissions_PostAlias(t *testing.T) {
 		t.Fatalf("status = %d, want 303; body = %s", w.Code, w.Body.String())
 	}
 	loc := w.Header().Get("Location")
-	if loc != "/sites/docs/submissions?path=/contact" {
+	if loc != "/sites/docs/submissions?path=%2Fcontact" {
 		t.Errorf("Location = %q", loc)
 	}
 
@@ -270,7 +270,7 @@ func TestDeleteSubmission_PostAlias(t *testing.T) {
 		t.Fatalf("status = %d, want 303; body = %s", w.Code, w.Body.String())
 	}
 	loc := w.Header().Get("Location")
-	if loc != "/sites/docs/submissions?path=/contact" {
+	if loc != "/sites/docs/submissions?path=%2Fcontact" {
 		t.Errorf("Location = %q", loc)
 	}
 
@@ -345,7 +345,7 @@ func TestSubmissionAnalyticsHandler(t *testing.T) {
 	seedSubmissions(t, rec)
 
 	h := &SubmissionAnalyticsHandler{handlerDeps{recorder: rec}}
-	r := reqWithAuth("GET", "/sites/docs/submissions/analytics.json", adminCaps, adminID)
+	r := reqWithAuth("GET", "/sites/docs/submissions/analytics.json?range=all", adminCaps, adminID)
 	r.SetPathValue("site", "docs")
 	w := httptest.NewRecorder()
 
@@ -381,7 +381,7 @@ func TestSubmissionAnalyticsHandler_PathFilter(t *testing.T) {
 	seedSubmissions(t, rec)
 
 	h := &SubmissionAnalyticsHandler{handlerDeps{recorder: rec}}
-	r := reqWithAuth("GET", "/sites/docs/submissions/analytics.json?path=/contact", adminCaps, adminID)
+	r := reqWithAuth("GET", "/sites/docs/submissions/analytics.json?range=all&path=/contact", adminCaps, adminID)
 	r.SetPathValue("site", "docs")
 	w := httptest.NewRecorder()
 
@@ -398,6 +398,99 @@ func TestSubmissionAnalyticsHandler_PathFilter(t *testing.T) {
 	if data.Total != 2 {
 		t.Errorf("total = %d, want 2 (only /contact)", data.Total)
 	}
+}
+
+func TestSubmissions_InvalidTimeParam(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	deps := handlerDeps{recorder: rec}
+
+	tests := []struct {
+		name    string
+		handler http.Handler
+		method  string
+		path    string
+	}{
+		{"list-since", &SubmissionsHandler{deps}, "GET", "/sites/docs/submissions.json?since=bad"},
+		{"list-until", &SubmissionsHandler{deps}, "GET", "/sites/docs/submissions.json?until=bad"},
+		{"export-since", &ExportSubmissionsHandler{deps}, "GET", "/sites/docs/submissions/export?since=bad"},
+		{"bulk-delete-before", &BulkDeleteSubmissionsHandler{deps}, "DELETE", "/sites/docs/submissions?before=bad&path=/x"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := reqWithAuth(tt.method, tt.path, adminCaps, adminID)
+			r.SetPathValue("site", "docs")
+			w := httptest.NewRecorder()
+			tt.handler.ServeHTTP(w, r)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body = %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestDeleteSubmission_CSRFProtection(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	seedSubmissions(t, rec)
+
+	h := &DeleteSubmissionHandler{handlerDeps{recorder: rec}}
+
+	// Wrap with CrossOriginProtection like the real server does.
+	cop := http.NewCrossOriginProtection()
+	mux := http.NewServeMux()
+	mux.Handle("DELETE /sites/{site}/submissions/{id}", h)
+	mux.Handle("POST /sites/{site}/submissions/{id}/delete", h)
+	protected := cop.Handler(mux)
+
+	t.Run("cross-origin POST is rejected", func(t *testing.T) {
+		r := httptest.NewRequest("POST", "/sites/docs/submissions/s1/delete", strings.NewReader("path=/contact"))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.Header.Set("Sec-Fetch-Site", "cross-site")
+		ctx := auth.ContextWithCaps(r.Context(), adminCaps)
+		ctx = auth.ContextWithIdentity(ctx, adminID)
+		r = r.WithContext(ctx)
+		w := httptest.NewRecorder()
+		protected.ServeHTTP(w, r)
+
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403 (cross-origin POST blocked)", w.Code)
+		}
+
+		// Verify nothing was deleted.
+		subs, _ := rec.ListSubmissions("docs", analytics.ListSubmissionsOpts{})
+		if len(subs) != 3 {
+			t.Fatalf("remaining = %d, want 3 (nothing deleted)", len(subs))
+		}
+	})
+
+	t.Run("same-origin POST is allowed", func(t *testing.T) {
+		r := httptest.NewRequest("POST", "/sites/docs/submissions/s1/delete", strings.NewReader("path=/contact"))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.Header.Set("Sec-Fetch-Site", "same-origin")
+		ctx := auth.ContextWithCaps(r.Context(), adminCaps)
+		ctx = auth.ContextWithIdentity(ctx, adminID)
+		r = r.WithContext(ctx)
+		w := httptest.NewRecorder()
+		protected.ServeHTTP(w, r)
+
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303 (same-origin POST allowed)", w.Code)
+		}
+	})
+
+	t.Run("no headers passes through", func(t *testing.T) {
+		// Non-browser clients (CLI, API) send no Sec-Fetch-Site or Origin.
+		r := httptest.NewRequest("DELETE", "/sites/docs/submissions/s2", nil)
+		ctx := auth.ContextWithCaps(r.Context(), adminCaps)
+		ctx = auth.ContextWithIdentity(ctx, adminID)
+		r = r.WithContext(ctx)
+		w := httptest.NewRecorder()
+		protected.ServeHTTP(w, r)
+
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want 204 (no fetch metadata = non-browser, allowed)", w.Code)
+		}
+	})
 }
 
 func TestSubmissions_Forbidden(t *testing.T) {

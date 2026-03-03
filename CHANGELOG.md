@@ -26,11 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-row actions menu on submissions table with "View details" (full submission data overlay) and
   "Delete" (admin-only) actions, using the HTML Popover API.
 - Column sorting on the submissions table. Click any column header to sort; click again to toggle
-  direction. Supports sorting by submitter, date, and any dynamic field column via `sort` and `dir`
-  query parameters.
+  direction. Supports sorting by submitter, date, and any dynamic field column via the `sort`
+  query parameter (e.g. `sort=-date,email`).
 - Submission analytics on the submissions page: time-series chart, summary cards (total submissions,
   unique submitters, form count), hourly submission pattern, and per-form breakdown chart.
 - Submission analytics JSON API at `GET /sites/{site}/submissions/analytics.json`.
+
+### Security
+
+- CSRF protection on all state-changing endpoints (POST, PUT, DELETE, PATCH) using Go 1.25's
+  `http.CrossOriginProtection`. Cross-origin browser requests are rejected via `Sec-Fetch-Site` /
+  `Origin` header checks. Non-browser API clients (CLI, webhooks) are unaffected.
 
 ### Fixed
 
