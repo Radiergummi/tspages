@@ -493,6 +493,71 @@ func TestDeleteSubmission_CSRFProtection(t *testing.T) {
 	})
 }
 
+func TestCsvSanitize(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"hello", "hello"},
+		{"", ""},
+		{"=1+2", "'=1+2"},
+		{"+1234", "'+1234"},
+		{"-admin", "'-admin"},
+		{"@SUM(A1)", "'@SUM(A1)"},
+		{"\tcmd", "'\tcmd"},
+		{"\rcmd", "'\rcmd"},
+		{`=HYPERLINK("https://evil.example.com","Click")`, `'=HYPERLINK("https://evil.example.com","Click")`},
+		{"normal value", "normal value"},
+		{"42", "42"},
+	}
+	for _, tt := range tests {
+		if got := csvSanitize(tt.in); got != tt.want {
+			t.Errorf("csvSanitize(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestExportSubmissions_CSV_FormulaInjection(t *testing.T) {
+	rec := newSubmissionsRecorder(t)
+	// Seed a submission with formula-like field values.
+	if err := rec.RecordSubmission(analytics.Submission{
+		ID:        "s_evil",
+		Site:      "docs",
+		Path:      "/contact",
+		Fields:    json.RawMessage(`{"name":"=HYPERLINK(\"https://evil.example.com\",\"Click\")","email":"+cmd","note":"safe value"}`),
+		Submitter: "mallory@ts",
+		Node:      "mallory-pc",
+		IP:        "100.64.0.9",
+		CreatedAt: "2026-02-25T10:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	h := &ExportSubmissionsHandler{handlerDeps{recorder: rec}}
+	r := reqWithAuth("GET", "/sites/docs/submissions/export?format=csv", adminCaps, adminID)
+	r.SetPathValue("site", "docs")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+
+	body := w.Body.String()
+
+	// Formula-like values must be prefixed with a single quote.
+	if strings.Contains(body, `"=HYPERLINK`) && !strings.Contains(body, `"'=HYPERLINK`) {
+		t.Errorf("CSV contains unescaped formula =HYPERLINK:\n%s", body)
+	}
+	if strings.Contains(body, `"+cmd"`) || (strings.Contains(body, `+cmd`) && !strings.Contains(body, `'+cmd`)) {
+		t.Errorf("CSV contains unescaped formula +cmd:\n%s", body)
+	}
+	// Safe values must NOT be prefixed.
+	if strings.Contains(body, `"'safe value"`) || strings.Contains(body, `,'safe value`) {
+		t.Errorf("safe value should not be prefixed:\n%s", body)
+	}
+}
+
 func TestSubmissions_Forbidden(t *testing.T) {
 	rec := newSubmissionsRecorder(t)
 	deps := handlerDeps{recorder: rec}

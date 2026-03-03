@@ -389,7 +389,7 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 func csvFieldValue(v any) string {
 	switch val := v.(type) {
 	case string:
-		return val
+		return csvSanitize(val)
 	case []any:
 		parts := make([]string, 0, len(val))
 		for _, el := range val {
@@ -397,8 +397,23 @@ func csvFieldValue(v any) string {
 				parts = append(parts, s)
 			}
 		}
-		return strings.Join(parts, ", ")
+		return csvSanitize(strings.Join(parts, ", "))
 	default:
-		return fmt.Sprintf("%v", v)
+		return csvSanitize(fmt.Sprintf("%v", v))
 	}
+}
+
+// csvSanitize prefixes values that start with characters spreadsheet
+// applications interpret as formula indicators, preventing CSV injection
+// (CWE-1236). The leading single-quote is the standard mitigation used by
+// Google Sheets and others — it suppresses formula evaluation while remaining
+// visible to the user as a text prefix.
+func csvSanitize(s string) string {
+	if len(s) > 0 {
+		switch s[0] {
+		case '=', '+', '-', '@', '\t', '\r':
+			return "'" + s
+		}
+	}
+	return s
 }
