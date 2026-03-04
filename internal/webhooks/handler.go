@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"tspages/internal/auth"
@@ -156,10 +157,25 @@ func (h *WebhooksHandler) serveWebhooks(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// Build pagination base URL preserving current filter params (but not page).
+	pagerParams := url.Values{}
+	if rangeParam != "" {
+		pagerParams.Set("range", rangeParam)
+	}
+	if event != "" {
+		pagerParams.Set("event", event)
+	}
+	if status != "" {
+		pagerParams.Set("status", status)
+	}
+	pagerBaseURL := basePath
+	if len(pagerParams) > 0 {
+		pagerBaseURL += "?" + pagerParams.Encode()
+	}
+
 	web.RenderPage(w, r, webhooksTmpl, navTab, struct {
 		Deliveries   []DeliverySummary
-		Page         int
-		TotalPages   int
+		Pager        web.Pager
 		Site         string
 		Global       bool
 		Event        string
@@ -174,7 +190,7 @@ func (h *WebhooksHandler) serveWebhooks(w http.ResponseWriter, r *http.Request, 
 		Events       []EventCount
 		Latency      []LatencyTimeBucket
 		LatencyStats LatencyStats
-	}{deliveries, page, totalPages, site, global, event, status, web.NewUserInfo(identity, caps), basePath,
+	}{deliveries, web.Pager{Page: page, TotalPages: totalPages, BaseURL: pagerBaseURL}, site, global, event, status, web.NewUserInfo(identity, caps), basePath,
 		rangeParam, statsTotal, statsSucceeded, statsFailed, timeSeries, events, latency, latencyStats})
 }
 

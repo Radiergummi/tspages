@@ -135,8 +135,7 @@ type DeploymentEntry struct {
 // DeploymentsResponse is the JSON response for GET /deployments.
 type DeploymentsResponse struct {
 	Deployments []DeploymentEntry `json:"deployments"`
-	Page        int               `json:"page"`
-	TotalPages  int               `json:"total_pages"`
+	web.Pager
 }
 
 const deploymentsPageSize = 50
@@ -200,8 +199,7 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := DeploymentsResponse{
 		Deployments: pageItems,
-		Page:        page,
-		TotalPages:  totalPages,
+		Pager:       web.Pager{Page: page, TotalPages: totalPages, BaseURL: "/deployments"},
 	}
 
 	if web.WantsJSON(r) {
@@ -291,14 +289,13 @@ func (h *SiteDeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	web.RenderPage(w, r, siteDeploymentsTmpl, "sites", struct {
 		Deployments []storage.DeploymentInfo
-		Page        int
-		TotalPages  int
+		Pager       web.Pager
 		Site        string
 		Admin       bool
 		CanDeploy   bool
 		HasInactive bool
 		User        web.UserInfo
-	}{pageItems, page, totalPages, siteName, admin, auth.CanDeploy(caps, siteName), hasInactive, web.NewUserInfo(identity, caps)})
+	}{pageItems, web.Pager{Page: page, TotalPages: totalPages, BaseURL: "/sites/" + siteName + "/deployments"}, siteName, admin, auth.CanDeploy(caps, siteName), hasInactive, web.NewUserInfo(identity, caps)})
 }
 
 // diffFiles compares two file lists and returns added, removed, and changed paths.
