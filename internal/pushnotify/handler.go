@@ -3,6 +3,7 @@ package pushnotify
 import (
 	"embed"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"tspages/internal/auth"
@@ -94,6 +95,7 @@ func (h *PushSubscribeHandler) status(w http.ResponseWriter, r *http.Request) {
 
 	subscribed, err := h.push.IsSubscribed(siteName, path, endpoint)
 	if err != nil {
+		slog.Error("checking push subscription", "component", "pushnotify", "site", siteName, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -115,6 +117,7 @@ func (h *PushSubscribeHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	subs, err := h.push.ListSubscriptions(siteName)
 	if err != nil {
+		slog.Error("listing push subscriptions", "component", "pushnotify", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "listing subscriptions")
 		return
 	}
@@ -146,6 +149,7 @@ func (h *PushSubscribeHandler) subscribe(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	var req struct {
 		Path      string `json:"path"`
 		Endpoint  string `json:"endpoint"`
@@ -173,6 +177,7 @@ func (h *PushSubscribeHandler) subscribe(w http.ResponseWriter, r *http.Request)
 		KeyP256dh: req.KeyP256dh,
 		KeyAuth:   req.KeyAuth,
 	}); err != nil {
+		slog.Error("subscribing to push notifications", "component", "pushnotify", "site", siteName, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -187,6 +192,7 @@ func (h *PushSubscribeHandler) unsubscribe(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	var req struct {
 		Endpoint string `json:"endpoint"`
 		Path     string `json:"path"`
@@ -208,6 +214,7 @@ func (h *PushSubscribeHandler) unsubscribe(w http.ResponseWriter, r *http.Reques
 
 	identity := auth.IdentityFromContext(r.Context())
 	if err := h.push.Unsubscribe(req.Endpoint, siteName, req.Path, identity.LoginName); err != nil {
+		slog.Error("unsubscribing from push notifications", "component", "pushnotify", "site", siteName, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

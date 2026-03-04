@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Deployment, submission, and webhook IDs now use prefixed base58 format (e.g. `dep_Ab3Xyz12`)
+  instead of 8-character hex strings. Existing deployments are unaffected, but external tooling that
+  pattern-matches hex-only IDs in API responses, Atom feeds, or webhook payloads will need updating.
 - Push notification subscription endpoints moved from `/push/subscribe` to
   `/sites/{site}/push/subscriptions`. The site is now part of the URL path instead of the request
   body. This is a breaking change for direct API consumers; the browser UI is updated automatically.

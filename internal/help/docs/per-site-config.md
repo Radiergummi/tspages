@@ -102,4 +102,4 @@ defaults:
 - `redirects`: deployment value entirely replaces defaults (no merging)
 - `webhook_url`, `webhook_events`, `webhook_secret`: deployment value replaces defaults when
   `webhook_url` is non-empty
-- `forms`: deployment value entirely replaces defaults (no merging)
+- `forms`: deployment endpoints replace defaults, but `enabled` inherits from defaults when not set

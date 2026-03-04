@@ -422,6 +422,11 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 		if c.Forms.Endpoints != nil {
 			cp.Endpoints = append([]FormEndpoint(nil), c.Forms.Endpoints...)
 		}
+		// Inherit Enabled from defaults when the deployment supplies a Forms
+		// block but doesn't set Enabled explicitly (nil = inherit).
+		if cp.Enabled == nil && merged.Forms != nil {
+			cp.Enabled = merged.Forms.Enabled
+		}
 		merged.Forms = &cp
 	}
 

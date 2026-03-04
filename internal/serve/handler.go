@@ -133,7 +133,7 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 	if err != nil {
 		h.resolved = true
 		h.cachedID = ""
-		return "", "", storage.SiteConfig{}, false
+		return "", "", h.cachedCfg, false
 	}
 
 	root := h.store.SiteRoot(h.site)
@@ -142,7 +142,7 @@ func (h *Handler) resolve() (deployID, resolvedRoot string, cfg storage.SiteConf
 		slog.Error("resolving site root", "component", "serve", "site", h.site, "err", err)
 		h.resolved = true
 		h.cachedID = ""
-		return "", "", storage.SiteConfig{}, false
+		return "", "", h.cachedCfg, false
 	}
 
 	deployCfg, err := h.store.ReadDeploymentConfig(h.site, id)

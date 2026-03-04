@@ -116,17 +116,26 @@ func Load(path string) (*Config, error) {
 	if cfg.RateLimits.MutateBurst < 0 {
 		return nil, fmt.Errorf("mutate_burst must be non-negative, got %d", cfg.RateLimits.MutateBurst)
 	}
+	if cfg.RateLimits.MutateRate > 0 && cfg.RateLimits.MutateBurst == 0 {
+		return nil, fmt.Errorf("mutate_burst must be at least 1 when mutate_rate is set (got burst=%d, rate=%g)", cfg.RateLimits.MutateBurst, cfg.RateLimits.MutateRate)
+	}
 	if cfg.RateLimits.SubmitRate < 0 {
 		return nil, fmt.Errorf("submit_rate must be non-negative, got %g", cfg.RateLimits.SubmitRate)
 	}
 	if cfg.RateLimits.SubmitBurst < 0 {
 		return nil, fmt.Errorf("submit_burst must be non-negative, got %d", cfg.RateLimits.SubmitBurst)
 	}
+	if cfg.RateLimits.SubmitRate > 0 && cfg.RateLimits.SubmitBurst == 0 {
+		return nil, fmt.Errorf("submit_burst must be at least 1 when submit_rate is set (got burst=%d, rate=%g)", cfg.RateLimits.SubmitBurst, cfg.RateLimits.SubmitRate)
+	}
 	if cfg.RateLimits.QueryRate < 0 {
 		return nil, fmt.Errorf("query_rate must be non-negative, got %g", cfg.RateLimits.QueryRate)
 	}
 	if cfg.RateLimits.QueryBurst < 0 {
 		return nil, fmt.Errorf("query_burst must be non-negative, got %d", cfg.RateLimits.QueryBurst)
+	}
+	if cfg.RateLimits.QueryRate > 0 && cfg.RateLimits.QueryBurst == 0 {
+		return nil, fmt.Errorf("query_burst must be at least 1 when query_rate is set (got burst=%d, rate=%g)", cfg.RateLimits.QueryBurst, cfg.RateLimits.QueryRate)
 	}
 
 	return &cfg, nil

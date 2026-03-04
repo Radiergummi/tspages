@@ -300,8 +300,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 
 	if h.notifier != nil {
-		siteLevelCfg, _ := h.store.ReadSiteConfig(site)
-		resolvedCfg := siteCfg.Merge(siteLevelCfg).Merge(h.defaults)
+		resolvedCfg, _ := h.store.ResolveConfig(site, h.defaults)
 		meta := map[string]any{
 			"site":          site,
 			"deployment_id": id,
