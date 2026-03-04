@@ -2,8 +2,10 @@ package webhooks
 
 import (
 	"bytes"
+	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -224,7 +226,12 @@ func (h *WebhookDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	delivery, err := h.notifier.GetDelivery(webhookID)
 	if err != nil {
-		web.RenderError(w, r, http.StatusNotFound, "delivery not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			web.RenderError(w, r, http.StatusNotFound, "delivery not found")
+		} else {
+			slog.Error("getting webhook delivery failed", "component", "webhooks", "webhook_id", webhookID, "err", err)
+			web.RenderError(w, r, http.StatusInternalServerError, "internal error")
+		}
 		return
 	}
 
@@ -288,7 +295,12 @@ func (h *WebhookRetryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	delivery, err := h.notifier.GetDelivery(webhookID)
 	if err != nil {
-		web.RenderError(w, r, http.StatusNotFound, "delivery not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			web.RenderError(w, r, http.StatusNotFound, "delivery not found")
+		} else {
+			slog.Error("getting webhook delivery failed", "component", "webhooks", "webhook_id", webhookID, "err", err)
+			web.RenderError(w, r, http.StatusInternalServerError, "internal error")
+		}
 		return
 	}
 

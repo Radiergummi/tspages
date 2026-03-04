@@ -85,7 +85,7 @@ func (n *Notifier) Fire(event string, site string, _ storage.SiteConfig, data ma
 
 	subs, err := n.subscriptionsForEvent(site, path)
 	if err != nil {
-		slog.Error("push: listing subscriptions", "component", "push", "site", site, "path", path, "err", err)
+		slog.Error("push: listing subscriptions", "component", "pushnotify", "site", site, "path", path, "err", err)
 		return
 	}
 	if len(subs) == 0 {
@@ -161,28 +161,28 @@ func (n *Notifier) sendPush(sub dbSubscription, payload []byte) {
 		})
 	}
 	if err != nil {
-		slog.Error("push: send failed", "component", "push", "endpoint", sub.endpoint, "err", err)
+		slog.Error("push: send failed", "component", "pushnotify", "endpoint", sub.endpoint, "err", err)
 		return
 	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		slog.Error("push: delivery rejected", "component", "push", "endpoint", sub.endpoint, "status", resp.StatusCode, "body", string(body))
+		slog.Error("push: delivery rejected", "component", "pushnotify", "endpoint", sub.endpoint, "status", resp.StatusCode, "body", string(body))
 	} else {
-		slog.Info("push: notification sent", "component", "push", "endpoint", sub.endpoint, "status", resp.StatusCode)
+		slog.Info("push: notification sent", "component", "pushnotify", "endpoint", sub.endpoint, "status", resp.StatusCode)
 	}
 
 	// 404 or 410 means the subscription is expired — clean it up.
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
-		slog.Info("push: removing expired subscription", "component", "push", "endpoint", sub.endpoint)
+		slog.Info("push: removing expired subscription", "component", "pushnotify", "endpoint", sub.endpoint)
 		n.deleteByID(sub.id)
 	}
 }
 
 func (n *Notifier) deleteByID(id int64) {
 	if _, err := n.db.Exec(`DELETE FROM push_subscriptions WHERE id = ?`, id); err != nil {
-		slog.Error("push: delete subscription", "component", "push", "id", id, "err", err)
+		slog.Error("push: delete subscription", "component", "pushnotify", "id", id, "err", err)
 	}
 }
 
@@ -226,13 +226,19 @@ func (n *Notifier) Subscribe(site, path, userLogin string, sub Subscription) err
 			key_auth = excluded.key_auth`,
 		site, path, userLogin, sub.Endpoint, sub.KeyP256dh, sub.KeyAuth,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("subscribe push: %w", err)
+	}
+	return nil
 }
 
 // Unsubscribe removes a push subscription for a specific site, path, and user.
 func (n *Notifier) Unsubscribe(endpoint, site, path, userLogin string) error {
 	_, err := n.db.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND site = ? AND path = ? AND user_login = ?`, endpoint, site, path, userLogin)
-	return err
+	if err != nil {
+		return fmt.Errorf("unsubscribe push: %w", err)
+	}
+	return nil
 }
 
 // IsSubscribed reports whether a subscription exists for the given site, path, and endpoint.

@@ -101,7 +101,10 @@ func (s *Store) CreateSite(name string) error {
 		}
 		return err
 	}
-	return os.Mkdir(filepath.Join(dir, "deployments"), 0755)
+	if err := os.Mkdir(filepath.Join(dir, "deployments"), 0755); err != nil {
+		return fmt.Errorf("create deployments dir: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) CreateDeployment(site, id string) (string, error) {
@@ -424,7 +427,10 @@ func (s *Store) DeleteDeployment(site, id string) error {
 		}
 		return fmt.Errorf("checking deployment: %w", err)
 	}
-	return os.RemoveAll(dir)
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("remove deployment: %w", err)
+	}
+	return nil
 }
 
 // DeleteInactiveDeployments removes all non-active deployments for a site.

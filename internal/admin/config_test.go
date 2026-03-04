@@ -2,8 +2,11 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -307,6 +310,103 @@ func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestPatchSiteConfig_EnsureServerError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{err: errors.New("restart failed")}
+	h := &UpdateSiteConfigHandler{store: store, ensurer: mock}
+
+	body := `{"directory_listing": true}`
+	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
+	ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "admin@test"})
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	// Config update should still succeed even if EnsureServer fails.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mock.ensured) != 1 {
+		t.Fatalf("expected EnsureServer called once, got %d", len(mock.ensured))
+	}
+}
+
+func TestPostSiteConfig_EnsureServerError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{err: errors.New("restart failed")}
+	h := &PostSiteConfigHandler{store: store, ensurer: mock}
+
+	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	// Config update should still succeed with redirect even if EnsureServer fails.
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPatchSiteConfig_WriteError(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("docs")
+
+	// Make the site config file unwritable by removing write permission on the site dir.
+	siteDir := filepath.Join(dir, "sites", "docs")
+	os.Chmod(siteDir, 0555)
+	t.Cleanup(func() { os.Chmod(siteDir, 0755) })
+
+	h := &UpdateSiteConfigHandler{store: store}
+	body := `{"index_page": "home.html"}`
+	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
+	ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "admin@test"})
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for write failure, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPostSiteConfig_WriteError(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("docs")
+
+	// Make the site config file unwritable.
+	siteDir := filepath.Join(dir, "sites", "docs")
+	os.Chmod(siteDir, 0555)
+	t.Cleanup(func() { os.Chmod(siteDir, 0755) })
+
+	h := &PostSiteConfigHandler{store: store}
+	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for write failure, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

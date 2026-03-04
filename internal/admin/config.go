@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"tspages/internal/auth"
@@ -75,8 +76,13 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
+	if err := cfg.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
+		slog.Error("writing site config failed", "component", "admin", "site", siteName, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -84,7 +90,9 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	// effect immediately. EnsureServer on a running site just calls
 	// InvalidateConfig (and restarts if the public flag changed).
 	if h.ensurer != nil {
-		h.ensurer.EnsureServer(siteName)
+		if err := h.ensurer.EnsureServer(siteName); err != nil {
+			slog.Warn("server failed to restart after config update", "component", "admin", "site", siteName, "err", err)
+		}
 	}
 
 	web.WriteJSON(w, cfg)
@@ -126,18 +134,18 @@ func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps, siteName) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form data", http.StatusBadRequest)
+		web.RenderError(w, r, http.StatusBadRequest, "invalid form data")
 		return
 	}
 
@@ -148,13 +156,20 @@ func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		cfg.Forms.Endpoints = existing.Forms.Endpoints
 	}
 
+	if err := cfg.Validate(); err != nil {
+		web.RenderError(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Error("writing site config failed", "component", "admin", "site", siteName, "err", err)
+		web.RenderError(w, r, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if h.ensurer != nil {
-		h.ensurer.EnsureServer(siteName)
+		if err := h.ensurer.EnsureServer(siteName); err != nil {
+			slog.Warn("server failed to restart after config update", "component", "admin", "site", siteName, "err", err)
+		}
 	}
 
 	http.Redirect(w, r, "/sites/"+siteName, http.StatusSeeOther)

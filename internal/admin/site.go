@@ -3,6 +3,7 @@ package admin
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -186,7 +187,12 @@ func (h *SiteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	found, err := h.store.GetSite(siteName)
 	if err != nil {
-		web.RenderError(w, r, http.StatusNotFound, "site not found")
+		if errors.Is(err, fs.ErrNotExist) {
+			web.RenderError(w, r, http.StatusNotFound, "site not found")
+		} else {
+			slog.Error("reading site failed", "component", "admin", "site", siteName, "err", err)
+			web.RenderError(w, r, http.StatusInternalServerError, "internal error")
+		}
 		return
 	}
 

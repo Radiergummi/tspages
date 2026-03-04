@@ -21,11 +21,12 @@ import (
 
 type mockEnsurer struct {
 	ensured []string
+	err     error
 }
 
 func (m *mockEnsurer) EnsureServer(site string) error {
 	m.ensured = append(m.ensured, site)
-	return nil
+	return m.err
 }
 
 func reqWithAuth(method, path string, caps []auth.Cap, id auth.Identity) *http.Request {
@@ -388,6 +389,33 @@ func TestSiteHandler_NotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestSiteHandler_InternalError(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("broken")
+	store.CreateDeployment("broken", "aaa11111")
+	store.MarkComplete("broken", "aaa11111")
+	store.ActivateDeployment("broken", "aaa11111")
+
+	h := &SiteHandler{store: store, dnsSuffix: "test.ts.net"}
+
+	// Make the site directory unreadable so os.Stat returns a permission error.
+	siteDir := filepath.Join(dir, "sites", "broken")
+	os.Chmod(siteDir, 0000)
+	t.Cleanup(func() { os.Chmod(siteDir, 0755) })
+
+	req := reqWithAuth("GET", "/sites/broken", adminCaps, adminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("site", "broken")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 for permission error", rec.Code)
 	}
 }
 

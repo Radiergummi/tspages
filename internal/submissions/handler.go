@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
@@ -167,6 +168,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.submissions.RecordSubmission(sub); err != nil {
+		slog.Error("recording form submission", "component", "submissions", "site", h.site, "path", r.URL.Path, "err", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -189,8 +191,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Respond based on Accept header.
 	if strings.Contains(r.Header.Get("Accept"), "application/json") {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		web.WriteJSON(w, map[string]any{
 			"ok": true,
 			"id": id,
 		})
@@ -377,6 +378,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	// Load form paths.
 	formPaths, err := h.submissions.FormPaths(siteName)
 	if err != nil {
+		slog.Error("listing form paths", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "listing form paths")
 		return
 	}
@@ -416,6 +418,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	var from time.Time // zero = all time
 	byForm, err := h.submissions.SubmissionsOverTimeByForm(siteName, from, now)
 	if err != nil {
+		slog.Error("fetching submission time series", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching time series")
 		return
 	}
@@ -430,6 +433,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 	data.Submitters, err = h.submissions.UniqueSubmitters(siteName, currentPath, from, now)
 	if err != nil {
+		slog.Error("fetching unique submitters", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching submitters")
 		return
 	}
@@ -453,6 +457,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			Limit: int(pageSize),
 		})
 		if err != nil {
+			slog.Error("listing submissions", "component", "submissions", "site", siteName, "path", currentPath, "err", err)
 			web.RenderError(w, r, http.StatusInternalServerError, "listing submissions")
 			return
 		}
@@ -607,6 +612,7 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	subs, err := h.submissions.ListSubmissions(siteName, opts)
 	if err != nil {
+		slog.Error("listing submissions", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "listing submissions")
 		return
 	}
@@ -650,6 +656,7 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err != nil {
+		slog.Error("fetching submission", "component", "submissions", "site", siteName, "id", id, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching submission")
 		return
 	}
@@ -727,7 +734,7 @@ func (h *DeleteSubmissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	id := r.PathValue("id")
+	id := web.TrimSuffix(r.PathValue("id"))
 
 	// Parse form before side effects so a bad body doesn't return 400 after the row is gone.
 	if r.Method == http.MethodPost {
@@ -739,6 +746,7 @@ func (h *DeleteSubmissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	deleted, err := h.submissions.DeleteSubmission(siteName, id)
 	if err != nil {
+		slog.Error("deleting submission", "component", "submissions", "site", siteName, "id", id, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "deleting submission")
 		return
 	}
@@ -801,6 +809,7 @@ func (h *BulkDeleteSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.
 
 	deleted, err := h.submissions.BulkDeleteSubmissions(siteName, opts)
 	if err != nil {
+		slog.Error("bulk deleting submissions", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "deleting submissions")
 		return
 	}
@@ -845,6 +854,7 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	subs, err := h.submissions.ListSubmissions(siteName, opts)
 	if err != nil {
+		slog.Error("listing submissions for export", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "listing submissions")
 		return
 	}
@@ -865,9 +875,8 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		h.exportCSV(w, siteName, subs)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-submissions.json"`, siteName))
-	json.NewEncoder(w).Encode(subs)
+	web.WriteJSON(w, subs)
 }
 
 func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName string, subs []Submission) {
@@ -911,6 +920,9 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 		cw.Write(row)
 	}
 	cw.Flush()
+	if err := cw.Error(); err != nil {
+		slog.Warn("csv export flush failed", "component", "submissions", "site", siteName, "err", err)
+	}
 }
 
 // region GET /sites/{site}/submissions/analytics.json
@@ -940,17 +952,20 @@ func (h *SubmissionAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 
 	paths, err := h.submissions.FormPaths(siteName)
 	if err != nil {
+		slog.Error("listing form paths", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "listing form paths")
 		return
 	}
 	total, err := h.submissions.CountSubmissions(siteName, path, from, now)
 	if err != nil {
+		slog.Error("counting submissions", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "counting submissions")
 		return
 	}
 
 	ts, err := h.submissions.SubmissionsOverTime(siteName, path, from, now)
 	if err != nil {
+		slog.Error("fetching submission time series", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching time series")
 		return
 	}
@@ -959,11 +974,13 @@ func (h *SubmissionAnalyticsHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	}
 	submitters, err := h.submissions.UniqueSubmitters(siteName, path, from, now)
 	if err != nil {
+		slog.Error("fetching unique submitters", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching submitters")
 		return
 	}
 	hourly, err := h.submissions.HourlySubmissionPattern(siteName, path, from, now)
 	if err != nil {
+		slog.Error("fetching hourly pattern", "component", "submissions", "site", siteName, "err", err)
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching hourly pattern")
 		return
 	}

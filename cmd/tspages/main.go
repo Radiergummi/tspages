@@ -44,13 +44,13 @@ func main() {
 		switch os.Args[1] {
 		case "deploy":
 			if err := cli.Deploy(os.Args[2:]); err != nil {
-				slog.Error("deploy failed", "component", "server", "err", err)
+				slog.Error("deploy failed", "component", "cli", "err", err)
 				os.Exit(1)
 			}
 			return
 		case "init":
 			if err := cli.Init(os.Args[2:]); err != nil {
-				slog.Error("init failed", "component", "server", "err", err)
+				slog.Error("init failed", "component", "cli", "err", err)
 				os.Exit(1)
 			}
 			return
