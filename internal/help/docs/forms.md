@@ -132,6 +132,30 @@ aggregate = "avg"
 | `max`    | `10`       | Maximum value                 |
 | `range`  | `1–10`     | Min and max                   |
 
+## Multi-value fields
+
+HTML checkboxes, multi-selects, and other inputs that submit multiple values under the same name are
+supported using bracket suffix notation. Name the field with a `[]` suffix:
+
+```html
+<select name="colors[]" multiple>
+  <option>Red</option>
+  <option>Blue</option>
+  <option>Green</option>
+</select>
+
+<label><input type="checkbox" name="topics[]" value="docs"> Docs</label>
+<label><input type="checkbox" name="topics[]" value="api"> API</label>
+```
+
+Multi-value fields are stored as JSON arrays in the database and returned as arrays in the API:
+
+```json
+{"colors": ["Red", "Blue"], "topics": ["docs", "api"]}
+```
+
+In CSV exports, array values are joined with `, ` (comma-space).
+
 ## How submissions work
 
 When a POST request arrives at a forms-enabled site:
@@ -344,6 +368,25 @@ const { ok, id } = await response.json();
 ```
 
 The `Accept: application/json` header tells tspages to return JSON instead of redirecting.
+
+## Security
+
+Form submissions are protected by Tailscale's network-level authentication. Every request to a
+private site comes from an authenticated Tailscale user whose identity is verified by the local
+daemon -- there is no way for an external attacker to submit forms or forge the submitter identity.
+
+This means:
+
+- **No CSRF tokens needed** -- cross-site request forgery requires an attacker to trick a victim's
+  browser into making a request. Since tspages sites are only reachable within the tailnet,
+  external sites cannot target them.
+- **No CAPTCHA needed** -- there are no anonymous users to distinguish from bots.
+- **No rate limiting abuse** -- rate limits are keyed by authenticated Tailscale login name.
+
+**Public (Funnel) sites** are the exception: they accept submissions from the public internet
+without Tailscale authentication. Submitter fields (`submitter`, `node`, `ip`) are empty for
+anonymous submissions. If your Funnel site accepts forms, consider adding client-side validation
+and keeping the server-side rate limit (`submit_rate`) low.
 
 ## Scope and limitations
 

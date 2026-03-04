@@ -46,6 +46,9 @@ index_page = "index.html"
 not_found_page = "404.html"
 trailing_slash = ""
 
+[defaults.forms]
+enabled = false                                 # accept form submissions (default: false)
+
 [defaults.headers]
 "/*" = { X-Frame-Options = "DENY" }
 ```
