@@ -39,18 +39,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instant notifications when a specific form receives a submission, using the Web Push API
   (RFC 8030). Subscriptions are per-form and per-browser — subscribe to individual forms
   independently. Expired subscriptions are cleaned up automatically.
+- Submission detail page at `/sites/{site}/submissions/{id}` with full metadata (submitter, date,
+  form path, node, IP) and all form fields. Clicking a push notification now opens the detail page
+  instead of showing raw JSON. The submissions list links directly to detail pages instead of using
+  popover modals.
+- Push subscriptions admin page at `/sites/{site}/push/subscriptions` listing all push notification
+  subscribers for a site with form path, subscriber, and endpoint.
+- Onboarding empty states for webhooks and submissions pages: when no data exists yet, a guided
+  setup screen with numbered steps and code snippets replaces the empty table.
+
+### Changed
+
+- Push notification subscription endpoints moved from `/push/subscribe` to
+  `/sites/{site}/push/subscriptions`. The site is now part of the URL path instead of the request
+  body. This is a breaking change for direct API consumers; the browser UI is updated automatically.
+- The SQLite database file has been renamed from `analytics.db` to `tspages.db` to reflect that it
+  now stores submissions, webhooks, and push subscriptions in addition to analytics. Existing
+  installations are migrated automatically on startup.
 
 ### Security
 
 - CSRF protection on all state-changing endpoints (POST, PUT, DELETE, PATCH) using Go 1.25's
   `http.CrossOriginProtection`. Cross-origin browser requests are rejected via `Sec-Fetch-Site` /
   `Origin` header checks. Non-browser API clients (CLI, webhooks) are unaffected.
-
-### Changed
-
-- The SQLite database file has been renamed from `analytics.db` to `tspages.db` to reflect that it
-  now stores submissions, webhooks, and push subscriptions in addition to analytics. Existing
-  installations are migrated automatically on startup.
 
 ### Fixed
 
