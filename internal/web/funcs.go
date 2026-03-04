@@ -35,42 +35,7 @@ var funcMap = template.FuncMap{
 	},
 	"add": func(a, b int) int { return a + b },
 	"sub": func(a, b int) int { return a - b },
-	"reltime": func(v any) string {
-		var t time.Time
-		switch x := v.(type) {
-		case time.Time:
-			t = x
-		case string:
-			if x == "" {
-				return "\u2014"
-			}
-			parsed, err := time.Parse(time.RFC3339, x)
-			if err != nil {
-				return x
-			}
-			t = parsed
-		default:
-			return "\u2014"
-		}
-		if t.IsZero() {
-			return "\u2014"
-		}
-		d := time.Since(t)
-		switch {
-		case d < time.Minute:
-			return "just now"
-		case d < time.Hour:
-			return fmt.Sprintf("%dm ago", int(d.Minutes()))
-		case d < 24*time.Hour:
-			return fmt.Sprintf("%dh ago", int(d.Hours()))
-		case d < 30*24*time.Hour:
-			return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-		case d < 365*24*time.Hour:
-			return fmt.Sprintf("%dmo ago", int(d.Hours()/(24*30)))
-		default:
-			return fmt.Sprintf("%dy ago", int(d.Hours()/(24*365)))
-		}
-	},
+	"reltime": reltime,
 	"abstime": func(v any) string {
 		var t time.Time
 		switch x := v.(type) {
@@ -190,6 +155,63 @@ var funcMap = template.FuncMap{
 		}
 		return "https://" + name + "." + dnsSuffix
 	},
+	"badge": func(status string, titleArgs ...string) template.HTML {
+		title := ""
+		if len(titleArgs) > 0 {
+			title = titleArgs[0]
+		}
+		colors := map[string]string{
+			"active":  "bg-blue-500/10 text-blue-500",
+			"failed":  "bg-red-500/10 text-red-600 dark:text-red-400",
+			"ok":      "bg-green-500/10 text-green-600 dark:text-green-400",
+			"pending": "bg-base-500/10 text-muted",
+		}
+		c := colors[status]
+		if c == "" {
+			c = colors["pending"]
+		}
+		titleAttr := ""
+		if title != "" {
+			titleAttr = fmt.Sprintf(` title="%s"`, template.HTMLEscapeString(title))
+		}
+		return template.HTML(fmt.Sprintf(
+			`<span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full %s"%s>%s</span>`,
+			c, titleAttr, template.HTMLEscapeString(status),
+		))
+	},
+	"emptystate": func(msg string) template.HTML {
+		return template.HTML(fmt.Sprintf(
+			`<p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">%s</p>`,
+			template.HTMLEscapeString(msg),
+		))
+	},
+	"timeago": func(v any) template.HTML {
+		var t time.Time
+		switch x := v.(type) {
+		case time.Time:
+			t = x
+		case string:
+			if x == "" {
+				return "\u2014"
+			}
+			parsed, err := time.Parse(time.RFC3339, x)
+			if err != nil {
+				return template.HTML(template.HTMLEscapeString(x))
+			}
+			t = parsed
+		default:
+			return "\u2014"
+		}
+		if t.IsZero() {
+			return "\u2014"
+		}
+		abs := t.Format("2006-01-02 15:04 MST")
+		rel := reltime(t)
+		return template.HTML(fmt.Sprintf(
+			`<time datetime="%s" title="%s">%s</time>`,
+			abs, abs, template.HTMLEscapeString(rel),
+		))
+	},
 	"breadcrumbs": func(crumbs ...any) (template.HTML, error) {
 		// Pairs: label, href, label, href, ..., label (last = current page, no href).
 		if len(crumbs)%2 == 0 {
@@ -222,6 +244,43 @@ var funcMap = template.FuncMap{
 		b.WriteString(`</nav>`)
 		return template.HTML(b.String()), nil
 	},
+}
+
+func reltime(v any) string {
+	var t time.Time
+	switch x := v.(type) {
+	case time.Time:
+		t = x
+	case string:
+		if x == "" {
+			return "\u2014"
+		}
+		parsed, err := time.Parse(time.RFC3339, x)
+		if err != nil {
+			return x
+		}
+		t = parsed
+	default:
+		return "\u2014"
+	}
+	if t.IsZero() {
+		return "\u2014"
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	case d < 30*24*time.Hour:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	case d < 365*24*time.Hour:
+		return fmt.Sprintf("%dmo ago", int(d.Hours()/(24*30)))
+	default:
+		return fmt.Sprintf("%dy ago", int(d.Hours()/(24*365)))
+	}
 }
 
 // Funcs returns the shared template function map.
