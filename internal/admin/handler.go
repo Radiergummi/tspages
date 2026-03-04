@@ -1,12 +1,9 @@
 package admin
 
 import (
-	"html/template"
 	"net/http"
 
 	"tspages/internal/analytics"
-	"tspages/internal/auth"
-	"tspages/internal/pushnotify"
 	"tspages/internal/storage"
 	"tspages/internal/web"
 	"tspages/internal/webhooks"
@@ -47,23 +44,10 @@ type SiteEnsurer interface {
 	EnsureServer(site string) error
 }
 
-// SiteHealthChecker is the subset of multihost.Manager needed for health checks.
-type SiteHealthChecker interface {
-	IsRunning(site string) bool
-}
-
 // DeliveryLister provides webhook delivery data for the site detail page.
 type DeliveryLister interface {
 	Fire(event string, site string, cfg storage.SiteConfig, data map[string]any)
 	ListDeliveries(site, event, status string, limit, offset int) ([]webhooks.DeliverySummary, int, error)
-}
-
-// PushSubscriber manages push notification subscriptions.
-type PushSubscriber interface {
-	IsSubscribed(site, path, endpoint string) (bool, error)
-	Subscribe(site, path, userLogin string, sub pushnotify.Subscription) error
-	Unsubscribe(endpoint, site, path, userLogin string) error
-	ListSubscriptions(site string) ([]pushnotify.SubscriptionInfo, error)
 }
 
 // Config holds dependencies for admin route handlers.
@@ -72,11 +56,8 @@ type Config struct {
 	Recorder  *analytics.Recorder
 	DNSSuffix string
 	Ensurer   SiteEnsurer
-	Checker   SiteHealthChecker
 	Defaults  storage.SiteConfig
 	Notifier  DeliveryLister
-	Push      PushSubscriber
-	VAPIDPub  string
 }
 
 // RegisterRoutes registers all admin UI routes on the given mux.
@@ -87,19 +68,11 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(htt
 	createSite := &CreateSiteHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults, ensurer: cfg.Ensurer, notifier: cfg.Notifier}
 	deployments := &DeploymentsHandler{store: cfg.Store}
 	siteDeployments := &SiteDeploymentsHandler{store: cfg.Store}
-	help := &HelpHandler{}
-	api := &APIHandler{}
 	feed := &FeedHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
 	siteFeed := &SiteFeedHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
-	siteHealth := &SiteHealthHandler{store: cfg.Store, checker: cfg.Checker}
 	siteConfig := &SiteConfigHandler{store: cfg.Store}
 	updateConfig := &UpdateSiteConfigHandler{store: cfg.Store, ensurer: cfg.Ensurer}
 	postConfig := &PostSiteConfigHandler{store: cfg.Store, defaults: cfg.Defaults, ensurer: cfg.Ensurer}
-	vapidKey := &VAPIDKeyHandler{vapidPub: cfg.VAPIDPub}
-	pushSubscribe := &PushSubscribeHandler{push: cfg.Push}
-
-	// Site health check
-	mux.Handle("GET /sites/{site}/healthz", withAuth(siteHealth))
 
 	// Site creation
 	mux.Handle("POST /sites", withMutate(createSite))
@@ -117,79 +90,14 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(htt
 	mux.Handle("PATCH /sites/{site}/config", withMutate(updateConfig))
 	mux.Handle("POST /sites/{site}/config", withMutate(postConfig))
 
-	// Push notifications
-	mux.Handle("GET /push/vapidkey", withAuth(vapidKey))
-	mux.Handle("GET /sites/{site}/push/subscriptions", withQuery(pushSubscribe))
-	mux.Handle("POST /sites/{site}/push/subscriptions", withMutate(pushSubscribe))
-	mux.Handle("DELETE /sites/{site}/push/subscriptions", withMutate(pushSubscribe))
-
 	// Service worker
 	mux.Handle("GET /sw.js", ServiceWorkerHandler())
 
-	// Feeds, help, assets, docs
+	// Feeds, assets
 	mux.Handle("GET /deployments", withQuery(deployments))
 	mux.Handle("GET /deployments.json", withQuery(deployments))
 	mux.Handle("GET /feed.atom", withQuery(feed))
 	mux.Handle("GET /sites/{site}/feed.atom", withQuery(siteFeed))
-	mux.Handle("GET /help", withAuth(help))
-	mux.Handle("GET /help/{page...}", withAuth(help))
 	mux.Handle("GET /assets/dist/{file...}", AssetHandler())
-	mux.Handle("GET /api", withAuth(api))
-	mux.Handle("GET /openapi.yaml", OpenAPIHandler())
-	mux.Handle("GET /openapi", SwaggerUIHandler())
 }
 
-// region GET /help/{page...}
-
-type HelpHandler struct{}
-
-func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	caps := auth.CapsFromContext(r.Context())
-	identity := auth.IdentityFromContext(r.Context())
-
-	pages := DocPages()
-
-	slug := r.PathValue("page")
-	if slug == "" {
-		slug = pages[0].Slug
-	}
-
-	var current *DocPage
-	for i := range pages {
-		if pages[i].Slug == slug {
-			current = &pages[i]
-			break
-		}
-	}
-	if current == nil {
-		web.RenderError(w, r, http.StatusNotFound, "")
-		return
-	}
-
-	result, err := RenderDoc(slug)
-	if err != nil {
-		web.RenderError(w, r, http.StatusNotFound, "")
-		return
-	}
-
-	web.RenderPage(w, r, helpTmpl, "help", struct {
-		User    web.UserInfo
-		Nav     []NavGroup
-		Current DocPage
-		Content template.HTML
-		TOC     []TOCEntry
-		Meta    DocMeta
-	}{web.NewUserInfo(identity, caps), DocNav(), *current, result.Content, result.TOC, result.Meta})
-}
-
-// region GET /api
-
-type APIHandler struct{}
-
-func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	caps := auth.CapsFromContext(r.Context())
-	identity := auth.IdentityFromContext(r.Context())
-	web.RenderPage(w, r, apiTmpl, "api", struct {
-		User web.UserInfo
-	}{web.NewUserInfo(identity, caps)})
-}

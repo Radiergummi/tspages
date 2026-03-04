@@ -1,4 +1,4 @@
-package admin
+package telemetry
 
 import (
 	"encoding/json"
@@ -10,6 +10,39 @@ import (
 	"tspages/internal/storage"
 	"tspages/internal/web"
 )
+
+// SiteHealthChecker is the subset of multihost.Manager needed for health checks.
+type SiteHealthChecker interface {
+	IsRunning(site string) bool
+}
+
+// Config holds dependencies for telemetry route handlers.
+type Config struct {
+	Store    *storage.Store
+	Recorder *analytics.Recorder
+	Checker  SiteHealthChecker
+}
+
+// RegisterRoutes registers health check and metrics routes on the given mux.
+func RegisterRoutes(mux *http.ServeMux, withAuth func(http.Handler) http.Handler, cfg Config) {
+	healthHandler := NewHealthHandler(cfg.Store, cfg.Recorder)
+	siteHealth := &SiteHealthHandler{store: cfg.Store, checker: cfg.Checker}
+
+	// Health check (no auth, no rate limit)
+	mux.Handle("GET /healthz", healthHandler)
+
+	// Metrics (auth + metrics capability check)
+	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		Handler().ServeHTTP(w, r)
+	})))
+
+	// Per-site health check (auth required)
+	mux.Handle("GET /sites/{site}/healthz", withAuth(siteHealth))
+}
 
 // region GET /healthz
 
@@ -59,7 +92,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"status": status,
 		"checks": checks,
 	}); err != nil {
-		slog.Warn("encoding health response failed", "component", "admin", "err", err)
+		slog.Warn("encoding health response failed", "component", "telemetry", "err", err)
 	}
 }
 
@@ -110,6 +143,6 @@ func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"server":            map[bool]string{true: "running", false: "stopped"}[running],
 		"active_deployment": site.ActiveDeploymentID,
 	}); err != nil {
-		slog.Warn("encoding health response failed", "component", "admin", "site", siteName, "err", err)
+		slog.Warn("encoding health response failed", "component", "telemetry", "site", siteName, "err", err)
 	}
 }

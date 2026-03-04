@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -440,4 +441,13 @@ func (s *Store) ReadCurrentDeploymentConfig(site string) (SiteConfig, error) {
 		return SiteConfig{}, nil //nolint:nilerr // no deployment → zero config (use defaults)
 	}
 	return s.ReadDeploymentConfig(site, id)
+}
+
+// ResolveConfig returns the fully merged config for a site: deployment config → site config → defaults.
+// It always returns a usable config (falling back to defaults on errors).
+// The returned error, if non-nil, describes which reads failed.
+func (s *Store) ResolveConfig(site string, defaults SiteConfig) (SiteConfig, error) {
+	deployCfg, dErr := s.ReadCurrentDeploymentConfig(site)
+	siteCfg, sErr := s.ReadSiteConfig(site)
+	return deployCfg.Merge(siteCfg).Merge(defaults), errors.Join(dErr, sErr)
 }

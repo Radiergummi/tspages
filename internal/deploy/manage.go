@@ -48,9 +48,7 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Read config before deletion so the webhook fires to the right destination.
 	var resolvedCfg storage.SiteConfig
 	if h.notifier != nil {
-		deployCfg, _ := h.store.ReadCurrentDeploymentConfig(site)
-		siteCfg, _ := h.store.ReadSiteConfig(site)
-		resolvedCfg = deployCfg.Merge(siteCfg).Merge(h.defaults)
+		resolvedCfg, _ = h.store.ResolveConfig(site, h.defaults)
 	}
 
 	if err := h.manager.StopServer(site); err != nil {

@@ -1,4 +1,4 @@
-package admin
+package pushnotify
 
 import (
 	"database/sql"
@@ -10,23 +10,22 @@ import (
 
 	"tspages/internal/auth"
 	dbpkg "tspages/internal/db"
-	"tspages/internal/pushnotify"
 
 	_ "modernc.org/sqlite"
 )
 
-func testPushNotifier(t *testing.T) *pushnotify.Notifier {
+func testPushNotifier(t *testing.T) *Notifier {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := dbpkg.Apply(db, pushnotify.Migrations); err != nil {
+	if err := dbpkg.Apply(db, Migrations); err != nil {
 		db.Close()
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return pushnotify.NewNotifier(db, "test-pub", "test-priv", "")
+	return NewNotifier(db, "test-pub", "test-priv", "")
 }
 
 func pushReq(method, path, body string, caps []auth.Cap, id auth.Identity) *http.Request {
@@ -188,7 +187,7 @@ func TestPushUnsubscribe_Success(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	push.Subscribe("docs", "/contact", "admin@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/contact", "admin@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -249,7 +248,7 @@ func TestPushUnsubscribe_Forbidden(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	push.Subscribe("docs", "/contact", "admin@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/contact", "admin@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -273,7 +272,7 @@ func TestPushUnsubscribe_DeployCapForDifferentSite(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	push.Subscribe("demo", "/contact", "admin@example.com", pushnotify.Subscription{
+	push.Subscribe("demo", "/contact", "admin@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -299,7 +298,7 @@ func TestPushUnsubscribe_WrongOwner(t *testing.T) {
 	h := &PushSubscribeHandler{push: push}
 
 	// alice subscribes.
-	push.Subscribe("docs", "/contact", "alice@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/contact", "alice@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -327,7 +326,7 @@ func TestPushStatus_Subscribed(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	push.Subscribe("docs", "/contact", "admin@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/contact", "admin@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -385,7 +384,7 @@ func TestPushList_HTML(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	push.Subscribe("docs", "/contact", "alice@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/contact", "alice@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -414,10 +413,10 @@ func TestPushList_JSON(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	push.Subscribe("docs", "/contact", "alice@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/contact", "alice@example.com", Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
-	push.Subscribe("docs", "/feedback", "bob@example.com", pushnotify.Subscription{
+	push.Subscribe("docs", "/feedback", "bob@example.com", Subscription{
 		Endpoint: "https://e.com/2", KeyP256dh: "k", KeyAuth: "a",
 	})
 
@@ -431,7 +430,7 @@ func TestPushList_JSON(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var subs []pushnotify.SubscriptionInfo
+	var subs []SubscriptionInfo
 	json.NewDecoder(rec.Body).Decode(&subs)
 	if len(subs) != 2 {
 		t.Fatalf("expected 2 subscriptions, got %d", len(subs))
@@ -452,7 +451,7 @@ func TestPushList_Empty(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 
-	var subs []pushnotify.SubscriptionInfo
+	var subs []SubscriptionInfo
 	json.NewDecoder(rec.Body).Decode(&subs)
 	if len(subs) != 0 {
 		t.Errorf("expected 0 subscriptions, got %d", len(subs))

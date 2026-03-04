@@ -55,7 +55,8 @@ cmd/tspages/main.go
   │     └── tsadapter — wraps tailscale LocalClient → auth.WhoIsClient
   ├── deploy          — ZIP upload + site/deployment management (control plane only)
   │     └── extract   — ZIP/tar/markdown extraction with zip-slip protection
-  ├── admin           — sites, deployments, feeds, help docs, OpenAPI (control plane only)
+  ├── admin           — sites, deployments, feeds (control plane only)
+  ├── help        — help pages, API docs, OpenAPI spec
   ├── analytics       — SQLite-based per-request recording, queries + admin handlers
   ├── submissions     — form submission handling, storage + admin pages
   ├── webhooks        — event notifications with delivery tracking + admin pages
@@ -161,5 +162,5 @@ auto-discovery via Tailscale API.
 When adding new pages to the admin dashboard, ensure there is an equivalent API endpoint for any user-facing data, and
 that the API is documented in the OpenAPI spec.
 
-When adding or updating features, update the documentation in `internal/admin/docs/` and add appropriate test coverage.
+When adding or updating features, update the documentation in `internal/help/docs/` and add appropriate test coverage.
 For deploy features, ensure the CLI supports them as well.

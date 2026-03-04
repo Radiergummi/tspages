@@ -382,9 +382,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Read merged config for label/name lookups.
-	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
-	siteCfg, _ := h.store.ReadSiteConfig(siteName)
-	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	merged, _ := h.store.ResolveConfig(siteName, h.defaults)
 
 	// Build path infos with display names.
 	paths := make([]PathInfo, len(formPaths))
@@ -615,9 +613,7 @@ func (h *SubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if subs == nil {
 		subs = []Submission{}
 	}
-	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
-	siteCfg, _ := h.store.ReadSiteConfig(siteName)
-	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	merged, _ := h.store.ResolveConfig(siteName, h.defaults)
 	multiKeys := multipleFieldKeys(merged)
 	for i := range subs {
 		subs[i].Fields = ExpandFields(subs[i].Fields, multiKeys)
@@ -657,9 +653,7 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		web.RenderError(w, r, http.StatusInternalServerError, "fetching submission")
 		return
 	}
-	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
-	siteCfg, _ := h.store.ReadSiteConfig(siteName)
-	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	merged, _ := h.store.ResolveConfig(siteName, h.defaults)
 	sub.Fields = ExpandFields(sub.Fields, multipleFieldKeys(merged))
 
 	if web.WantsJSON(r) {
@@ -860,9 +854,7 @@ func (h *ExportSubmissionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	// Expand multi-value fields before format branching so both CSV and JSON
 	// get consistent array representation.
-	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(siteName)
-	siteCfg, _ := h.store.ReadSiteConfig(siteName)
-	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	merged, _ := h.store.ResolveConfig(siteName, h.defaults)
 	multiKeys := multipleFieldKeys(merged)
 	for i := range subs {
 		subs[i].Fields = ExpandFields(subs[i].Fields, multiKeys)

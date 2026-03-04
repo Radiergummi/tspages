@@ -58,7 +58,7 @@ tspages:
 ```
 
 > Start with `admin` access to set things up. You can narrow permissions later -- see
-> [Authorization](internal/admin/docs/authorization.md) for fine-grained examples.
+> [Authorization](internal/help/docs/authorization.md) for fine-grained examples.
 
 ### 2. Run tspages
 
@@ -85,7 +85,7 @@ TS_AUTHKEY=tskey-auth-... ./tspages
 ```
 
 This uses `./state` and `./data` in the current directory. See
-[Configuration](internal/admin/docs/configuration.md) for all options.
+[Configuration](internal/help/docs/configuration.md) for all options.
 
 ### 3. Deploy a site
 
@@ -171,20 +171,20 @@ deploy and admin APIs.
 
 ## Documentation
 
-Full documentation is available in the [`docs/`](internal/admin/docs/) directory and in the admin
+Full documentation is available in the [`docs/`](internal/help/docs/) directory and in the admin
 dashboard under Help.
 
 | Topic                                                            | Description                                         |
 | ---------------------------------------------------------------- | --------------------------------------------------- |
-| [Getting Started](internal/admin/docs/getting-started.md)        | Prerequisites, installation, first deployment       |
-| [CLI](internal/admin/docs/cli-deploy.md)                         | Init, deploy, and other CLI subcommands             |
-| [Upload Formats](internal/admin/docs/upload-formats.md)          | ZIP, tar, Markdown, and other supported formats     |
-| [Per-Site Configuration](internal/admin/docs/per-site-config.md) | `tspages.toml` fields, headers, redirects, SPA mode |
-| [Authorization](internal/admin/docs/authorization.md)            | Access levels, capability schema, grant examples    |
-| [API Reference](internal/admin/docs/api.md)                      | All HTTP endpoints                                  |
-| [Analytics](internal/admin/docs/analytics.md)                    | Viewing, disabling, and purging analytics           |
-| [GitHub Actions](internal/admin/docs/github-actions.md)          | CI/CD deployment workflow                           |
-| [Configuration](internal/admin/docs/configuration.md)            | Full config reference, env vars, Docker, local dev  |
+| [Getting Started](internal/help/docs/getting-started.md)        | Prerequisites, installation, first deployment       |
+| [CLI](internal/help/docs/cli-deploy.md)                         | Init, deploy, and other CLI subcommands             |
+| [Upload Formats](internal/help/docs/upload-formats.md)          | ZIP, tar, Markdown, and other supported formats     |
+| [Per-Site Configuration](internal/help/docs/per-site-config.md) | `tspages.toml` fields, headers, redirects, SPA mode |
+| [Authorization](internal/help/docs/authorization.md)            | Access levels, capability schema, grant examples    |
+| [API Reference](internal/help/docs/api.md)                      | All HTTP endpoints                                  |
+| [Analytics](internal/help/docs/analytics.md)                    | Viewing, disabling, and purging analytics           |
+| [GitHub Actions](internal/help/docs/github-actions.md)          | CI/CD deployment workflow                           |
+| [Configuration](internal/help/docs/configuration.md)            | Full config reference, env vars, Docker, local dev  |
 
 ## Local Development
 

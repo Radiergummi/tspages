@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"tspages/internal/auth"
-	"tspages/internal/metrics"
+	"tspages/internal/telemetry"
 	"tspages/internal/notify"
 	"tspages/internal/storage"
 )
@@ -290,7 +290,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	metrics.CountDeploy(site, extractedBytes)
+	telemetry.CountDeploy(site, extractedBytes)
 
 	resp := DeployResponse{
 		DeploymentID: id,
@@ -320,9 +320,7 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 	if h.notifier == nil {
 		return
 	}
-	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(site)
-	siteCfg, _ := h.store.ReadSiteConfig(site)
-	resolvedCfg := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	resolvedCfg, _ := h.store.ResolveConfig(site, h.defaults)
 	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
 		"site":  site,
 		"error": err.Error(),

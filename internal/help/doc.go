@@ -1,4 +1,4 @@
-package admin
+package help
 
 import (
 	"bytes"

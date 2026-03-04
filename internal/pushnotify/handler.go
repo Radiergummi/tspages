@@ -1,14 +1,32 @@
-package admin
+package pushnotify
 
 import (
+	"embed"
 	"encoding/json"
 	"net/http"
 
 	"tspages/internal/auth"
-	"tspages/internal/pushnotify"
 	"tspages/internal/storage"
 	"tspages/internal/web"
 )
+
+//go:embed templates/*.gohtml
+var templateFS embed.FS
+
+var pushSubscriptionsTmpl = web.NewTmpl("pushnotify", templateFS, "templates/push-subscriptions.gohtml")
+
+// RegisterRoutes registers push notification routes on the given mux.
+func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(http.Handler) http.Handler,
+	push *Notifier, vapidPub string) {
+
+	vapidKey := &VAPIDKeyHandler{vapidPub: vapidPub}
+	pushSubscribe := &PushSubscribeHandler{push: push}
+
+	mux.Handle("GET /push/vapidkey", withAuth(vapidKey))
+	mux.Handle("GET /sites/{site}/push/subscriptions", withQuery(pushSubscribe))
+	mux.Handle("POST /sites/{site}/push/subscriptions", withMutate(pushSubscribe))
+	mux.Handle("DELETE /sites/{site}/push/subscriptions", withMutate(pushSubscribe))
+}
 
 // region GET /push/vapidkey
 
@@ -28,12 +46,12 @@ type PushSubscriptionsData struct {
 	User          web.UserInfo
 	SiteName      string
 	Admin         bool
-	Subscriptions []pushnotify.SubscriptionInfo
+	Subscriptions []SubscriptionInfo
 }
 
 // PushSubscribeHandler manages push notification subscriptions.
 type PushSubscribeHandler struct {
-	push PushSubscriber
+	push *Notifier
 }
 
 func (h *PushSubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +119,7 @@ func (h *PushSubscribeHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if subs == nil {
-		subs = []pushnotify.SubscriptionInfo{}
+		subs = []SubscriptionInfo{}
 	}
 
 	if web.WantsJSON(r) {
@@ -150,7 +168,7 @@ func (h *PushSubscribeHandler) subscribe(w http.ResponseWriter, r *http.Request)
 	}
 
 	identity := auth.IdentityFromContext(r.Context())
-	if err := h.push.Subscribe(siteName, req.Path, identity.LoginName, pushnotify.Subscription{
+	if err := h.push.Subscribe(siteName, req.Path, identity.LoginName, Subscription{
 		Endpoint:  req.Endpoint,
 		KeyP256dh: req.KeyP256dh,
 		KeyAuth:   req.KeyAuth,

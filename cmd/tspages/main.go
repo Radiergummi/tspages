@@ -15,12 +15,13 @@ import (
 	"tspages/config"
 	"tspages/internal/admin"
 	"tspages/internal/analytics"
+	"tspages/internal/help"
 	"tspages/internal/auth"
 	"tspages/internal/cli"
 	"tspages/internal/db"
 	"tspages/internal/deploy"
 	"tspages/internal/httplog"
-	"tspages/internal/metrics"
+	"tspages/internal/telemetry"
 	"tspages/internal/multihost"
 	"tspages/internal/notify"
 	"tspages/internal/pushnotify"
@@ -184,7 +185,7 @@ func main() {
 			sw := &statusWriter{ResponseWriter: w, status: 200}
 			start := time.Now()
 			logged.ServeHTTP(sw, r)
-			metrics.ObserveRequest(site, sw.status, time.Since(start))
+			telemetry.ObserveRequest(site, sw.status, time.Since(start))
 			if recorder != nil && handler.AnalyticsEnabled() {
 				ri := auth.RequestInfoFromContext(r.Context())
 				recorder.Record(analytics.Event{
@@ -248,8 +249,6 @@ func main() {
 	deleteDeploymentHandler := deploy.NewDeleteDeploymentHandler(store)
 	cleanupDeploymentsHandler := deploy.NewCleanupDeploymentsHandler(store)
 	activateHandler := deploy.NewActivateHandler(store, mgr)
-	healthHandler := admin.NewHealthHandler(store, recorder)
-
 	mux := http.NewServeMux()
 
 	// Deploy API — mutate tier
@@ -267,33 +266,25 @@ func main() {
 	mux.Handle("POST /sites/{site}/delete", withMutate(deleteHandler))
 	mux.Handle("POST /sites/{site}/cleanup", withMutate(cleanupDeploymentsHandler))
 
-	// Health checks (no auth, no rate limit)
-	mux.Handle("GET /healthz", healthHandler)
-
-	// Metrics
-	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		metrics.Handler().ServeHTTP(w, r)
-	})))
-
 	// Per-module route registration
+	telemetry.RegisterRoutes(mux, withAuth, telemetry.Config{
+		Store:    store,
+		Recorder: recorder,
+		Checker:  mgr,
+	})
 	admin.RegisterRoutes(mux, withAuth, withMutate, withQuery, admin.Config{
 		Store:     store,
 		Recorder:  recorder,
 		DNSSuffix: dnsSuffix,
 		Ensurer:   mgr,
-		Checker:   mgr,
 		Defaults:  cfg.Defaults,
 		Notifier:  webhookNotifier,
-		Push:      pushNotifier,
-		VAPIDPub:  vapidPub,
 	})
+	help.RegisterRoutes(mux, withAuth)
 	webhooks.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, cfg.Defaults, webhookNotifier)
 	analytics.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, recorder, cfg.Defaults)
 	submissions.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, submissionStore, cfg.Defaults, vapidPub)
+	pushnotify.RegisterRoutes(mux, withAuth, withMutate, withQuery, pushNotifier, vapidPub)
 
 	listenErr := make(chan error, 3)
 
@@ -319,14 +310,19 @@ func main() {
 			slog.Error("resolving submissions template dir", "component", "server", "err", err)
 			os.Exit(1)
 		}
-		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir})
+		helpTmplDir, err := filepath.Abs("internal/help/templates")
+		if err != nil {
+			slog.Error("resolving help template dir", "component", "server", "err", err)
+			os.Exit(1)
+		}
+		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir, "help": helpTmplDir})
 
-		openapiPath, err := filepath.Abs("internal/admin/openapi.yaml")
+		openapiPath, err := filepath.Abs("internal/help/openapi.yaml")
 		if err != nil {
 			slog.Error("resolving openapi path", "component", "server", "err", err)
 			os.Exit(1)
 		}
-		admin.SetDevOpenAPIPath(openapiPath)
+		help.SetDevOpenAPIPath(openapiPath)
 
 		serveTmplDir, err := filepath.Abs("internal/serve/templates")
 		if err != nil {
@@ -370,7 +366,7 @@ func main() {
 	// Local health check listener (plain HTTP, localhost only).
 	if addr := cfg.Server.HealthAddr; addr != "" {
 		healthMux := http.NewServeMux()
-		healthMux.Handle("GET /healthz", healthHandler)
+		healthMux.Handle("GET /healthz", telemetry.NewHealthHandler(store, recorder))
 		go func() {
 			slog.Info("health check listening", "component", "server", "addr", addr)
 			if err := http.ListenAndServe(addr, healthMux); err != nil {

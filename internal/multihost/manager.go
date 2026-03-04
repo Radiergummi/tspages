@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"tspages/internal/auth"
-	"tspages/internal/metrics"
+	"tspages/internal/telemetry"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
 	"tspages/internal/tsadapter"
@@ -105,9 +105,7 @@ func (m *Manager) EnsureServer(site string) error {
 
 	var old *siteServer
 	if existing, ok := m.servers[site]; ok {
-		deployCfg, _ := m.store.ReadCurrentDeploymentConfig(site)
-		siteCfg, _ := m.store.ReadSiteConfig(site)
-		merged := deployCfg.Merge(siteCfg).Merge(m.defaults)
+		merged, _ := m.store.ResolveConfig(site, m.defaults)
 		wantPublic := merged.Public != nil && *merged.Public
 		if existing.isPublic == wantPublic {
 			if existing.handler != nil {
@@ -153,15 +151,13 @@ func (m *Manager) EnsureServer(site string) error {
 		return fmt.Errorf("maximum site limit (%d) reached", m.maxSites)
 	}
 	m.servers[site] = ss
-	metrics.SetActiveSites(len(m.servers))
+	telemetry.SetActiveSites(len(m.servers))
 	m.mu.Unlock()
 	return nil
 }
 
 func (m *Manager) defaultStartSite(site string) (*siteServer, error) {
-	deployCfg, _ := m.store.ReadCurrentDeploymentConfig(site)
-	siteCfg, _ := m.store.ReadSiteConfig(site)
-	merged := deployCfg.Merge(siteCfg).Merge(m.defaults)
+	merged, _ := m.store.ResolveConfig(site, m.defaults)
 	public := merged.Public != nil && *merged.Public
 
 	srv := &tsnet.Server{
@@ -217,7 +213,7 @@ func (m *Manager) StopServer(site string) error {
 		return nil
 	}
 	delete(m.servers, site)
-	metrics.SetActiveSites(len(m.servers))
+	telemetry.SetActiveSites(len(m.servers))
 	m.mu.Unlock()
 
 	slog.Info("stopping site", "component", "multihost", "site", site)

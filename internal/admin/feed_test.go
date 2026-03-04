@@ -138,7 +138,7 @@ func TestFeedHandler_EntryContentWithComment(t *testing.T) {
 	store.ActivateDeployment("docs", "aaa11111")
 
 	recorder := setupRecorder(t)
-	hs := newTestHandlers(store, recorder, "test.ts.net", &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := newTestHandlers(store, recorder, "test.ts.net", &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
 	rec := httptest.NewRecorder()
@@ -249,7 +249,7 @@ func TestFeedHandler_EmptyStore(t *testing.T) {
 	store := storage.New(t.TempDir())
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := newTestHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := newTestHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
 	rec := httptest.NewRecorder()
@@ -281,7 +281,7 @@ func TestSiteFeedHandler_SiteWithNoDeployments(t *testing.T) {
 
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := newTestHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{})
+	hs := newTestHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/sites/empty/feed.atom", adminCaps, adminID)
 	req.SetPathValue("site", "empty")
