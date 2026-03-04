@@ -22,6 +22,9 @@ Features include:
 - **Per-site configuration**: Customize 404 pages, headers, redirects, and SPA routing on a
   per-deployment basis with an optional `tspages.toml` included in your upload. Run `tspages init`
   to generate an annotated template.
+- **Form submissions**: Collect form data from your static sites. Enable with `[forms] enabled = true`
+  in `tspages.toml`, and any HTML form on the site just works -- submissions are stored, viewable in
+  the dashboard, and optionally forwarded via webhooks or push notifications.
 - **Built-in analytics**: See request counts, top pages, visitor info, and more for each site.
 
 ## Quick Start
@@ -182,7 +185,9 @@ dashboard under Help.
 | [Per-Site Configuration](internal/help/docs/per-site-config.md) | `tspages.toml` fields, headers, redirects, SPA mode |
 | [Authorization](internal/help/docs/authorization.md)            | Access levels, capability schema, grant examples    |
 | [API Reference](internal/help/docs/api.md)                      | All HTTP endpoints                                  |
+| [Forms](internal/help/docs/forms.md)                            | Form submissions, webhooks, push notifications      |
 | [Analytics](internal/help/docs/analytics.md)                    | Viewing, disabling, and purging analytics           |
+| [Webhooks](internal/help/docs/webhooks.md)                      | Webhook events, delivery, signing, retries          |
 | [GitHub Actions](internal/help/docs/github-actions.md)          | CI/CD deployment workflow                           |
 | [Configuration](internal/help/docs/configuration.md)            | Full config reference, env vars, Docker, local dev  |
 
