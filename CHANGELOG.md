@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-04
+
 ### Added
 
 - Per-user token bucket rate limiting in three tiers (mutate, submit, query) to protect against
@@ -229,7 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tspages deploy` CLI subcommand with server auto-discovery.
 - GitHub Actions deploy action.
 
-[Unreleased]: https://github.com/Radiergummi/tspages/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Radiergummi/tspages/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Radiergummi/tspages/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Radiergummi/tspages/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Radiergummi/tspages/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Radiergummi/tspages/compare/v0.2.0...v0.3.0
