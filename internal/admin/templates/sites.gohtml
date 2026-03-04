@@ -15,22 +15,18 @@
                     <div class="segmented-control" role="group" aria-label="View mode" data-view-toggle>
                         <input type="radio" name="view" id="view-list" value="list" checked class="sr-only peer/list">
                         <label for="view-list" data-view="list">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" />
-                            </svg>
+                            {{icon "list"}}
                         </label>
                         <input type="radio" name="view" id="view-grid" value="grid" class="sr-only peer/grid">
                         <label for="view-grid" data-view="grid">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" />
-                            </svg>
+                            {{icon "layout-grid"}}
                         </label>
                     </div>
                 {{end}}
 
                 {{if .CanCreate}}
                     <button
-                            data-action="new-site"
+                            onclick="document.getElementById('new-site-modal').show(); setTimeout(() => document.getElementById('site-name')?.focus(), 0)"
                             class="btn btn-primary"
                     >
                         New site
@@ -174,22 +170,7 @@
                                     >
                                         <span>Visit</span>
                                         <span class="sr-only"> (opens in new tab)</span>
-                                        <svg
-                                                aria-hidden="true"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                width="16"
-                                                height="16"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                        >
-                                            <path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6" />
-                                            <path d="m21 3-9 9" />
-                                            <path d="M15 3h6v6" />
-                                        </svg>
+                                        {{icon "external-link" 16}}
                                     </a>
                                 {{end}}
                             </td>
@@ -226,22 +207,9 @@
                                                 loading="lazy"
                                         >
                                     {{else}}
-                                        <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                width="32"
-                                                height="32"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                class="text-base-400 dark:text-base-600"
-                                        >
-                                            <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
-                                            <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
-                                            <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
-                                        </svg>
+                                        <span class="text-base-400 dark:text-base-600">
+                                            {{icon "package-open" 16}}
+                                        </span>
                                     {{end}}
                                 </div>
                             {{end}}
@@ -282,7 +250,7 @@
         {{end}}
 
         {{if .CanCreate}}
-            <div
+            <tspages-modal
                     id="new-site-modal"
                     role="dialog"
                     aria-modal="true"
@@ -299,21 +267,7 @@
                                 aria-label="Close"
                                 class="modal-close btn-icon text-xl leading-none"
                         >
-                            <svg
-                                    aria-hidden="true"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="18"
-                                    height="18"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                            >
-                                <path d="M18 6 6 18" />
-                                <path d="m6 6 12 12" />
-                            </svg>
+                            {{icon "x"}}
                         </button>
                     </div>
                     <div class="p-5">
@@ -342,7 +296,7 @@
                         </form>
                     </div>
                 </div>
-            </div>
+            </tspages-modal>
         {{end}}
     </article>
 {{end}}

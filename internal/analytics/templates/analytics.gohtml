@@ -20,36 +20,12 @@
                 {{helpicon "analytics" "About analytics"}}
             </h1>
             <div class="flex items-center gap-2">
-                <nav aria-label="Time range" class="flex gap-1">
-                    <a
-                            class="pill"
-                            href="?range=PT24H"
-                            {{if eq .Range "PT24H"}}aria-current="step"{{end}}
-                    >
-                        24H
-                    </a>
-                    <a
-                            class="pill"
-                            href="?range=P7D"
-                            {{if eq .Range "P7D"}}aria-current="step"{{end}}
-                    >
-                        7D
-                    </a>
-                    <a
-                            class="pill"
-                            href="?range=P30D"
-                            {{if eq .Range "P30D"}}aria-current="step"{{end}}
-                    >
-                        30D
-                    </a>
-                    <a
-                            class="pill"
-                            href="?range=all"
-                            {{if eq .Range "all"}}aria-current="step"{{end}}
-                    >
-                        ALL
-                    </a>
-                </nav>
+                <tspages-time-pills
+                    ranges="PT24H,P7D,P30D,all"
+                    labels="24H,7D,30D,ALL"
+                    current="{{.Range}}"
+                    base-url="{{if .SiteName}}/sites/{{.SiteName}}/analytics{{else}}/analytics{{end}}">
+                </tspages-time-pills>
 
                 {{if and .SiteName .Admin}}
                     <form

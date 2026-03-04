@@ -1,6 +1,4 @@
-import { confirmAction, copyToClipboard } from "../lib/api";
 import { initDeployDrop } from "../lib/deploy-drop";
-import { closeModal, initModal, openModal } from "../lib/modal";
 import {
   CategoryScale,
   Chart,
@@ -74,65 +72,10 @@ function main(): void {
 
   // endregion
 
-  // region Deploy modal
-  const deployModal = document.getElementById("deploy-modal");
-
-  if (deployModal) {
-    initModal("deploy-modal");
-
-    document
-      .querySelector<HTMLButtonElement>("[data-action='deploy']")
-      ?.addEventListener("click", () => openModal("deploy-modal"));
-
-    deployModal
-      .querySelector<HTMLButtonElement>(".modal-close")
-      ?.addEventListener("click", () => closeModal("deploy-modal"));
-
+  // region Deploy drop
+  if (document.getElementById("deploy-modal")) {
     initDeployDrop(siteName);
   }
-
-  // endregion
-
-  // region Copy deploy command
-
-  document
-    .querySelector<HTMLButtonElement>("[data-action='copy-cmd']")
-    ?.addEventListener("click", () => copyToClipboard("deploy-cmd"));
-
-  // endregion
-
-  // region Activate deployment
-
-  document.querySelectorAll<HTMLButtonElement>("[data-action='activate']").forEach((button) => {
-    button.closest("form")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const id = button.dataset.deploymentId!;
-
-      return confirmAction({
-        message: `Activate deployment "${id}"?`,
-        url: `/deploy/${encodeURIComponent(siteName)}/${encodeURIComponent(id)}/activate`,
-        method: "POST",
-      });
-    });
-  });
-
-  // endregion
-
-  // region Delete site
-
-  document
-    .querySelector<HTMLButtonElement>("[data-action='delete-site']")
-    ?.closest("form")
-    ?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      return confirmAction({
-        message: `Delete site "${siteName}" and all its deployments?`,
-        url: `/deploy/${encodeURIComponent(siteName)}`,
-        method: "DELETE",
-        onSuccess: "/sites",
-      });
-    });
-
   // endregion
 
   // region Cleanup old deployments

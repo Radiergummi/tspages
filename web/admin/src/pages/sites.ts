@@ -1,4 +1,3 @@
-import { closeModal, initModal, openModal } from "../lib/modal";
 import {
   CategoryScale,
   Chart,
@@ -90,26 +89,6 @@ function main(): void {
 
   // endregion
 
-  // region New Site Modal
-
-  const modal = document.getElementById("new-site-modal");
-
-  if (modal) {
-    initModal("new-site-modal");
-
-    document
-      .querySelector<HTMLButtonElement>("[data-action='new-site']")
-      ?.addEventListener("click", () => {
-        openModal("new-site-modal");
-        setTimeout(() => document.getElementById("site-name")?.focus(), 0);
-      });
-
-    modal
-      .querySelector<HTMLButtonElement>(".modal-close")
-      ?.addEventListener("click", () => closeModal("new-site-modal"));
-  }
-
-  // endregion
 }
 
 document.addEventListener("DOMContentLoaded", main);

@@ -25,41 +25,13 @@
             <!-- endregion -->
 
             {{if or .Total (len .Deliveries)}}
-                <!-- region Time range filter -->
-                <nav aria-label="Time range" class="flex gap-1">
-                    <a
-                            class="pill"
-                            href="{{.BasePath}}?range=PT24H{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
-                            {{if eq .Range "PT24H"}}aria-current="step"{{end}}
-                    >
-                        24H
-                    </a>
-                    <a
-                            class="pill"
-
-                            href="{{.BasePath}}?range=P7D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
-                            {{if eq .Range "P7D"}}aria-current="step"{{end}}
-                    >
-                        7D
-                    </a>
-                    <a
-                            class="pill"
-
-                            href="{{.BasePath}}?range=P30D{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
-                            {{if eq .Range "P30D"}}aria-current="step"{{end}}
-                    >
-                        30D
-                    </a>
-                    <a
-                            class="pill"
-
-                            href="{{.BasePath}}?range=all{{if .Event}}&event={{.Event}}{{end}}{{if .Status}}&status={{.Status}}{{end}}"
-                            {{if eq .Range "all"}}aria-current="step"{{end}}
-                    >
-                        ALL
-                    </a>
-                </nav>
-                <!-- endregion -->
+                <tspages-time-pills
+                    ranges="PT24H,P7D,P30D,all"
+                    labels="24H,7D,30D,ALL"
+                    current="{{.Range}}"
+                    base-url="{{.BasePath}}"
+                    preserve-params="event,status">
+                </tspages-time-pills>
             {{end}}
         </header>
 
