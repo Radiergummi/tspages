@@ -5,33 +5,9 @@
 
 {{define "content"}}
     <article class="flex flex-col gap-8">
-        <!-- region Breadcrumbs -->
         {{if .Site}}
-            <nav>
-                <a
-                        class="inline-flex items-center gap-2 text-sm text-muted no-underline hover:text-black dark:hover:text-base-200 mb-6"
-                        href="/sites/{{.Site}}"
-                >
-                    <svg
-                            aria-hidden="true"
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                    >
-                        <path d="M9 14 4 9l5-5" />
-                        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
-                    </svg>
-                    <span>{{.Site}}</span>
-                </a>
-            </nav>
+            {{breadcrumbs "Sites" "/sites" .Site (printf "/sites/%s" .Site) "Webhooks"}}
         {{end}}
-        <!-- endregion -->
 
         <header class="flex items-center justify-between">
             <!-- region Page title -->
@@ -48,6 +24,7 @@
             </h1>
             <!-- endregion -->
 
+            {{if or .Total (len .Deliveries)}}
             <!-- region Time range filter -->
             <nav aria-label="Time range" class="flex gap-1">
                 <a
@@ -83,8 +60,10 @@
                 </a>
             </nav>
             <!-- endregion -->
+            {{end}}
         </header>
 
+        {{if or .Total (len .Deliveries)}}
         {{if .Total}}
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <!-- region Delivery chart -->
@@ -417,6 +396,63 @@
             <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
                 No webhook deliveries yet.
             </p>
+            <!-- endregion -->
+        {{end}}
+
+        {{else}}
+            <!-- region Onboarding -->
+            <div class="onboarding">
+                <h2 class="text-xl font-semibold tracking-tight m-0">
+                    Get notified when events happen
+                </h2>
+                <p class="text-muted text-sm mt-1 mb-8">
+                    Webhooks send HTTP notifications to your server when deployments, site changes,
+                    or form submissions occur.
+                </p>
+
+                <ol class="flex flex-col gap-6 list-none p-0 m-0">
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">1</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Configure a webhook URL</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Add webhook fields to <code class="text-xs bg-base-100 dark:bg-base-950 px-1 py-0.5 rounded">tspages.toml</code> in your deployment archive:
+                            </p>
+                            <pre>webhook_url = "https://example.com/hook"
+webhook_events = ["deploy.success"]
+webhook_secret = "whsec_..."</pre>
+                        </div>
+                    </li>
+
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">2</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Deploy your site</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Webhooks fire automatically on the configured events:
+                            </p>
+                            <pre>curl -X POST -T site.zip \
+  https://pages.tailnet.ts.net/sites/mysite/deploy</pre>
+                        </div>
+                    </li>
+
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">3</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Deliveries appear here</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Each delivery shows the event, status, response time, and full payload.
+                            </p>
+                        </div>
+                    </li>
+                </ol>
+
+                <p class="text-sm mt-8 mb-0">
+                    <a href="/help/webhooks" class="text-blue-500 no-underline hover:underline">
+                        Read the full webhooks documentation
+                    </a>
+                </p>
+            </div>
             <!-- endregion -->
         {{end}}
     </article>
