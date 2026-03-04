@@ -348,21 +348,21 @@ func computeExplicitAggregate(totalRows int, nonEmpty []string, aggregate string
 		}
 		return fmt.Sprintf("%d unique", len(unique))
 	case "total":
-		return strconv.Itoa(totalRows)
+		return strconv.Itoa(totalRows) + " in total"
 	case "count_empty":
-		return strconv.Itoa(totalRows - len(nonEmpty))
+		return strconv.Itoa(totalRows-len(nonEmpty)) + " empty"
 	case "count_not_empty":
-		return strconv.Itoa(len(nonEmpty))
+		return strconv.Itoa(len(nonEmpty)) + " filled"
 	case "percent_empty":
 		if totalRows == 0 {
-			return "0%"
+			return "0% empty"
 		}
-		return fmt.Sprintf("%.0f%%", float64(totalRows-len(nonEmpty))/float64(totalRows)*100)
+		return fmt.Sprintf("%.0f%% empty", float64(totalRows-len(nonEmpty))/float64(totalRows)*100)
 	case "percent_not_empty":
 		if totalRows == 0 {
-			return "0%"
+			return "0% filled"
 		}
-		return fmt.Sprintf("%.0f%%", float64(len(nonEmpty))/float64(totalRows)*100)
+		return fmt.Sprintf("%.0f%% filled", float64(len(nonEmpty))/float64(totalRows)*100)
 	case "sum", "avg", "mean", "median", "min", "max", "range":
 		return computeNumericAggregate(nonEmpty, aggregate)
 	default:
@@ -392,21 +392,23 @@ func computeNumericAggregate(nonEmpty []string, aggregate string) string {
 
 	switch aggregate {
 	case "sum":
-		return formatNum(sum)
-	case "avg", "mean":
-		return "\u00d8 " + formatNum(sum/float64(len(nums)))
+		return "Σ " + formatNum(sum)
+	case "avg":
+		return "Ø " + formatNum(sum/float64(len(nums)))
+    case "mean":
+		return "Mean " + formatNum(sum/float64(len(nums)))
 	case "median":
 		n := len(nums)
 		if n%2 == 0 {
-			return formatNum((nums[n/2-1] + nums[n/2]) / 2)
+			return "Median " + formatNum((nums[n/2-1]+nums[n/2])/2)
 		}
-		return formatNum(nums[n/2])
+		return "Median " + formatNum(nums[n/2])
 	case "min":
-		return formatNum(mn)
+		return "↓ " + formatNum(mn)
 	case "max":
-		return formatNum(mx)
+		return "↑ " + formatNum(mx)
 	case "range":
-		return formatNum(mn) + "\u2013" + formatNum(mx)
+		return formatNum(mn) + "\u200a–\u200a" + formatNum(mx)
 	}
 	return ""
 }
@@ -444,9 +446,9 @@ func computeDateSummary(views []submissionView) string {
 		return earliest.Format("Jan 2, 2006")
 	}
 	if earliest.Year() == latest.Year() {
-		return earliest.Format("Jan 2") + " \u2013 " + latest.Format("Jan 2, 2006")
+		return earliest.Format("Jan 2") + "\u200a–\u200a" + latest.Format("Jan 2, 2006")
 	}
-	return earliest.Format("Jan 2, 2006") + " \u2013 " + latest.Format("Jan 2, 2006")
+	return earliest.Format("Jan 2, 2006") + "\u200a–\u200a" + latest.Format("Jan 2, 2006")
 }
 
 // stableFieldOrder returns field keys in a deterministic order: config-declared

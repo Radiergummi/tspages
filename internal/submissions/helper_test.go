@@ -194,8 +194,8 @@ func TestComputeFieldSummary_ExplicitAggregate_Sum(t *testing.T) {
 	if !isNumeric {
 		t.Error("expected numeric")
 	}
-	if summary != "60" {
-		t.Errorf("got %q, want %q", summary, "60")
+	if summary != "Σ 60" {
+		t.Errorf("got %q, want %q", summary, "Σ 60")
 	}
 }
 
@@ -211,39 +211,39 @@ func TestComputeFieldSummary_ExplicitAggregate_Avg(t *testing.T) {
 func TestComputeFieldSummary_ExplicitAggregate_Median_Odd(t *testing.T) {
 	values := []string{"1", "3", "2"}
 	summary, _ := computeFieldSummary(values, "median")
-	if summary != "2" {
-		t.Errorf("got %q, want %q", summary, "2")
+	if summary != "Median 2" {
+		t.Errorf("got %q, want %q", summary, "Median 2")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_Median_Even(t *testing.T) {
 	values := []string{"1", "2", "3", "4"}
 	summary, _ := computeFieldSummary(values, "median")
-	if summary != "2.5" {
-		t.Errorf("got %q, want %q", summary, "2.5")
+	if summary != "Median 2.5" {
+		t.Errorf("got %q, want %q", summary, "Median 2.5")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_Min(t *testing.T) {
 	values := []string{"5", "1", "10"}
 	summary, _ := computeFieldSummary(values, "min")
-	if summary != "1" {
-		t.Errorf("got %q, want %q", summary, "1")
+	if summary != "↓ 1" {
+		t.Errorf("got %q, want %q", summary, "↓ 1")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_Max(t *testing.T) {
 	values := []string{"5", "1", "10"}
 	summary, _ := computeFieldSummary(values, "max")
-	if summary != "10" {
-		t.Errorf("got %q, want %q", summary, "10")
+	if summary != "↑ 10" {
+		t.Errorf("got %q, want %q", summary, "↑ 10")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_Range(t *testing.T) {
 	values := []string{"5", "1", "10"}
 	summary, _ := computeFieldSummary(values, "range")
-	want := "1\u201310"
+	want := "1\u200a\u2013\u200a10"
 	if summary != want {
 		t.Errorf("got %q, want %q", summary, want)
 	}
@@ -260,40 +260,40 @@ func TestComputeFieldSummary_ExplicitAggregate_Unique(t *testing.T) {
 func TestComputeFieldSummary_ExplicitAggregate_Total(t *testing.T) {
 	values := []string{"a", "", "b"}
 	summary, _ := computeFieldSummary(values, "total")
-	if summary != "3" {
-		t.Errorf("got %q, want %q", summary, "3")
+	if summary != "3 in total" {
+		t.Errorf("got %q, want %q", summary, "3 in total")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_CountEmpty(t *testing.T) {
 	values := []string{"a", "", "b"}
 	summary, _ := computeFieldSummary(values, "count_empty")
-	if summary != "1" {
-		t.Errorf("got %q, want %q", summary, "1")
+	if summary != "1 empty" {
+		t.Errorf("got %q, want %q", summary, "1 empty")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_CountNotEmpty(t *testing.T) {
 	values := []string{"a", "", "b"}
 	summary, _ := computeFieldSummary(values, "count_not_empty")
-	if summary != "2" {
-		t.Errorf("got %q, want %q", summary, "2")
+	if summary != "2 filled" {
+		t.Errorf("got %q, want %q", summary, "2 filled")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_PercentEmpty(t *testing.T) {
 	values := []string{"a", "", "b", ""}
 	summary, _ := computeFieldSummary(values, "percent_empty")
-	if summary != "50%" {
-		t.Errorf("got %q, want %q", summary, "50%")
+	if summary != "50% empty" {
+		t.Errorf("got %q, want %q", summary, "50% empty")
 	}
 }
 
 func TestComputeFieldSummary_ExplicitAggregate_PercentNotEmpty(t *testing.T) {
 	values := []string{"a", "", "b", ""}
 	summary, _ := computeFieldSummary(values, "percent_not_empty")
-	if summary != "50%" {
-		t.Errorf("got %q, want %q", summary, "50%")
+	if summary != "50% filled" {
+		t.Errorf("got %q, want %q", summary, "50% filled")
 	}
 }
 
@@ -335,7 +335,7 @@ func TestComputeDateSummary_SameYear(t *testing.T) {
 		{Submission: Submission{CreatedAt: "2025-06-15T14:00:00Z"}},
 	}
 	got := computeDateSummary(views)
-	want := "Mar 1 \u2013 Jun 15, 2025"
+	want := "Mar 1\u200a\u2013\u200aJun 15, 2025"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -347,7 +347,7 @@ func TestComputeDateSummary_DifferentYears(t *testing.T) {
 		{Submission: Submission{CreatedAt: "2025-03-15T14:00:00Z"}},
 	}
 	got := computeDateSummary(views)
-	want := "Dec 1, 2024 \u2013 Mar 15, 2025"
+	want := "Dec 1, 2024\u200a\u2013\u200aMar 15, 2025"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
