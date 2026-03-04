@@ -56,14 +56,14 @@ type Tmpl struct {
 // NewTmpl creates a template by composing the shared layout with module-specific
 // content templates. The module name is used for dev mode path lookup.
 func NewTmpl(module string, moduleFS fs.FS, files ...string) *Tmpl {
-	t := template.Must(template.New("").Funcs(funcMap).ParseFS(sharedFS, "templates/layout.gohtml"))
+	t := template.Must(template.New("").Funcs(funcMap).ParseFS(sharedFS, "templates/layout.gohtml", "templates/partials.gohtml"))
 	t = template.Must(t.ParseFS(moduleFS, files...))
 	return &Tmpl{cached: t, files: files, moduleFS: moduleFS, module: module}
 }
 
 var errorTmpl = &Tmpl{
 	cached: template.Must(template.New("").Funcs(funcMap).ParseFS(
-		sharedFS, "templates/layout.gohtml", "templates/error.gohtml",
+		sharedFS, "templates/layout.gohtml", "templates/partials.gohtml", "templates/error.gohtml",
 	)),
 	files:    []string{"templates/error.gohtml"},
 	moduleFS: sharedFS,
@@ -78,13 +78,16 @@ func devReparse(t *Tmpl) (*template.Template, error) {
 	// Layout: prefer disk if "web" dev path is registered.
 	if webDir, ok := devPaths.Load("web"); ok {
 		var err error
-		parsed, err = parsed.ParseFiles(filepath.Join(webDir.(string), "layout.gohtml"))
+		parsed, err = parsed.ParseFiles(
+			filepath.Join(webDir.(string), "layout.gohtml"),
+			filepath.Join(webDir.(string), "partials.gohtml"),
+		)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		var err error
-		parsed, err = parsed.ParseFS(sharedFS, "templates/layout.gohtml")
+		parsed, err = parsed.ParseFS(sharedFS, "templates/layout.gohtml", "templates/partials.gohtml")
 		if err != nil {
 			return nil, err
 		}
