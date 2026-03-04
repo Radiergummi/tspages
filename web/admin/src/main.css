@@ -177,6 +177,23 @@
     @apply bg-black/25 backdrop-blur-md backdrop-saturate-150;
   }
 
+  .onboarding {
+    @apply border border-default rounded-md bg-surface px-8 py-12 max-w-2xl mx-auto;
+  }
+
+  .onboarding-step {
+    @apply flex gap-4 items-start;
+  }
+
+  .onboarding-step-number {
+    @apply flex-none flex items-center justify-center w-7 h-7 rounded-full
+        bg-blue-500 text-white text-sm font-semibold;
+  }
+
+  .onboarding-step pre {
+    @apply bg-base-100 dark:bg-base-950 p-3 rounded-md overflow-x-auto text-sm font-mono mt-2 mb-0;
+  }
+
   .toggle-track {
     @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
         border-2 border-transparent bg-base-300 dark:bg-base-700
