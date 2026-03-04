@@ -83,9 +83,9 @@ func setupRecorder(t *testing.T) *analytics.Recorder {
 }
 
 var (
-	adminID   = auth.Identity{LoginName: "admin@example.com", DisplayName: "Admin"}
-	adminCaps = []auth.Cap{{Access: "admin"}}
-	viewerID  = auth.Identity{LoginName: "user@example.com"}
+	adminID    = auth.Identity{LoginName: "admin@example.com", DisplayName: "Admin"}
+	adminCaps  = []auth.Cap{{Access: "admin"}}
+	viewerID   = auth.Identity{LoginName: "user@example.com"}
 	viewerCaps = []auth.Cap{{Access: "view", Sites: []string{"docs"}}}
 )
 

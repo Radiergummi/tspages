@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"tspages/internal/auth"
-	"tspages/internal/telemetry"
 	"tspages/internal/notify"
 	"tspages/internal/storage"
+	"tspages/internal/telemetry"
 )
 
 // SiteManager manages per-site tsnet server lifecycle.

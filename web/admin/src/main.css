@@ -134,8 +134,12 @@
   }
 
   /* CSS-only view switching: hide the non-selected panel. */
-  :has(#view-list:checked) [data-view-panel="grid"] { display: none; }
-  :has(#view-grid:checked) [data-view-panel="list"] { display: none; }
+  :has(#view-list:checked) [data-view-panel="grid"] {
+    display: none;
+  }
+  :has(#view-grid:checked) [data-view-panel="list"] {
+    display: none;
+  }
 
   .popover-menu {
     @apply border border-default bg-surface rounded-lg shadow-lg p-1 min-w-40;

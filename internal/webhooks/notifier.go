@@ -227,7 +227,6 @@ func (n *Notifier) Resend(webhookID, secret string) (int, error) {
 	return status, nil
 }
 
-
 func newSafeClient() *http.Client {
 	dialer := &net.Dialer{
 		Timeout: 5 * time.Second,

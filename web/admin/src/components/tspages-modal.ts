@@ -6,7 +6,7 @@ export class TspagesModal extends HTMLElement {
     document.addEventListener("keydown", this.handleKeydown);
 
     this.querySelectorAll<HTMLElement>(".modal-close").forEach((btn) =>
-      btn.addEventListener("click", () => this.close())
+      btn.addEventListener("click", () => this.close()),
     );
   }
 
@@ -20,7 +20,7 @@ export class TspagesModal extends HTMLElement {
     this.classList.add("flex");
 
     const focusable = this.querySelector<HTMLElement>(
-      "input:not([type=hidden]), select, textarea, button:not(.modal-close), [tabindex]"
+      "input:not([type=hidden]), select, textarea, button:not(.modal-close), [tabindex]",
     );
     focusable?.focus();
   }

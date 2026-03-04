@@ -33,8 +33,8 @@ var funcMap = template.FuncMap{
 	"viteclient": func() template.HTML {
 		return viteClientFunc()
 	},
-	"add": func(a, b int) int { return a + b },
-	"sub": func(a, b int) int { return a - b },
+	"add":     func(a, b int) int { return a + b },
+	"sub":     func(a, b int) int { return a - b },
 	"reltime": reltime,
 	"abstime": func(v any) string {
 		var t time.Time

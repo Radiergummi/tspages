@@ -1,5 +1,5 @@
-import { TspagesCopyButton } from "./tspages-copy-button";
 import { TspagesConfirmButton } from "./tspages-confirm-button";
+import { TspagesCopyButton } from "./tspages-copy-button";
 import { TspagesModal } from "./tspages-modal";
 import { TspagesTimePills } from "./tspages-time-pills";
 

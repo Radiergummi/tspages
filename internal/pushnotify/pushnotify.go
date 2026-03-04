@@ -287,4 +287,3 @@ func LoadOrCreateVAPIDKeys(dataDir string) (pub, priv string, err error) {
 
 	return pub, priv, nil
 }
-

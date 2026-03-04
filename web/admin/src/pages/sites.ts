@@ -88,7 +88,6 @@ function main(): void {
   }
 
   // endregion
-
 }
 
 document.addEventListener("DOMContentLoaded", main);

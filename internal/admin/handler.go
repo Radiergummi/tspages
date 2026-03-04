@@ -100,4 +100,3 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(htt
 	mux.Handle("GET /sites/{site}/feed.atom", withQuery(siteFeed))
 	mux.Handle("GET /assets/dist/{file...}", AssetHandler())
 }
-

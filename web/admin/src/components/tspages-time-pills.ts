@@ -8,9 +8,7 @@ export class TspagesTimePills extends HTMLElement {
     const labels = (this.getAttribute("labels") ?? "").split(",");
     const current = this.getAttribute("current") ?? "";
     const baseURL = this.getAttribute("base-url") ?? "";
-    const preserveParams = (this.getAttribute("preserve-params") ?? "")
-      .split(",")
-      .filter(Boolean);
+    const preserveParams = (this.getAttribute("preserve-params") ?? "").split(",").filter(Boolean);
 
     const currentParams = new URLSearchParams(window.location.search);
 

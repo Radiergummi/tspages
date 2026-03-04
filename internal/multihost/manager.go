@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"tspages/internal/auth"
-	"tspages/internal/telemetry"
 	"tspages/internal/serve"
 	"tspages/internal/storage"
+	"tspages/internal/telemetry"
 	"tspages/internal/tsadapter"
 
 	"tailscale.com/tsnet"

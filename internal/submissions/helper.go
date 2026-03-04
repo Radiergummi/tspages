@@ -395,7 +395,7 @@ func computeNumericAggregate(nonEmpty []string, aggregate string) string {
 		return "Σ " + formatNum(sum)
 	case "avg":
 		return "Ø " + formatNum(sum/float64(len(nums)))
-    case "mean":
+	case "mean":
 		return "Mean " + formatNum(sum/float64(len(nums)))
 	case "median":
 		n := len(nums)
