@@ -471,29 +471,36 @@
                 <ol class="flex flex-col gap-6 list-none p-0 m-0">
                     <li class="onboarding-step">
                         <span class="onboarding-step-number">1</span>
-                        <div class="min-w-0">
+                        <div class="w-full min-w-0">
                             <p class="font-medium m-0">Enable forms</p>
                             <p class="text-sm text-muted mt-0.5 mb-0">
                                 Add a <code>[forms]</code> section to <code>tspages.toml</code> in your deployment
                                 archive:
                             </p>
-                            <pre>[forms]
-enabled = true</pre>
+                            <!-- @formatter:off -->
+                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="p">[</span><span class="nx">forms</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="nx">enabled</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span></code></pre>
+                            <!-- @formatter:on -->
                         </div>
                     </li>
 
                     <li class="onboarding-step">
                         <span class="onboarding-step-number">2</span>
-                        <div class="min-w-0">
+                        <div class="w-full min-w-0">
                             <p class="font-medium m-0">Add a form to your site</p>
                             <p class="text-sm text-muted mt-0.5 mb-0">
                                 Standard HTML forms work out of the box:
                             </p>
-                            <pre>&lt;form action="/contact" method="POST"&gt;
-  &lt;input name="name" required&gt;
-  &lt;textarea name="message" required&gt;&lt;/textarea&gt;
-  &lt;button type="submit"&gt;Send&lt;/button&gt;
-&lt;/form&gt;</pre>
+                            <!-- @formatter:off -->
+                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="p">&lt;</span><span class="nt">form</span> <span class="na">action</span><span class="o">=</span><span class="s">"/contact"</span> <span class="na">method</span><span class="o">=</span><span class="s">"POST"</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">input</span> <span class="na">name</span><span class="o">=</span><span class="s">"name"</span> <span class="na">type</span><span class="o">=</span><span class="s">"text"</span> <span class="na">required</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">input</span> <span class="na">name</span><span class="o">=</span><span class="s">"email"</span> <span class="na">type</span><span class="o">=</span><span class="s">"email"</span> <span class="na">required</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">textarea</span> <span class="na">name</span><span class="o">=</span><span class="s">"message"</span> <span class="na">required</span><span class="p">&gt;&lt;/</span><span class="nt">textarea</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span><span class="p">&gt;</span>Send<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">&lt;/</span><span class="nt">form</span><span class="p">&gt;</span>
+</span></span></code></pre>
+                            <!-- @formatter:on -->
                         </div>
                     </li>
 
