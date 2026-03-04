@@ -192,7 +192,7 @@ Push notifications are:
 
 - **Per-form, per-browser** -- subscribe to individual forms independently; the same browser can
   subscribe to multiple forms across multiple sites
-- **Best-effort** -- delivery relies on the browser's push service; no retries or logging
+- **Best-effort** -- delivery relies on the browser's push service; no retries
 - **Self-cleaning** -- expired subscriptions (404/410 from the push service) are removed
   automatically
 
@@ -204,9 +204,10 @@ capability for the site.
 | Endpoint | Method | Description |
 | --- | --- | --- |
 | `/push/vapidkey` | GET | Returns `{"public_key": "..."}` for client subscription |
-| `/push/subscribe?site={site}&path={path}&endpoint={endpoint}` | GET | Check subscription status |
-| `/push/subscribe` | POST | Subscribe (body: `{"site", "path", "endpoint", "key_p256dh", "key_auth"}`) |
-| `/push/subscribe` | DELETE | Unsubscribe (body: `{"endpoint", "site", "path"}`) |
+| `/sites/{site}/push/subscriptions` | GET | List subscriptions (HTML or JSON) |
+| `/sites/{site}/push/subscriptions?path={path}&endpoint={endpoint}` | GET | Check subscription status |
+| `/sites/{site}/push/subscriptions` | POST | Subscribe (body: `{"path", "endpoint", "key_p256dh", "key_auth"}`) |
+| `/sites/{site}/push/subscriptions` | DELETE | Unsubscribe (body: `{"endpoint", "path"}`) |
 
 ## Viewing submissions
 

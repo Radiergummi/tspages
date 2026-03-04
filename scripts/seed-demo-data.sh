@@ -60,93 +60,93 @@ activate() {
 # ── docs ─────────────────────────────────────────────────────────────────────
 mkdir -p "$DATA/sites/docs/deployments"
 
-create_deployment docs a1b2c3d4 "$(ts_ago $OFF_7D)" "alice@example.com" 245760
-mkdir -p "$DATA/sites/docs/deployments/a1b2c3d4/content/guides"
-cat > "$DATA/sites/docs/deployments/a1b2c3d4/content/index.html" <<'HTML'
+create_deployment docs dep_3hF7kLm2 "$(ts_ago $OFF_7D)" "alice@example.com" 245760
+mkdir -p "$DATA/sites/docs/deployments/dep_3hF7kLm2/content/guides"
+cat > "$DATA/sites/docs/deployments/dep_3hF7kLm2/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Docs</title></head><body><h1>Documentation</h1><p>Welcome to the docs.</p></body></html>
 HTML
-cat > "$DATA/sites/docs/deployments/a1b2c3d4/content/guides/getting-started.html" <<'HTML'
+cat > "$DATA/sites/docs/deployments/dep_3hF7kLm2/content/guides/getting-started.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Getting Started</title></head><body><h1>Getting Started</h1></body></html>
 HTML
 
-create_deployment docs e5f6a7b8 "$(ts_ago $OFF_5D)" "alice@example.com" 251904
-mkdir -p "$DATA/sites/docs/deployments/e5f6a7b8/content/guides"
-cat > "$DATA/sites/docs/deployments/e5f6a7b8/content/index.html" <<'HTML'
+create_deployment docs dep_Bv6wQ8nJ "$(ts_ago $OFF_5D)" "alice@example.com" 251904
+mkdir -p "$DATA/sites/docs/deployments/dep_Bv6wQ8nJ/content/guides"
+cat > "$DATA/sites/docs/deployments/dep_Bv6wQ8nJ/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Docs</title></head><body><h1>Documentation</h1><p>Welcome to the docs. Updated with new guides.</p></body></html>
 HTML
-cat > "$DATA/sites/docs/deployments/e5f6a7b8/content/guides/getting-started.html" <<'HTML'
+cat > "$DATA/sites/docs/deployments/dep_Bv6wQ8nJ/content/guides/getting-started.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Getting Started</title></head><body><h1>Getting Started</h1><p>Updated guide.</p></body></html>
 HTML
-cat > "$DATA/sites/docs/deployments/e5f6a7b8/content/guides/configuration.html" <<'HTML'
+cat > "$DATA/sites/docs/deployments/dep_Bv6wQ8nJ/content/guides/configuration.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Configuration</title></head><body><h1>Configuration</h1></body></html>
 HTML
 
-create_deployment docs 1c2d3e4f "$(ts_ago $OFF_2H)" "bob@example.com" 274432
-mkdir -p "$DATA/sites/docs/deployments/1c2d3e4f/content/guides"
-mkdir -p "$DATA/sites/docs/deployments/1c2d3e4f/content/api"
-cat > "$DATA/sites/docs/deployments/1c2d3e4f/content/index.html" <<'HTML'
+create_deployment docs dep_9xRtYp4N "$(ts_ago $OFF_2H)" "bob@example.com" 274432
+mkdir -p "$DATA/sites/docs/deployments/dep_9xRtYp4N/content/guides"
+mkdir -p "$DATA/sites/docs/deployments/dep_9xRtYp4N/content/api"
+cat > "$DATA/sites/docs/deployments/dep_9xRtYp4N/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Docs</title></head><body><h1>Documentation</h1><p>Welcome to the docs. Now with API reference.</p></body></html>
 HTML
-cat > "$DATA/sites/docs/deployments/1c2d3e4f/content/guides/getting-started.html" <<'HTML'
+cat > "$DATA/sites/docs/deployments/dep_9xRtYp4N/content/guides/getting-started.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Getting Started</title></head><body><h1>Getting Started</h1><p>Updated guide.</p></body></html>
 HTML
-cat > "$DATA/sites/docs/deployments/1c2d3e4f/content/guides/configuration.html" <<'HTML'
+cat > "$DATA/sites/docs/deployments/dep_9xRtYp4N/content/guides/configuration.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Configuration</title></head><body><h1>Configuration</h1></body></html>
 HTML
-cat > "$DATA/sites/docs/deployments/1c2d3e4f/content/api/index.html" <<'HTML'
+cat > "$DATA/sites/docs/deployments/dep_9xRtYp4N/content/api/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>API Reference</title></head><body><h1>API Reference</h1></body></html>
 HTML
 
-activate docs 1c2d3e4f
+activate docs dep_9xRtYp4N
 
 # ── blog ─────────────────────────────────────────────────────────────────────
 mkdir -p "$DATA/sites/blog/deployments"
 
-create_deployment blog 4a5b6c7d "$(ts_ago $OFF_4D)" "charlie@example.com" 189440
-mkdir -p "$DATA/sites/blog/deployments/4a5b6c7d/content/posts"
-cat > "$DATA/sites/blog/deployments/4a5b6c7d/content/index.html" <<'HTML'
+create_deployment blog dep_Hn4eWz7R "$(ts_ago $OFF_4D)" "charlie@example.com" 189440
+mkdir -p "$DATA/sites/blog/deployments/dep_Hn4eWz7R/content/posts"
+cat > "$DATA/sites/blog/deployments/dep_Hn4eWz7R/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Blog</title></head><body><h1>Engineering Blog</h1></body></html>
 HTML
-cat > "$DATA/sites/blog/deployments/4a5b6c7d/content/posts/hello-world.html" <<'HTML'
+cat > "$DATA/sites/blog/deployments/dep_Hn4eWz7R/content/posts/hello-world.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Hello World</title></head><body><h1>Hello World</h1><p>Our first post.</p></body></html>
 HTML
 
-create_deployment blog 8d9e0f1a "$(ts_ago $OFF_1D)" "charlie@example.com" 215040
-mkdir -p "$DATA/sites/blog/deployments/8d9e0f1a/content/posts"
-cat > "$DATA/sites/blog/deployments/8d9e0f1a/content/index.html" <<'HTML'
+create_deployment blog dep_Xt2uAc5K "$(ts_ago $OFF_1D)" "charlie@example.com" 215040
+mkdir -p "$DATA/sites/blog/deployments/dep_Xt2uAc5K/content/posts"
+cat > "$DATA/sites/blog/deployments/dep_Xt2uAc5K/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Blog</title></head><body><h1>Engineering Blog</h1></body></html>
 HTML
-cat > "$DATA/sites/blog/deployments/8d9e0f1a/content/posts/hello-world.html" <<'HTML'
+cat > "$DATA/sites/blog/deployments/dep_Xt2uAc5K/content/posts/hello-world.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Hello World</title></head><body><h1>Hello World</h1><p>Our first post.</p></body></html>
 HTML
-cat > "$DATA/sites/blog/deployments/8d9e0f1a/content/posts/scaling-tailnets.html" <<'HTML'
+cat > "$DATA/sites/blog/deployments/dep_Xt2uAc5K/content/posts/scaling-tailnets.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Scaling Tailnets</title></head><body><h1>Scaling Tailnets</h1><p>How we scaled.</p></body></html>
 HTML
 
-activate blog 8d9e0f1a
+activate blog dep_Xt2uAc5K
 
 # ── dashboard ────────────────────────────────────────────────────────────────
 mkdir -p "$DATA/sites/dashboard/deployments"
 
-create_deployment dashboard b2c3d4e5 "$(ts_ago $OFF_3D)" "alice@example.com" 524288
-mkdir -p "$DATA/sites/dashboard/deployments/b2c3d4e5/content/assets"
-cat > "$DATA/sites/dashboard/deployments/b2c3d4e5/content/index.html" <<'HTML'
+create_deployment dashboard dep_Jm8pVd6S "$(ts_ago $OFF_3D)" "alice@example.com" 524288
+mkdir -p "$DATA/sites/dashboard/deployments/dep_Jm8pVd6S/content/assets"
+cat > "$DATA/sites/dashboard/deployments/dep_Jm8pVd6S/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Dashboard</title></head><body><h1>Internal Dashboard</h1></body></html>
 HTML
-printf '%1024s' '' > "$DATA/sites/dashboard/deployments/b2c3d4e5/content/assets/app.js"
-printf '%512s' '' > "$DATA/sites/dashboard/deployments/b2c3d4e5/content/assets/style.css"
+printf '%1024s' '' > "$DATA/sites/dashboard/deployments/dep_Jm8pVd6S/content/assets/app.js"
+printf '%512s' '' > "$DATA/sites/dashboard/deployments/dep_Jm8pVd6S/content/assets/style.css"
 
-activate dashboard b2c3d4e5
+activate dashboard dep_Jm8pVd6S
 
 # ── status-page ──────────────────────────────────────────────────────────────
 mkdir -p "$DATA/sites/status-page/deployments"
 
-create_deployment status-page f6a7b8c9 "$(ts_ago $OFF_6D)" "bob@example.com" 81920
-cat > "$DATA/sites/status-page/deployments/f6a7b8c9/content/index.html" <<'HTML'
+create_deployment status-page dep_Qr7bNf3G "$(ts_ago $OFF_6D)" "bob@example.com" 81920
+cat > "$DATA/sites/status-page/deployments/dep_Qr7bNf3G/content/index.html" <<'HTML'
 <!DOCTYPE html><html><head><title>Status</title></head><body><h1>System Status</h1><p>All systems operational.</p></body></html>
 HTML
 
-activate status-page f6a7b8c9
+activate status-page dep_Qr7bNf3G
 
 # ── design-system (no active deployment — newly created) ─────────────────────
 mkdir -p "$DATA/sites/design-system/deployments"
@@ -460,7 +460,7 @@ WITH RECURSIVE seq(n) AS (
 base AS (
     SELECT
         n,
-        'msg_ds' || printf('%03d', n) AS wid,
+        'msg_ds' || printf('%03d', n) || substr(hex(randomblob(3)),1,5) AS wid,
         -- Spread across 7 days: offset in seconds from now, biased to work hours
         CAST(
             (ABS(CAST(RANDOM() % 7 AS INTEGER))) * 86400
@@ -512,7 +512,7 @@ WITH RECURSIVE seq(n) AS (
 base AS (
     SELECT
         n,
-        'msg_df' || printf('%03d', n) AS wid,
+        'msg_df' || printf('%03d', n) || substr(hex(randomblob(3)),1,5) AS wid,
         CAST(
             ABS(CAST(RANDOM() % 7 AS INTEGER)) * 86400
             + 8 * 3600
@@ -542,7 +542,7 @@ WITH RECURSIVE seq(n) AS (
 base AS (
     SELECT
         n,
-        'msg_sc' || printf('%03d', n) AS wid,
+        'msg_sc' || printf('%03d', n) || substr(hex(randomblob(3)),1,5) AS wid,
         CASE n
             WHEN 1 THEN 'docs'
             WHEN 2 THEN 'blog'
@@ -572,13 +572,166 @@ FROM base;
 -- site.deleted: 2 events
 INSERT INTO webhook_deliveries (webhook_id, event, site, url, payload, attempt, status, error, created_at, duration_ms)
 VALUES
-    ('msg_sd001', 'site.deleted', 'old-project', 'https://hooks.example.com/tspages',
+    ('msg_Yw3rKp7H', 'site.deleted', 'old-project', 'https://hooks.example.com/tspages',
      '{"type":"site.deleted","data":{"site":"old-project"}}', 1, 200, '',
      strftime('%Y-%m-%dT%H:%M:%SZ', '${NOW_RFC3339}', '-$(( OFF_5D + 3600 )) seconds'), 87),
-    ('msg_sd002', 'site.deleted', 'staging', 'https://hooks.example.com/tspages',
+    ('msg_Dc8mNt4V', 'site.deleted', 'staging', 'https://hooks.example.com/tspages',
      '{"type":"site.deleted","data":{"site":"staging"}}', 1, 200, '',
      strftime('%Y-%m-%dT%H:%M:%SZ', '${NOW_RFC3339}', '-$(( OFF_2D + 7200 )) seconds'), 124);
 WEBHOOKSQL
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Form submissions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── docs site: forms config with field metadata ──────────────────────────────
+cat > "$DATA/sites/docs/config.toml" <<'TOML'
+[forms]
+enabled = true
+
+[[forms.endpoints]]
+path = "/contact"
+name = "Contact Form"
+description = "General inquiries and support requests"
+
+[[forms.endpoints.fields]]
+key = "name"
+label = "Full Name"
+type = "text"
+
+[[forms.endpoints.fields]]
+key = "email"
+label = "Email Address"
+type = "email"
+
+[[forms.endpoints.fields]]
+key = "message"
+label = "Message"
+type = "textarea"
+
+[[forms.endpoints.fields]]
+key = "rating"
+label = "Experience Rating"
+type = "number"
+aggregate = "avg"
+
+[[forms.endpoints]]
+path = "/feedback"
+name = "Page Feedback"
+TOML
+
+# ── Create form_submissions table ────────────────────────────────────────────
+sqlite3 "$DB" <<'SQL'
+CREATE TABLE IF NOT EXISTS form_submissions (
+    id                TEXT PRIMARY KEY,
+    site              TEXT NOT NULL,
+    path              TEXT NOT NULL,
+    fields            TEXT NOT NULL,
+    submitter         TEXT NOT NULL DEFAULT '',
+    node              TEXT NOT NULL DEFAULT '',
+    ip                TEXT NOT NULL DEFAULT '',
+    created_at        TEXT NOT NULL,
+    submitter_pic_url TEXT NOT NULL DEFAULT '',
+    submitter_name    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_form_subs_site_created ON form_submissions(site, created_at);
+CREATE INDEX IF NOT EXISTS idx_form_subs_site_path_created ON form_submissions(site, path, created_at);
+SQL
+
+# ── docs /contact: 15 submissions with full field metadata ───────────────────
+sqlite3 "$DB" <<FORMSQL
+INSERT INTO form_submissions (id, site, path, fields, submitter, submitter_name, node, ip, created_at)
+VALUES
+  ('sub_Hk3mWp7R', 'docs', '/contact', '{"name":"Alice Chen","email":"alice@example.com","message":"Love the new API docs!","rating":"5"}',
+   'alice@example.com', 'Alice Chen', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_7D - 3600)))'),
+  ('sub_Tn9bXq2L', 'docs', '/contact', '{"name":"Bob Martinez","email":"bob@example.com","message":"Found a typo on the getting started page.","rating":"4"}',
+   'bob@example.com', 'Bob Martinez', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_6D + 7200)))'),
+  ('sub_Qv4fYr8N', 'docs', '/contact', '{"name":"Charlie Park","email":"charlie@example.com","message":"Can you add more examples for the deploy API?","rating":"3"}',
+   'charlie@example.com', 'Charlie Park', 'charlie-linux', '100.64.1.30', '$(ts_ago $((OFF_6D - 1800)))'),
+  ('sub_Jw6gZs5P', 'docs', '/contact', '{"name":"Dana Singh","email":"dana@example.com","message":"The configuration guide saved me hours. Thank you!","rating":"5"}',
+   'dana@example.com', 'Dana Singh', 'dana-laptop', '100.64.1.40', '$(ts_ago $((OFF_5D + 14400)))'),
+  ('sub_Mx2hAt3K', 'docs', '/contact', '{"name":"Eve Johnson","email":"eve@example.com","message":"Authentication docs could use more detail on ACL setup.","rating":"3"}',
+   'eve@example.com', 'Eve Johnson', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_5D - 3600)))'),
+  ('sub_Rz8jBu7W', 'docs', '/contact', '{"name":"Frank Liu","email":"frank@example.com","message":"Great docs overall. Very clear and well-organized.","rating":"5"}',
+   'frank@example.com', 'Frank Liu', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_4D + 28800)))'),
+  ('sub_Lp5kCv4X', 'docs', '/contact', '{"name":"Alice Chen","email":"alice@example.com","message":"The changelog page is really helpful for tracking updates.","rating":"4"}',
+   'alice@example.com', 'Alice Chen', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_4D - 7200)))'),
+  ('sub_Gy3nDw9S', 'docs', '/contact', '{"name":"Bob Martinez","email":"bob@example.com","message":"Redirect docs are confusing. Can you simplify?","rating":"2"}',
+   'bob@example.com', 'Bob Martinez', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_3D + 10800)))'),
+  ('sub_Nf7pEx6T', 'docs', '/contact', '{"name":"Charlie Park","email":"charlie@example.com","message":"Would love a tutorial on custom 404 pages.","rating":"4"}',
+   'charlie@example.com', 'Charlie Park', 'charlie-linux', '100.64.1.30', '$(ts_ago $((OFF_3D - 5400)))'),
+  ('sub_Wk9qFy2U', 'docs', '/contact', '{"name":"Dana Singh","email":"dana@example.com","message":"SPA routing docs are perfect. Exactly what I needed.","rating":"5"}',
+   'dana@example.com', 'Dana Singh', 'dana-laptop', '100.64.1.40', '$(ts_ago $((OFF_2D + 21600)))'),
+  ('sub_Bm4rGz8V', 'docs', '/contact', '{"name":"Eve Johnson","email":"eve@example.com","message":"Webhook docs need an example payload.","rating":"3"}',
+   'eve@example.com', 'Eve Johnson', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_2D - 9000)))'),
+  ('sub_Xc6sHa5Y', 'docs', '/contact', '{"name":"Frank Liu","email":"frank@example.com","message":"Just deployed my first site using the CLI guide. Worked perfectly!","rating":"5"}',
+   'frank@example.com', 'Frank Liu', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_1D + 36000)))'),
+  ('sub_Pt8tJb3Z', 'docs', '/contact', '{"name":"Alice Chen","email":"alice@example.com","message":"Analytics dashboard is great but could use export.","rating":"4"}',
+   'alice@example.com', 'Alice Chen', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_1D - 3600)))'),
+  ('sub_Dv2uKc7A', 'docs', '/contact', '{"name":"Bob Martinez","email":"bob@example.com","message":"Compression docs are unclear about precompressed assets.","rating":"2"}',
+   'bob@example.com', 'Bob Martinez', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_6H + 1800)))'),
+  ('sub_Fh5vLd4B', 'docs', '/contact', '{"name":"Charlie Park","email":"charlie@example.com","message":"Everything works great. Keep up the good work!","rating":"5"}',
+   'charlie@example.com', 'Charlie Park', 'charlie-linux', '100.64.1.30', '$(ts_ago $((OFF_2H)))');
+
+-- docs /feedback: 8 submissions (no field metadata in config — auto-inferred)
+INSERT INTO form_submissions (id, site, path, fields, submitter, submitter_name, node, ip, created_at)
+VALUES
+  ('sub_Kn8wMe6C', 'docs', '/feedback', '{"page":"/guides/getting-started","helpful":"yes","comment":"Very clear instructions"}',
+   'alice@example.com', 'Alice Chen', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_6D + 3600)))'),
+  ('sub_Sq3xNf9D', 'docs', '/feedback', '{"page":"/guides/configuration","helpful":"yes","comment":"Helped me set up tspages.toml"}',
+   'bob@example.com', 'Bob Martinez', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_5D + 18000)))'),
+  ('sub_Uw7yPg2E', 'docs', '/feedback', '{"page":"/api/","helpful":"no","comment":"Missing examples for error responses"}',
+   'charlie@example.com', 'Charlie Park', 'charlie-linux', '100.64.1.30', '$(ts_ago $((OFF_4D + 43200)))'),
+  ('sub_Yz4zQh5F', 'docs', '/feedback', '{"page":"/guides/deployment","helpful":"yes","comment":""}',
+   'dana@example.com', 'Dana Singh', 'dana-laptop', '100.64.1.40', '$(ts_ago $((OFF_3D + 28800)))'),
+  ('sub_Cb8aRj7G', 'docs', '/feedback', '{"page":"/guides/authentication","helpful":"no","comment":"Needs more ACL examples"}',
+   'eve@example.com', 'Eve Johnson', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_2D + 14400)))'),
+  ('sub_Gd2bSk4H', 'docs', '/feedback', '{"page":"/changelog","helpful":"yes","comment":"Great to see what changed"}',
+   'frank@example.com', 'Frank Liu', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_1D + 7200)))'),
+  ('sub_He6cTm8J', 'docs', '/feedback', '{"page":"/guides/networking","helpful":"yes","comment":"Exactly what I was looking for"}',
+   'alice@example.com', 'Alice Chen', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_12H + 3600)))'),
+  ('sub_Jf3dUn5K', 'docs', '/feedback', '{"page":"/search","helpful":"no","comment":"Search results are not very relevant"}',
+   'bob@example.com', 'Bob Martinez', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_6H - 1800)))');
+
+-- blog /contact: 6 submissions (no forms config at all — fully auto-inferred)
+INSERT INTO form_submissions (id, site, path, fields, submitter, submitter_name, node, ip, created_at)
+VALUES
+  ('sub_Lg7eVp8M', 'blog', '/contact', '{"name":"Alice Chen","email":"alice@example.com","subject":"Guest post inquiry","body":"Hi, I would like to write a guest post about Tailscale networking."}',
+   'alice@example.com', 'Alice Chen', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_5D + 21600)))'),
+  ('sub_Nh4fWq3N', 'blog', '/contact', '{"name":"Dana Singh","email":"dana@example.com","subject":"Typo report","body":"There is a typo in the scaling-tailnets post, paragraph 3."}',
+   'dana@example.com', 'Dana Singh', 'dana-laptop', '100.64.1.40', '$(ts_ago $((OFF_4D + 36000)))'),
+  ('sub_Pk9gXr6P', 'blog', '/contact', '{"name":"Frank Liu","email":"frank@example.com","subject":"RSS feed issue","body":"The RSS feed seems to be missing the latest post."}',
+   'frank@example.com', 'Frank Liu', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_3D + 14400)))'),
+  ('sub_Rm2hYs4Q', 'blog', '/contact', '{"name":"Eve Johnson","email":"eve@example.com","subject":"Great blog","body":"Really enjoying the engineering blog. More posts about infrastructure please!"}',
+   'eve@example.com', 'Eve Johnson', 'alice-mbp', '100.64.1.10', '$(ts_ago $((OFF_2D + 43200)))'),
+  ('sub_Tn5jZt7R', 'blog', '/contact', '{"name":"Bob Martinez","email":"bob@example.com","subject":"Question about scaling","body":"In the scaling post you mention 10k nodes. What was the bottleneck?"}',
+   'bob@example.com', 'Bob Martinez', 'bob-desktop', '100.64.1.20', '$(ts_ago $((OFF_1D + 28800)))'),
+  ('sub_Vp8kAu2S', 'blog', '/contact', '{"name":"Charlie Park","email":"charlie@example.com","subject":"Newsletter","body":"Do you have a newsletter I can subscribe to?"}',
+   'charlie@example.com', 'Charlie Park', 'charlie-linux', '100.64.1.30', '$(ts_ago $((OFF_6H + 3600)))');
+FORMSQL
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Set migration version so the app skips all migrations on startup.
+# Order: analytics(1) + submissions(4) + webhooks(1) + pushnotify(1) = 7
+# ═══════════════════════════════════════════════════════════════════════════════
+
+sqlite3 "$DB" <<'SQL'
+-- pushnotify table (migration 7)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    site       TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    user_login TEXT NOT NULL,
+    endpoint   TEXT NOT NULL,
+    key_p256dh TEXT NOT NULL,
+    key_auth   TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    UNIQUE(endpoint, site, path)
+);
+CREATE INDEX IF NOT EXISTS idx_push_subs_site_path ON push_subscriptions(site, path);
+
+PRAGMA user_version = 7;
+SQL
 
 echo "Done. Summary:"
 echo "  Sites:"
@@ -595,4 +748,6 @@ echo "  Analytics:"
 sqlite3 "$DB" "SELECT '    ' || site || ': ' || COUNT(*) || ' requests' FROM requests GROUP BY site ORDER BY COUNT(*) DESC;"
 echo "  Webhooks:"
 sqlite3 "$DB" "SELECT '    ' || COUNT(DISTINCT webhook_id) || ' deliveries (' || SUM(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END) || ' succeeded, ' || SUM(CASE WHEN status NOT BETWEEN 200 AND 299 OR status IS NULL THEN 1 ELSE 0 END) || ' failed attempts)' FROM webhook_deliveries;"
+echo "  Form submissions:"
+sqlite3 "$DB" "SELECT '    ' || site || ' ' || path || ': ' || COUNT(*) FROM form_submissions GROUP BY site, path ORDER BY site, path;"
 echo "  Time range: $(ts_ago $OFF_7D) .. $(ts_ago 0)"

@@ -4,9 +4,7 @@ package webhooks
 
 import (
 	"bytes"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +16,8 @@ import (
 	"time"
 
 	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
+
+	"tspages/internal/id"
 
 	"tspages/internal/notify"
 	"tspages/internal/storage"
@@ -99,7 +99,7 @@ func (n *Notifier) Fire(event string, site string, cfg storage.SiteConfig, data 
 }
 
 func (n *Notifier) deliver(event, site string, cfg storage.SiteConfig, data map[string]any) {
-	msgID := "msg_" + randomHex(16)
+	msgID := id.New("msg")
 	ts := time.Now().UTC()
 
 	payload, err := json.Marshal(map[string]any{
@@ -211,7 +211,7 @@ func (n *Notifier) Resend(webhookID, secret string) (int, error) {
 	}
 	attempt := maxAttempt + 1
 
-	retryMsgID := "msg_" + randomHex(16)
+	retryMsgID := id.New("msg")
 	ts := time.Now().UTC()
 	status, dur, sendErr := n.send(url, secret, retryMsgID, ts, []byte(payload))
 
@@ -227,13 +227,6 @@ func (n *Notifier) Resend(webhookID, secret string) (int, error) {
 	return status, nil
 }
 
-func randomHex(n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(b)
-}
 
 func newSafeClient() *http.Client {
 	dialer := &net.Dialer{

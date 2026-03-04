@@ -113,11 +113,7 @@ func main() {
 		slog.Error("loading VAPID keys", "component", "server", "err", err)
 		os.Exit(1)
 	}
-	pushNotifier := pushnotify.NewNotifier(database, vapidPub, vapidPriv)
-
 	submissionStore := submissions.NewStore(database)
-
-	notifier := notify.Multi{webhookNotifier, pushNotifier}
 
 	web.SetHideFooter(cfg.Server.HideFooter)
 	admin.SetupWeb()
@@ -155,6 +151,15 @@ func main() {
 	if status.CurrentTailnet != nil {
 		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
 	}
+
+	// Create push notifier after DNS suffix is known so the VAPID subject
+	// contains the full FQDN (Apple rejects bare hostnames without a TLD).
+	vapidContact := "https://" + cfg.Tailscale.Hostname
+	if dnsSuffix != "" {
+		vapidContact = "https://" + cfg.Tailscale.Hostname + "." + dnsSuffix
+	}
+	pushNotifier := pushnotify.NewNotifier(database, vapidPub, vapidPriv, vapidContact)
+	notifier := notify.Multi{webhookNotifier, pushNotifier}
 
 	var limiter *ratelimit.Limiter
 	rl := cfg.RateLimits
@@ -315,6 +320,13 @@ func main() {
 			os.Exit(1)
 		}
 		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir})
+
+		openapiPath, err := filepath.Abs("internal/admin/openapi.yaml")
+		if err != nil {
+			slog.Error("resolving openapi path", "component", "server", "err", err)
+			os.Exit(1)
+		}
+		admin.SetDevOpenAPIPath(openapiPath)
 
 		serveTmplDir, err := filepath.Abs("internal/serve/templates")
 		if err != nil {

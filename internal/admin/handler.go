@@ -63,6 +63,7 @@ type PushSubscriber interface {
 	IsSubscribed(site, path, endpoint string) (bool, error)
 	Subscribe(site, path, userLogin string, sub pushnotify.Subscription) error
 	Unsubscribe(endpoint, site, path, userLogin string) error
+	ListSubscriptions(site string) ([]pushnotify.SubscriptionInfo, error)
 }
 
 // Config holds dependencies for admin route handlers.
@@ -118,9 +119,9 @@ func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(htt
 
 	// Push notifications
 	mux.Handle("GET /push/vapidkey", withAuth(vapidKey))
-	mux.Handle("GET /push/subscribe", withAuth(pushSubscribe))
-	mux.Handle("POST /push/subscribe", withMutate(pushSubscribe))
-	mux.Handle("DELETE /push/subscribe", withMutate(pushSubscribe))
+	mux.Handle("GET /sites/{site}/push/subscriptions", withQuery(pushSubscribe))
+	mux.Handle("POST /sites/{site}/push/subscriptions", withMutate(pushSubscribe))
+	mux.Handle("DELETE /sites/{site}/push/subscriptions", withMutate(pushSubscribe))
 
 	// Service worker
 	mux.Handle("GET /sw.js", ServiceWorkerHandler())

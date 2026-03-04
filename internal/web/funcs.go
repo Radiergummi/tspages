@@ -190,6 +190,38 @@ var funcMap = template.FuncMap{
 		}
 		return "https://" + name + "." + dnsSuffix
 	},
+	"breadcrumbs": func(crumbs ...any) (template.HTML, error) {
+		// Pairs: label, href, label, href, ..., label (last = current page, no href).
+		if len(crumbs)%2 == 0 {
+			return "", fmt.Errorf("breadcrumbs: expected odd number of arguments (label/href pairs + trailing label), got %d", len(crumbs))
+		}
+		var b strings.Builder
+		b.WriteString(`<nav aria-label="Breadcrumb" class="text-sm flex items-center gap-1.5">`)
+		n := len(crumbs)
+		for i := 0; i < n; i++ {
+			label := fmt.Sprint(crumbs[i])
+			if i > 0 {
+				b.WriteString(`<span class="text-muted opacity-50" aria-hidden="true">/</span>`)
+			}
+			if i+1 < n {
+				// Has a following href — this is a link crumb.
+				i++
+				href := fmt.Sprint(crumbs[i])
+				b.WriteString(`<a href="`)
+				b.WriteString(template.HTMLEscapeString(href))
+				b.WriteString(`" class="text-muted no-underline hover:text-black dark:hover:text-base-200">`)
+				b.WriteString(template.HTMLEscapeString(label))
+				b.WriteString(`</a>`)
+			} else {
+				// Last item — current page.
+				b.WriteString(`<span aria-current="page">`)
+				b.WriteString(template.HTMLEscapeString(label))
+				b.WriteString(`</span>`)
+			}
+		}
+		b.WriteString(`</nav>`)
+		return template.HTML(b.String()), nil
+	},
 }
 
 // Funcs returns the shared template function map.

@@ -31,7 +31,7 @@ func testNotifier(t *testing.T) *Notifier {
 		t.Fatalf("migrations: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return NewNotifier(db, "test-pub", "test-priv")
+	return NewNotifier(db, "test-pub", "test-priv", "")
 }
 
 // mockSender returns a sender function that records calls and responds with
@@ -48,6 +48,40 @@ func mockSender(status int, calls *atomic.Int32, done *sync.WaitGroup) func([]by
 			StatusCode: status,
 			Body:       io.NopCloser(strings.NewReader("")),
 		}, nil
+	}
+}
+
+// region ListSubscriptions
+
+func TestListSubscriptions(t *testing.T) {
+	n := testNotifier(t)
+
+	n.Subscribe("docs", "/contact", "alice@example.com", Subscription{Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a"})
+	n.Subscribe("docs", "/feedback", "bob@example.com", Subscription{Endpoint: "https://e.com/2", KeyP256dh: "k", KeyAuth: "a"})
+	n.Subscribe("demo", "/contact", "alice@example.com", Subscription{Endpoint: "https://e.com/3", KeyP256dh: "k", KeyAuth: "a"})
+
+	subs, err := n.ListSubscriptions("docs")
+	if err != nil {
+		t.Fatalf("ListSubscriptions: %v", err)
+	}
+	if len(subs) != 2 {
+		t.Fatalf("expected 2 subscriptions for docs, got %d", len(subs))
+	}
+	// Verify both entries are present (order depends on created_at which may be identical).
+	paths := map[string]bool{}
+	for _, s := range subs {
+		paths[s.Path] = true
+	}
+	if !paths["/contact"] || !paths["/feedback"] {
+		t.Errorf("expected /contact and /feedback, got %v", paths)
+	}
+
+	subs, err = n.ListSubscriptions("unknown")
+	if err != nil {
+		t.Fatalf("ListSubscriptions: %v", err)
+	}
+	if len(subs) != 0 {
+		t.Errorf("expected 0 subscriptions for unknown site, got %d", len(subs))
 	}
 }
 

@@ -81,7 +81,7 @@
 
         {{if .Paths}}
             <!-- region Analytics -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-{{if and .FormPaths (gt (len .FormPaths) 1)}}3{{else}}2{{end}} gap-5">
                 <section
                         class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25
                         rounded-md overflow-hidden m-0"
@@ -457,14 +457,16 @@
             {{end}}
         {{else}}
             <!-- region Onboarding -->
-            <div class="onboarding">
-                <h2 class="text-xl font-semibold tracking-tight m-0">
-                    Collect form submissions
-                </h2>
-                <p class="text-muted text-sm mt-1 mb-8">
-                    Accept HTML form submissions on your site. Every submitter is automatically
-                    identified via Tailscale — no login forms needed.
-                </p>
+            <article class="onboarding">
+                <header>
+                    <h2 class="text-xl font-semibold tracking-tight m-0">
+                        Collect form submissions
+                    </h2>
+                    <p class="text-muted text-sm mt-1">
+                        Accept HTML form submissions on your site. Every submitter is automatically
+                        identified via Tailscale&hairsp;—&hairsp;no login forms needed.
+                    </p>
+                </header>
 
                 <ol class="flex flex-col gap-6 list-none p-0 m-0">
                     <li class="onboarding-step">
@@ -472,7 +474,8 @@
                         <div class="min-w-0">
                             <p class="font-medium m-0">Enable forms</p>
                             <p class="text-sm text-muted mt-0.5 mb-0">
-                                Add a <code>[forms]</code> section to <code>tspages.toml</code> in your deployment archive:
+                                Add a <code>[forms]</code> section to <code>tspages.toml</code> in your deployment
+                                archive:
                             </p>
                             <pre>[forms]
 enabled = true</pre>
@@ -505,12 +508,12 @@ enabled = true</pre>
                     </li>
                 </ol>
 
-                <p class="text-sm mt-8 mb-0">
-                    <a href="/help/forms" class="text-blue-500 no-underline hover:underline">
+                <footer class="text-sm flex justify-center">
+                    <a href="/help/forms" class="btn btn-primary">
                         Read the full forms documentation
                     </a>
-                </p>
-            </div>
+                </footer>
+            </article>
             <!-- endregion -->
         {{end}}
     </article>

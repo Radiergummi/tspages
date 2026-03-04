@@ -884,6 +884,139 @@ paths:
       security:
         - tailscale: [admin]
 
+  /push/vapidkey:
+    get:
+      operationId: getVAPIDKey
+      summary: VAPID public key
+      description: Returns the server's VAPID public key for Web Push subscriptions.
+      tags: [push]
+      responses:
+        "200":
+          description: VAPID public key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  public_key:
+                    type: string
+                required: [public_key]
+      security:
+        - tailscale: []
+
+  /sites/{site}/push/subscriptions:
+    get:
+      operationId: listPushSubscriptions
+      summary: List push subscriptions
+      description: |
+        Returns push notification subscriptions for a site. When `endpoint` and
+        `path` query params are provided, returns a status check instead.
+      tags: [push]
+      parameters:
+        - $ref: "#/components/parameters/site"
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Form path (required for status check).
+        - name: endpoint
+          in: query
+          schema:
+            type: string
+          description: >
+            Push endpoint URL. When present, returns `{"subscribed": bool}` instead of a list.
+      responses:
+        "200":
+          description: Subscription list or status check.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/PushSubscription"
+                  - type: object
+                    properties:
+                      subscribed:
+                        type: boolean
+                    required: [subscribed]
+      security:
+        - tailscale: [deploy]
+
+    post:
+      operationId: subscribePush
+      summary: Subscribe to push notifications
+      description: Creates a push notification subscription for a form path on this site.
+      tags: [push]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Form path to subscribe to.
+                endpoint:
+                  type: string
+                  description: Push service endpoint URL.
+                key_p256dh:
+                  type: string
+                  description: P-256 Diffie-Hellman public key (base64).
+                key_auth:
+                  type: string
+                  description: Authentication secret (base64).
+              required: [path, endpoint, key_p256dh, key_auth]
+      responses:
+        "200":
+          description: Subscribed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+      security:
+        - tailscale: [deploy]
+
+    delete:
+      operationId: unsubscribePush
+      summary: Unsubscribe from push notifications
+      description: Removes a push notification subscription. Only the original subscriber can unsubscribe.
+      tags: [push]
+      parameters:
+        - $ref: "#/components/parameters/site"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoint:
+                  type: string
+                  description: Push service endpoint URL.
+                path:
+                  type: string
+                  description: Form path.
+              required: [endpoint, path]
+      responses:
+        "200":
+          description: Unsubscribed (or no-op if not the owner).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+      security:
+        - tailscale: [deploy]
+
   /healthz:
     get:
       operationId: healthCheck
@@ -1348,6 +1481,23 @@ components:
         count:
           type: integer
       required: [path, count]
+
+    PushSubscription:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Form path this subscription targets.
+        user_login:
+          type: string
+          description: Tailscale login of the subscriber.
+        endpoint:
+          type: string
+          description: Push service endpoint URL.
+        created_at:
+          type: string
+          format: date-time
+      required: [path, user_login, endpoint, created_at]
 
     SiteConfig:
       type: object

@@ -1,0 +1,71 @@
+{{define "title"}} - {{.SiteName}} push subscriptions{{end}}
+{{define "head-extra"}}{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        {{breadcrumbs "Sites" "/sites" .SiteName (printf "/sites/%s" .SiteName) "Push subscriptions"}}
+
+        <header>
+            <h1 class="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight">
+                <span>Push subscriptions</span>
+                <span
+                        class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted"
+                >{{len .Subscriptions}}</span>
+            </h1>
+        </header>
+
+        {{if .Subscriptions}}
+            <div class="overflow-x-auto rounded-md border border-default">
+                <table class="w-full text-sm">
+                    <thead>
+                    <tr class="border-b border-default bg-surface">
+                        <th class="px-4 py-3 text-start text-xs font-medium text-muted uppercase tracking-wider">
+                            Form path
+                        </th>
+                        <th class="px-4 py-3 text-start text-xs font-medium text-muted uppercase tracking-wider">
+                            Subscriber
+                        </th>
+                        <th class="px-4 py-3 text-start text-xs font-medium text-muted uppercase tracking-wider">
+                            Endpoint
+                        </th>
+                        <th class="px-4 py-3 text-start text-xs font-medium text-muted uppercase tracking-wider">
+                            Subscribed
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{range .Subscriptions}}
+                        <tr>
+                            <td class="px-4 py-3 border-b border-default font-mono">
+                                {{.Path}}
+                            </td>
+                            <td class="px-4 py-3 border-b border-default">
+                                {{.UserLogin}}
+                            </td>
+                            <td class="px-4 py-3 border-b border-default font-mono text-muted truncate max-w-64">
+                                {{.Endpoint}}
+                            </td>
+                            <td class="px-4 py-3 border-b border-default tabular-nums whitespace-nowrap">
+                                <time
+                                        datetime="{{abstime .CreatedAt}}"
+                                        title="{{abstime .CreatedAt}}"
+                                >
+                                    {{reltime .CreatedAt}}
+                                </time>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+        {{else}}
+            <div class="rounded-md border border-default px-6 py-12 text-center text-muted">
+                <p>No push subscriptions for this site.</p>
+                <p class="text-sm mt-1">
+                    Users can subscribe to form submission notifications from the
+                    <a href="/sites/{{.SiteName}}/submissions" class="text-blue-500 no-underline hover:underline">submissions page</a>.
+                </p>
+            </div>
+        {{end}}
+    </article>
+{{end}}

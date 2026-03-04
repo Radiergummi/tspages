@@ -860,8 +860,12 @@ func TestCreateDeployment_DuplicateID(t *testing.T) {
 
 func TestNewDeploymentID(t *testing.T) {
 	id := NewDeploymentID()
-	if len(id) != 8 {
-		t.Errorf("id length = %d, want 8", len(id))
+	// Format: dep_ + 8 base58 chars = 12 total
+	if len(id) != 12 {
+		t.Errorf("id length = %d, want 12", len(id))
+	}
+	if id[:4] != "dep_" {
+		t.Errorf("id prefix = %q, want dep_", id[:4])
 	}
 	// Should be different each time
 	id2 := NewDeploymentID()

@@ -6,6 +6,7 @@ import (
 
 	"tspages/internal/auth"
 	"tspages/internal/pushnotify"
+	"tspages/internal/storage"
 	"tspages/internal/web"
 )
 
@@ -20,7 +21,15 @@ func (h *VAPIDKeyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	web.WriteJSON(w, map[string]string{"public_key": h.vapidPub})
 }
 
-// region POST /push/subscribe
+// region /sites/{site}/push/subscriptions
+
+// PushSubscriptionsData holds data for the push subscriptions list template.
+type PushSubscriptionsData struct {
+	User          web.UserInfo
+	SiteName      string
+	Admin         bool
+	Subscriptions []pushnotify.SubscriptionInfo
+}
 
 // PushSubscribeHandler manages push notification subscriptions.
 type PushSubscribeHandler struct {
@@ -30,7 +39,12 @@ type PushSubscribeHandler struct {
 func (h *PushSubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		h.status(w, r)
+		// Branch: status check (endpoint param present) vs list page.
+		if r.URL.Query().Get("endpoint") != "" {
+			h.status(w, r)
+		} else {
+			h.list(w, r)
+		}
 	case http.MethodPost:
 		h.subscribe(w, r)
 	case http.MethodDelete:
@@ -41,14 +55,26 @@ func (h *PushSubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *PushSubscribeHandler) status(w http.ResponseWriter, r *http.Request) {
-	site := r.URL.Query().Get("site")
-	path := r.URL.Query().Get("path")
-	endpoint := r.URL.Query().Get("endpoint")
-	if site == "" || path == "" || endpoint == "" {
-		http.Error(w, "missing site, path, or endpoint", http.StatusBadRequest)
+	siteName := web.TrimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
-	subscribed, err := h.push.IsSubscribed(site, path, endpoint)
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.CanDeploy(caps, siteName) {
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	path := r.URL.Query().Get("path")
+	endpoint := r.URL.Query().Get("endpoint")
+	if path == "" || endpoint == "" {
+		http.Error(w, "missing path or endpoint", http.StatusBadRequest)
+		return
+	}
+
+	subscribed, err := h.push.IsSubscribed(siteName, path, endpoint)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -56,9 +82,53 @@ func (h *PushSubscribeHandler) status(w http.ResponseWriter, r *http.Request) {
 	web.WriteJSON(w, map[string]bool{"subscribed": subscribed})
 }
 
+func (h *PushSubscribeHandler) list(w http.ResponseWriter, r *http.Request) {
+	siteName := web.TrimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.CanDeploy(caps, siteName) {
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	subs, err := h.push.ListSubscriptions(siteName)
+	if err != nil {
+		web.RenderError(w, r, http.StatusInternalServerError, "listing subscriptions")
+		return
+	}
+	if subs == nil {
+		subs = []pushnotify.SubscriptionInfo{}
+	}
+
+	if web.WantsJSON(r) {
+		web.WriteJSON(w, subs)
+		return
+	}
+
+	identity := auth.IdentityFromContext(r.Context())
+	admin := auth.IsAdmin(caps, siteName)
+
+	data := PushSubscriptionsData{
+		User:          web.NewUserInfo(identity, caps),
+		SiteName:      siteName,
+		Admin:         admin,
+		Subscriptions: subs,
+	}
+	web.RenderPage(w, r, pushSubscriptionsTmpl, "sites", data)
+}
+
 func (h *PushSubscribeHandler) subscribe(w http.ResponseWriter, r *http.Request) {
+	siteName := web.TrimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
 	var req struct {
-		Site      string `json:"site"`
 		Path      string `json:"path"`
 		Endpoint  string `json:"endpoint"`
 		KeyP256dh string `json:"key_p256dh"`
@@ -68,20 +138,19 @@ func (h *PushSubscribeHandler) subscribe(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if req.Site == "" || req.Path == "" || req.Endpoint == "" || req.KeyP256dh == "" || req.KeyAuth == "" {
+	if req.Path == "" || req.Endpoint == "" || req.KeyP256dh == "" || req.KeyAuth == "" {
 		http.Error(w, "missing required fields", http.StatusBadRequest)
 		return
 	}
 
-	// Require deploy capability on the site.
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.CanDeploy(caps, req.Site) {
+	if !auth.CanDeploy(caps, siteName) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	identity := auth.IdentityFromContext(r.Context())
-	if err := h.push.Subscribe(req.Site, req.Path, identity.LoginName, pushnotify.Subscription{
+	if err := h.push.Subscribe(siteName, req.Path, identity.LoginName, pushnotify.Subscription{
 		Endpoint:  req.Endpoint,
 		KeyP256dh: req.KeyP256dh,
 		KeyAuth:   req.KeyAuth,
@@ -94,28 +163,33 @@ func (h *PushSubscribeHandler) subscribe(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *PushSubscribeHandler) unsubscribe(w http.ResponseWriter, r *http.Request) {
+	siteName := web.TrimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
 	var req struct {
 		Endpoint string `json:"endpoint"`
-		Site     string `json:"site"`
 		Path     string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if req.Endpoint == "" || req.Site == "" || req.Path == "" {
+	if req.Endpoint == "" || req.Path == "" {
 		http.Error(w, "missing required fields", http.StatusBadRequest)
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
-	if !auth.CanDeploy(caps, req.Site) {
+	if !auth.CanDeploy(caps, siteName) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	identity := auth.IdentityFromContext(r.Context())
-	if err := h.push.Unsubscribe(req.Endpoint, req.Site, req.Path, identity.LoginName); err != nil {
+	if err := h.push.Unsubscribe(req.Endpoint, siteName, req.Path, identity.LoginName); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

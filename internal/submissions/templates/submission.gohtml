@@ -1,0 +1,110 @@
+{{define "title"}} - {{.SiteName}} / submission {{.Submission.ID}}{{end}}
+{{define "head-extra"}}{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        {{breadcrumbs "Sites" "/sites" .SiteName (printf "/sites/%s" .SiteName) "Submissions" (printf "/sites/%s/submissions" .SiteName) (printf "%s" .Submission.ID)}}
+
+        <header class="flex items-center justify-between gap-4">
+            <h1 class="text-2xl font-semibold tracking-tight truncate">
+                <span>Submission</span>
+                <code>{{.Submission.ID}}</code>
+            </h1>
+            {{if .Admin}}
+                <form
+                        method="POST"
+                        action="/sites/{{.SiteName}}/submissions/{{.Submission.ID}}/delete"
+                        onsubmit="return confirm('Delete this submission?')"
+                >
+                    <input type="hidden" name="path" value="{{.Submission.Path}}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            {{end}}
+        </header>
+
+        <section class="grid gap-4 grid-cols-12">
+            <dl class="col-span-4 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Submitted by
+                </dt>
+                <dd class="text-base">
+                    <span class="flex items-center gap-2">
+                        {{avatarHTML .Submission.DisplayName .Submission.SubmitterPicURL}}
+                        {{.Submission.DisplayName}}
+                    </span>
+                    {{if .Submission.SubmitterName}}
+                        <span class="text-muted text-sm">{{.Submission.Submitter}}</span>
+                    {{end}}
+                </dd>
+            </dl>
+            <dl class="col-span-4 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Date
+                </dt>
+                <dd class="tabular-nums text-base">
+                    <time
+                            datetime="{{abstime .Submission.CreatedAt}}"
+                            title="{{abstime .Submission.CreatedAt}}"
+                    >
+                        {{reltime .Submission.CreatedAt}}
+                    </time>
+                    {{with abstime .Submission.CreatedAt}}
+                        <span class="text-muted">({{.}})</span>
+                    {{end}}
+                </dd>
+            </dl>
+            <dl class="col-span-4 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                    Form
+                </dt>
+                <dd class="font-mono text-base">
+                    {{.Submission.Path}}
+                </dd>
+            </dl>
+            {{if .Submission.Node}}
+                <dl class="col-span-6 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                    <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                        Node
+                    </dt>
+                    <dd class="font-mono text-base">
+                        {{.Submission.Node}}
+                    </dd>
+                </dl>
+            {{end}}
+            {{if .Submission.IP}}
+                <dl class="col-span-6 bg-surface rounded-md px-5 py-4 dark:ring-1 dark:ring-base-500/25">
+                    <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                        IP address
+                    </dt>
+                    <dd class="font-mono text-base">
+                        {{.Submission.IP}}
+                    </dd>
+                </dl>
+            {{end}}
+        </section>
+
+        {{if .FieldKeys}}
+            <section>
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted mb-4">
+                    Fields
+                </h2>
+                <dl class="bg-surface rounded-md divide-y divide-paper dark:divide-base-950">
+                    {{range $key := .FieldKeys}}
+                        <div class="px-5 py-4">
+                            <dt class="text-muted text-xs uppercase tracking-wide mb-1.5">
+                                {{index $.FieldLabels $key}}
+                            </dt>
+                            <dd class="text-base">
+                                {{with index $.Submission.ParsedFields $key}}
+                                    <span class="whitespace-pre-wrap wrap-break-word">{{.}}</span>
+                                {{else}}
+                                    <span class="text-muted italic">&mdash;</span>
+                                {{end}}
+                            </dd>
+                        </div>
+                    {{end}}
+                </dl>
+            </section>
+        {{end}}
+    </article>
+{{end}}

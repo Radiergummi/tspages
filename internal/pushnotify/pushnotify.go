@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 
@@ -55,6 +57,7 @@ type Notifier struct {
 	db        *sql.DB
 	vapidPub  string
 	vapidPriv string
+	contact   string // mailto: URI for VAPID subscriber field
 	// sender is an optional override for sending push notifications.
 	// If nil, webpush.SendNotification is used. Exposed for testing.
 	sender func(payload []byte, sub dbSubscription) (*http.Response, error)
@@ -62,8 +65,13 @@ type Notifier struct {
 
 // NewNotifier creates a Notifier using the provided database connection. The
 // database must already have the push migrations applied (see Migrations).
-func NewNotifier(db *sql.DB, vapidPub, vapidPriv string) *Notifier {
-	return &Notifier{db: db, vapidPub: vapidPub, vapidPriv: vapidPriv}
+// contact is used as the VAPID subscriber — pass the server's https:// URL
+// or an email address (the library adds the mailto: prefix automatically).
+func NewNotifier(db *sql.DB, vapidPub, vapidPriv, contact string) *Notifier {
+	// Strip mailto: — the webpush-go library prepends it automatically
+	// for non-https values.
+	contact = strings.TrimPrefix(contact, "mailto:")
+	return &Notifier{db: db, vapidPub: vapidPub, vapidPriv: vapidPriv, contact: contact}
 }
 
 // Fire sends push notifications for form.submission events. It is a no-op
@@ -148,14 +156,22 @@ func (n *Notifier) sendPush(sub dbSubscription, payload []byte) {
 		}, &webpush.Options{
 			VAPIDPublicKey:  n.vapidPub,
 			VAPIDPrivateKey: n.vapidPriv,
-			Subscriber:      "mailto:noreply@example.com",
+			Subscriber:      n.contact,
+			TTL:             2419200, // 28 days, in seconds
 		})
 	}
 	if err != nil {
 		slog.Error("push: send failed", "component", "push", "endpoint", sub.endpoint, "err", err)
 		return
 	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		slog.Error("push: delivery rejected", "component", "push", "endpoint", sub.endpoint, "status", resp.StatusCode, "body", string(body))
+	} else {
+		slog.Info("push: notification sent", "component", "push", "endpoint", sub.endpoint, "status", resp.StatusCode)
+	}
 
 	// 404 or 410 means the subscription is expired — clean it up.
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
@@ -168,6 +184,35 @@ func (n *Notifier) deleteByID(id int64) {
 	if _, err := n.db.Exec(`DELETE FROM push_subscriptions WHERE id = ?`, id); err != nil {
 		slog.Error("push: delete subscription", "component", "push", "id", id, "err", err)
 	}
+}
+
+// SubscriptionInfo holds a subscription record for listing in the admin UI.
+type SubscriptionInfo struct {
+	Path      string `json:"path"`
+	UserLogin string `json:"user_login"`
+	Endpoint  string `json:"endpoint"`
+	CreatedAt string `json:"created_at"`
+}
+
+// ListSubscriptions returns all push subscriptions for a site, newest first.
+func (n *Notifier) ListSubscriptions(site string) ([]SubscriptionInfo, error) {
+	rows, err := n.db.Query(
+		`SELECT path, user_login, endpoint, created_at FROM push_subscriptions WHERE site = ? ORDER BY created_at DESC`, site,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []SubscriptionInfo
+	for rows.Next() {
+		var s SubscriptionInfo
+		if err := rows.Scan(&s.Path, &s.UserLogin, &s.Endpoint, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		subs = append(subs, s)
+	}
+	return subs, rows.Err()
 }
 
 // Subscribe stores or updates a push subscription for the given site, path, and user.
@@ -242,3 +287,4 @@ func LoadOrCreateVAPIDKeys(dataDir string) (pub, priv string, err error) {
 
 	return pub, priv, nil
 }
+

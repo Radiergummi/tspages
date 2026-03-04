@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"tspages/internal/id"
 )
 
 var (
@@ -37,9 +38,7 @@ func New(dataDir string) *Store {
 }
 
 func NewDeploymentID() string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
+	return id.New("dep")
 }
 
 // ValidSiteName reports whether name is a safe site identifier.

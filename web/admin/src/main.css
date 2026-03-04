@@ -178,7 +178,7 @@
   }
 
   .onboarding {
-    @apply border border-default rounded-md bg-surface px-8 py-12 max-w-2xl mx-auto;
+    @apply flex flex-col gap-8 w-full border border-default rounded-md bg-surface px-8 py-12 max-w-xl mx-auto;
   }
 
   .onboarding-step {

@@ -1,11 +1,9 @@
 package submissions
 
 import (
-	crypto_rand "crypto/rand"
 	"database/sql"
 	"embed"
 	"encoding/csv"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 	"time"
 
 	"tspages/internal/auth"
+	"tspages/internal/id"
 	"tspages/internal/notify"
 	"tspages/internal/storage"
 	"tspages/internal/web"
@@ -27,6 +26,7 @@ import (
 var templateFS embed.FS
 
 var submissionsTmpl = web.NewTmpl("submissions", templateFS, "templates/submissions.gohtml")
+var submissionDetailTmpl = web.NewTmpl("submissions", templateFS, "templates/submission.gohtml")
 
 // RegisterRoutes registers all submission-related HTTP routes on the given mux.
 func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(http.Handler) http.Handler,
@@ -149,7 +149,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fieldsJSON, _ := json.Marshal(fields) // map[string]string cannot fail
 
-	id := "sub_" + randomHex(16)
+	id := id.New("sub")
 
 	info := auth.RequestInfoFromContext(r.Context())
 
@@ -200,14 +200,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
 }
 
-func randomHex(n int) string {
-	b := make([]byte, n)
-	if _, err := crypto_rand.Read(b); err != nil {
-		panic("crypto/rand unavailable: " + err.Error())
-	}
-	return hex.EncodeToString(b)
-}
-
 // region data types
 
 // SubmissionsPageData holds all data for the submissions page template and JSON API.
@@ -249,6 +241,17 @@ type PathInfo struct {
 	Path  string
 	Name  string
 	Count int64
+}
+
+// SubmissionDetailData holds data for the submission detail page template.
+type SubmissionDetailData struct {
+	User        web.UserInfo
+	SiteName    string
+	Admin       bool
+	Submission  submissionView
+	FieldKeys   []string
+	FieldLabels map[string]string
+	FormName    string
 }
 
 type submissionView struct {
@@ -644,7 +647,7 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	id := r.PathValue("id")
+	id := web.TrimSuffix(r.PathValue("id"))
 	sub, err := h.submissions.GetSubmission(siteName, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		web.RenderError(w, r, http.StatusNotFound, "submission not found")
@@ -658,7 +661,55 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	siteCfg, _ := h.store.ReadSiteConfig(siteName)
 	merged := deployCfg.Merge(siteCfg).Merge(h.defaults)
 	sub.Fields = ExpandFields(sub.Fields, multipleFieldKeys(merged))
-	web.WriteJSON(w, sub)
+
+	if web.WantsJSON(r) {
+		web.WriteJSON(w, sub)
+		return
+	}
+
+	// Build view with parsed fields.
+	parsed := map[string]string{}
+	var fieldKeys []string
+	if len(sub.Fields) > 0 {
+		var m map[string]any
+		json.Unmarshal(sub.Fields, &m) // best-effort: show partial data rather than fail the page
+		for k, v := range m {
+			parsed[k] = fieldValueString(v)
+			fieldKeys = append(fieldKeys, k)
+		}
+	}
+
+	// Find endpoint config for field labels and ordering.
+	var endpoint *storage.FormEndpoint
+	if merged.Forms != nil {
+		for i := range merged.Forms.Endpoints {
+			if merged.Forms.Endpoints[i].Path == sub.Path {
+				endpoint = &merged.Forms.Endpoints[i]
+				break
+			}
+		}
+	}
+	fieldKeys = stableFieldOrder(endpoint, fieldKeys)
+
+	fieldLabels := make(map[string]string, len(fieldKeys))
+	for _, k := range fieldKeys {
+		fieldLabels[k] = fieldLabelFromConfig(endpoint, k)
+	}
+
+	identity := auth.IdentityFromContext(r.Context())
+	admin := auth.IsAdmin(caps, siteName)
+
+	data := SubmissionDetailData{
+		User:        web.NewUserInfo(identity, caps),
+		SiteName:    siteName,
+		Admin:       admin,
+		Submission:  submissionView{Submission: sub, ParsedFields: parsed},
+		FieldKeys:   fieldKeys,
+		FieldLabels: fieldLabels,
+		FormName:    formNameFromConfig(merged, sub.Path),
+	}
+
+	web.RenderPage(w, r, submissionDetailTmpl, "sites", data)
 }
 
 // region DELETE /sites/{site}/submissions/{id}

@@ -484,7 +484,7 @@ func TestSubmissionsHandler_Forbidden(t *testing.T) {
 
 // region SubmissionDetailHandler
 
-func TestSubmissionDetailHandler_Found(t *testing.T) {
+func TestSubmissionDetailHandler_JSON(t *testing.T) {
 	subStore := newTestStore(t)
 	storageStore := storage.New(t.TempDir())
 
@@ -493,6 +493,7 @@ func TestSubmissionDetailHandler_Found(t *testing.T) {
 	h := &SubmissionDetailHandler{store: storageStore, submissions: subStore, defaults: storage.SiteConfig{}}
 
 	r := reqWithAuth("GET", "/sites/testsite/submissions/sub_001", adminCaps, adminID)
+	r.Header.Set("Accept", "application/json")
 	r.SetPathValue("site", "testsite")
 	r.SetPathValue("id", "sub_001")
 	w := httptest.NewRecorder()
@@ -509,6 +510,36 @@ func TestSubmissionDetailHandler_Found(t *testing.T) {
 	}
 }
 
+func TestSubmissionDetailHandler_HTML(t *testing.T) {
+	subStore := newTestStore(t)
+	storageStore := storage.New(t.TempDir())
+
+	seedSubmission(t, subStore, "sub_001", "testsite", "/contact", map[string]string{"name": "Alice"})
+
+	h := &SubmissionDetailHandler{store: storageStore, submissions: subStore, defaults: storage.SiteConfig{}}
+
+	r := reqWithAuth("GET", "/sites/testsite/submissions/sub_001", adminCaps, adminID)
+	r.SetPathValue("site", "testsite")
+	r.SetPathValue("id", "sub_001")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	ct := w.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Errorf("content-type = %q, want text/html", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "sub_001") {
+		t.Error("HTML response missing submission ID")
+	}
+	if !strings.Contains(body, "Alice") {
+		t.Error("HTML response missing field value")
+	}
+}
+
 func TestSubmissionDetailHandler_NotFound(t *testing.T) {
 	subStore := newTestStore(t)
 	storageStore := storage.New(t.TempDir())
@@ -522,6 +553,25 @@ func TestSubmissionDetailHandler_NotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestSubmissionDetailHandler_DeployerCanAccess(t *testing.T) {
+	subStore := newTestStore(t)
+	storageStore := storage.New(t.TempDir())
+
+	seedSubmission(t, subStore, "sub_001", "testsite", "/contact", map[string]string{"name": "Alice"})
+
+	h := &SubmissionDetailHandler{store: storageStore, submissions: subStore, defaults: storage.SiteConfig{}}
+
+	r := reqWithAuth("GET", "/sites/testsite/submissions/sub_001", deployCaps, deployID)
+	r.SetPathValue("site", "testsite")
+	r.SetPathValue("id", "sub_001")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for deployer, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

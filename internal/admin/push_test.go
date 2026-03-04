@@ -26,7 +26,7 @@ func testPushNotifier(t *testing.T) *pushnotify.Notifier {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return pushnotify.NewNotifier(db, "test-pub", "test-priv")
+	return pushnotify.NewNotifier(db, "test-pub", "test-priv", "")
 }
 
 func pushReq(method, path, body string, caps []auth.Cap, id auth.Identity) *http.Request {
@@ -69,14 +69,15 @@ func TestVAPIDKeyHandler(t *testing.T) {
 	}
 }
 
-// region POST /push/subscribe
+// region POST /sites/{site}/push/subscriptions
 
 func TestPushSubscribe_Success(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	body := `{"site":"docs","path":"/contact","endpoint":"https://push.example.com/1","key_p256dh":"k","key_auth":"a"}`
-	req := pushReq("POST", "/push/subscribe", body, pushAdminCaps, pushAdminID)
+	body := `{"path":"/contact","endpoint":"https://push.example.com/1","key_p256dh":"k","key_auth":"a"}`
+	req := pushReq("POST", "/sites/docs/push/subscriptions", body, pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -97,16 +98,16 @@ func TestPushSubscribe_MissingFields(t *testing.T) {
 	tests := []struct {
 		name, body string
 	}{
-		{"missing site", `{"path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`},
-		{"missing path", `{"site":"docs","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`},
-		{"missing endpoint", `{"site":"docs","path":"/contact","key_p256dh":"k","key_auth":"a"}`},
-		{"missing p256dh", `{"site":"docs","path":"/contact","endpoint":"https://e.com/1","key_auth":"a"}`},
-		{"missing auth", `{"site":"docs","path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k"}`},
+		{"missing path", `{"endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`},
+		{"missing endpoint", `{"path":"/contact","key_p256dh":"k","key_auth":"a"}`},
+		{"missing p256dh", `{"path":"/contact","endpoint":"https://e.com/1","key_auth":"a"}`},
+		{"missing auth", `{"path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k"}`},
 		{"empty body", `{}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := pushReq("POST", "/push/subscribe", tt.body, pushAdminCaps, pushAdminID)
+			req := pushReq("POST", "/sites/docs/push/subscriptions", tt.body, pushAdminCaps, pushAdminID)
+			req.SetPathValue("site", "docs")
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, req)
 			if rec.Code != http.StatusBadRequest {
@@ -120,7 +121,8 @@ func TestPushSubscribe_InvalidJSON(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	req := pushReq("POST", "/push/subscribe", "not json", pushAdminCaps, pushAdminID)
+	req := pushReq("POST", "/sites/docs/push/subscriptions", "not json", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -133,9 +135,9 @@ func TestPushSubscribe_Forbidden(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	// Viewer with no deploy caps should be forbidden.
-	body := `{"site":"docs","path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`
-	req := pushReq("POST", "/push/subscribe", body, pushViewerCaps, pushViewerID)
+	body := `{"path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`
+	req := pushReq("POST", "/sites/docs/push/subscriptions", body, pushViewerCaps, pushViewerID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -148,9 +150,9 @@ func TestPushSubscribe_DeployCapForMatchingSite(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	// Deploy caps for "docs" subscribing to "docs" — should succeed.
-	body := `{"site":"docs","path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`
-	req := pushReq("POST", "/push/subscribe", body, pushDeployCaps, pushAdminID)
+	body := `{"path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`
+	req := pushReq("POST", "/sites/docs/push/subscriptions", body, pushDeployCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -168,9 +170,10 @@ func TestPushSubscribe_DeployCapForDifferentSite(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	// Deploy caps for "docs" but trying to subscribe to "demo".
-	body := `{"site":"demo","path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`
-	req := pushReq("POST", "/push/subscribe", body, pushDeployCaps, pushAdminID)
+	// Deploy caps for "docs" but URL is for "demo".
+	body := `{"path":"/contact","endpoint":"https://e.com/1","key_p256dh":"k","key_auth":"a"}`
+	req := pushReq("POST", "/sites/demo/push/subscriptions", body, pushDeployCaps, pushAdminID)
+	req.SetPathValue("site", "demo")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -179,19 +182,19 @@ func TestPushSubscribe_DeployCapForDifferentSite(t *testing.T) {
 	}
 }
 
-// region DELETE /push/subscribe
+// region DELETE /sites/{site}/push/subscriptions
 
 func TestPushUnsubscribe_Success(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	// First subscribe.
 	push.Subscribe("docs", "/contact", "admin@example.com", pushnotify.Subscription{
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
-	body := `{"endpoint":"https://e.com/1","site":"docs","path":"/contact"}`
-	req := pushReq("DELETE", "/push/subscribe", body, pushAdminCaps, pushAdminID)
+	body := `{"endpoint":"https://e.com/1","path":"/contact"}`
+	req := pushReq("DELETE", "/sites/docs/push/subscriptions", body, pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -212,13 +215,13 @@ func TestPushUnsubscribe_MissingFields(t *testing.T) {
 	tests := []struct {
 		name, body string
 	}{
-		{"missing endpoint", `{"site":"docs","path":"/contact"}`},
-		{"missing site", `{"endpoint":"https://e.com/1","path":"/contact"}`},
-		{"missing path", `{"endpoint":"https://e.com/1","site":"docs"}`},
+		{"missing endpoint", `{"path":"/contact"}`},
+		{"missing path", `{"endpoint":"https://e.com/1"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := pushReq("DELETE", "/push/subscribe", tt.body, pushAdminCaps, pushAdminID)
+			req := pushReq("DELETE", "/sites/docs/push/subscriptions", tt.body, pushAdminCaps, pushAdminID)
+			req.SetPathValue("site", "docs")
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, req)
 			if rec.Code != http.StatusBadRequest {
@@ -232,7 +235,8 @@ func TestPushUnsubscribe_InvalidJSON(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	req := pushReq("DELETE", "/push/subscribe", "broken", pushAdminCaps, pushAdminID)
+	req := pushReq("DELETE", "/sites/docs/push/subscriptions", "broken", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -249,8 +253,9 @@ func TestPushUnsubscribe_Forbidden(t *testing.T) {
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
-	body := `{"endpoint":"https://e.com/1","site":"docs","path":"/contact"}`
-	req := pushReq("DELETE", "/push/subscribe", body, pushViewerCaps, pushViewerID)
+	body := `{"endpoint":"https://e.com/1","path":"/contact"}`
+	req := pushReq("DELETE", "/sites/docs/push/subscriptions", body, pushViewerCaps, pushViewerID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -258,7 +263,6 @@ func TestPushUnsubscribe_Forbidden(t *testing.T) {
 		t.Errorf("status = %d, want 403", rec.Code)
 	}
 
-	// Subscription should still exist.
 	ok, _ := push.IsSubscribed("docs", "/contact", "https://e.com/1")
 	if !ok {
 		t.Error("subscription was removed despite forbidden response")
@@ -274,8 +278,9 @@ func TestPushUnsubscribe_DeployCapForDifferentSite(t *testing.T) {
 	})
 
 	// Deploy caps for "docs" but trying to unsubscribe from "demo".
-	body := `{"endpoint":"https://e.com/1","site":"demo","path":"/contact"}`
-	req := pushReq("DELETE", "/push/subscribe", body, pushDeployCaps, pushAdminID)
+	body := `{"endpoint":"https://e.com/1","path":"/contact"}`
+	req := pushReq("DELETE", "/sites/demo/push/subscriptions", body, pushDeployCaps, pushAdminID)
+	req.SetPathValue("site", "demo")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -298,9 +303,10 @@ func TestPushUnsubscribe_WrongOwner(t *testing.T) {
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
-	// admin (different user) tries to unsubscribe — has deploy cap but doesn't own it.
-	body := `{"endpoint":"https://e.com/1","site":"docs","path":"/contact"}`
-	req := pushReq("DELETE", "/push/subscribe", body, pushAdminCaps, pushAdminID)
+	// admin (different user) tries to unsubscribe — has admin cap but doesn't own it.
+	body := `{"endpoint":"https://e.com/1","path":"/contact"}`
+	req := pushReq("DELETE", "/sites/docs/push/subscriptions", body, pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -315,7 +321,7 @@ func TestPushUnsubscribe_WrongOwner(t *testing.T) {
 	}
 }
 
-// region GET /push/subscribe (status check)
+// region GET /sites/{site}/push/subscriptions (status check)
 
 func TestPushStatus_Subscribed(t *testing.T) {
 	push := testPushNotifier(t)
@@ -325,7 +331,8 @@ func TestPushStatus_Subscribed(t *testing.T) {
 		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
 	})
 
-	req := pushReq("GET", "/push/subscribe?site=docs&path=%2Fcontact&endpoint=https%3A%2F%2Fe.com%2F1", "", pushAdminCaps, pushAdminID)
+	req := pushReq("GET", "/sites/docs/push/subscriptions?path=%2Fcontact&endpoint=https%3A%2F%2Fe.com%2F1", "", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -343,7 +350,8 @@ func TestPushStatus_NotSubscribed(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	req := pushReq("GET", "/push/subscribe?site=docs&path=%2Fcontact&endpoint=https%3A%2F%2Fe.com%2F1", "", pushAdminCaps, pushAdminID)
+	req := pushReq("GET", "/sites/docs/push/subscriptions?path=%2Fcontact&endpoint=https%3A%2F%2Fe.com%2F1", "", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -361,23 +369,107 @@ func TestPushStatus_MissingParams(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	tests := []struct {
-		name, query string
-	}{
-		{"no params", "/push/subscribe"},
-		{"missing site", "/push/subscribe?path=/contact&endpoint=https://e.com/1"},
-		{"missing path", "/push/subscribe?site=docs&endpoint=https://e.com/1"},
-		{"missing endpoint", "/push/subscribe?site=docs&path=/contact"},
+	// endpoint is present but path is missing → should 400.
+	req := pushReq("GET", "/sites/docs/push/subscriptions?endpoint=https://e.com/1", "", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := pushReq("GET", tt.query, "", pushAdminCaps, pushAdminID)
-			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, req)
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("status = %d, want 400", rec.Code)
-			}
-		})
+}
+
+// region GET /sites/{site}/push/subscriptions (list)
+
+func TestPushList_HTML(t *testing.T) {
+	push := testPushNotifier(t)
+	h := &PushSubscribeHandler{push: push}
+
+	push.Subscribe("docs", "/contact", "alice@example.com", pushnotify.Subscription{
+		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
+	})
+
+	req := pushReq("GET", "/sites/docs/push/subscriptions", "", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Errorf("content-type = %q, want text/html", ct)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "alice@example.com") {
+		t.Error("HTML response missing subscriber")
+	}
+	if !strings.Contains(body, "/contact") {
+		t.Error("HTML response missing path")
+	}
+}
+
+func TestPushList_JSON(t *testing.T) {
+	push := testPushNotifier(t)
+	h := &PushSubscribeHandler{push: push}
+
+	push.Subscribe("docs", "/contact", "alice@example.com", pushnotify.Subscription{
+		Endpoint: "https://e.com/1", KeyP256dh: "k", KeyAuth: "a",
+	})
+	push.Subscribe("docs", "/feedback", "bob@example.com", pushnotify.Subscription{
+		Endpoint: "https://e.com/2", KeyP256dh: "k", KeyAuth: "a",
+	})
+
+	req := pushReq("GET", "/sites/docs/push/subscriptions", "", pushAdminCaps, pushAdminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var subs []pushnotify.SubscriptionInfo
+	json.NewDecoder(rec.Body).Decode(&subs)
+	if len(subs) != 2 {
+		t.Fatalf("expected 2 subscriptions, got %d", len(subs))
+	}
+}
+
+func TestPushList_Empty(t *testing.T) {
+	push := testPushNotifier(t)
+	h := &PushSubscribeHandler{push: push}
+
+	req := pushReq("GET", "/sites/docs/push/subscriptions", "", pushAdminCaps, pushAdminID)
+	req.Header.Set("Accept", "application/json")
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+
+	var subs []pushnotify.SubscriptionInfo
+	json.NewDecoder(rec.Body).Decode(&subs)
+	if len(subs) != 0 {
+		t.Errorf("expected 0 subscriptions, got %d", len(subs))
+	}
+}
+
+func TestPushList_Forbidden(t *testing.T) {
+	push := testPushNotifier(t)
+	h := &PushSubscribeHandler{push: push}
+
+	req := pushReq("GET", "/sites/docs/push/subscriptions", "", pushViewerCaps, pushViewerID)
+	req.SetPathValue("site", "docs")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
 	}
 }
 
@@ -387,7 +479,8 @@ func TestPushSubscribeHandler_MethodNotAllowed(t *testing.T) {
 	push := testPushNotifier(t)
 	h := &PushSubscribeHandler{push: push}
 
-	req := pushReq("PUT", "/push/subscribe", "", pushAdminCaps, pushAdminID)
+	req := pushReq("PUT", "/sites/docs/push/subscriptions", "", pushAdminCaps, pushAdminID)
+	req.SetPathValue("site", "docs")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 

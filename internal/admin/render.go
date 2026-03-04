@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"time"
 
 	"tspages/internal/web"
@@ -23,6 +24,12 @@ var assetFS embed.FS
 
 //go:embed openapi.yaml
 var openapiSpec []byte
+
+// devOpenAPIPath is the on-disk path to openapi.yaml, set in dev mode.
+var devOpenAPIPath string
+
+// SetDevOpenAPIPath enables reading openapi.yaml from disk in dev mode.
+func SetDevOpenAPIPath(path string) { devOpenAPIPath = path }
 
 // SetupWeb configures the web package's asset resolver and Vite client
 // function using the admin package's embedded assets and manifest.
@@ -51,16 +58,27 @@ var (
 	deploymentsTmpl     = web.NewTmpl("admin", templateFS, "templates/deployments.gohtml")
 	helpTmpl            = web.NewTmpl("admin", templateFS, "templates/help.gohtml")
 	apiTmpl             = web.NewTmpl("admin", templateFS, "templates/api.gohtml")
-	siteDeploymentsTmpl = web.NewTmpl("admin", templateFS, "templates/site-deployments.gohtml")
+	siteDeploymentsTmpl    = web.NewTmpl("admin", templateFS, "templates/site-deployments.gohtml")
+	pushSubscriptionsTmpl = web.NewTmpl("admin", templateFS, "templates/push-subscriptions.gohtml")
 )
 
 // region OpenAPI / Swagger
 
 // OpenAPIHandler returns an http.Handler that serves the OpenAPI spec.
+// In dev mode it re-reads the file from disk on each request.
 func OpenAPIHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/openapi+yaml")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if web.DevMode() && devOpenAPIPath != "" {
+			data, err := os.ReadFile(devOpenAPIPath)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write(data)
+			return
+		}
 		_, _ = w.Write(openapiSpec)
 	})
 }
@@ -338,7 +356,8 @@ func AssetHandler() http.Handler {
 func ServiceWorkerHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if web.DevMode() {
-			// Proxy to Vite so the service worker works in dev mode.
+			// Rewrite to the Vite source path so the dev server can resolve it.
+			r.URL.Path = "/web/admin/src/sw.ts"
 			DevAssetProxy().ServeHTTP(w, r)
 			return
 		}
