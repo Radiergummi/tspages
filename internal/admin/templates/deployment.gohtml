@@ -21,14 +21,15 @@
                         Activate
                     </tspages-confirm-button>
                 {{end}}
-                {{if .CanDeploy}}
-                    <button
-                            class="btn btn-danger"
-                            {{if .Deployment.Active}}disabled title="Cannot delete the active deployment"{{end}}
-                            data-action="delete"
-                    >
+                {{if and .CanDeploy (not .Deployment.Active)}}
+                    <tspages-confirm-button
+                        class="btn btn-danger"
+                        action="/deploy/{{.SiteName}}/{{.Deployment.ID}}"
+                        method="DELETE"
+                        confirm="Delete deployment &quot;{{.Deployment.ID}}&quot;? This cannot be undone."
+                        redirect="/sites/{{.SiteName}}">
                         Delete
-                    </button>
+                    </tspages-confirm-button>
                 {{end}}
             </div>
         </header>
