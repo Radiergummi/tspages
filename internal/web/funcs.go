@@ -136,7 +136,7 @@ var funcMap = template.FuncMap{
 			return template.HTML(fmt.Sprintf("<!-- unknown icon: %s -->", template.HTMLEscapeString(name)))
 		}
 		return template.HTML(fmt.Sprintf(
-			`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">%s</svg>`,
+			`<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">%s</svg>`,
 			size, size, paths,
 		))
 	},

@@ -1,7 +1,7 @@
 const COPIED_DURATION = 2000;
 
 export class TspagesCopyButton extends HTMLElement {
-  private originalContent = "";
+  private savedNodes: Node[] = [];
 
   connectedCallback(): void {
     if (!this.hasAttribute("role")) {
@@ -10,7 +10,7 @@ export class TspagesCopyButton extends HTMLElement {
     if (!this.hasAttribute("tabindex")) {
       this.setAttribute("tabindex", "0");
     }
-    this.originalContent = this.textContent ?? "";
+    this.savedNodes = Array.from(this.childNodes).map((n) => n.cloneNode(true));
     this.addEventListener("click", this.handleClick);
     this.addEventListener("keydown", this.handleKeydown);
   }
@@ -32,10 +32,9 @@ export class TspagesCopyButton extends HTMLElement {
     if (!text) return;
 
     await navigator.clipboard.writeText(text);
-    const saved = this.textContent;
     this.textContent = "Copied!";
     setTimeout(() => {
-      this.textContent = saved;
+      this.replaceChildren(...this.savedNodes.map((n) => n.cloneNode(true)));
     }, COPIED_DURATION);
   };
 

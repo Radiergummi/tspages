@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
-declare const self: ServiceWorkerGlobalScope;
+
+const sw = self as unknown as ServiceWorkerGlobalScope & typeof globalThis;
 
 interface PushData {
   title: string;
@@ -7,19 +8,19 @@ interface PushData {
   url: string;
 }
 
-self.addEventListener("push", (event: PushEvent) => {
+sw.addEventListener("push", (event) => {
   const data: PushData | undefined = event.data?.json();
   if (!data) return;
   event.waitUntil(
-    self.registration.showNotification(data.title, {
+    sw.registration.showNotification(data.title, {
       body: data.body,
       data: { url: data.url },
     }),
   );
 });
 
-self.addEventListener("notificationclick", (event: NotificationEvent) => {
+sw.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url: string = event.notification.data?.url ?? "/";
-  event.waitUntil(self.clients.openWindow(url));
+  event.waitUntil(sw.clients.openWindow(url));
 });

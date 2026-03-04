@@ -9,5 +9,6 @@
     "isolatedModules": true,
     "skipLibCheck": true
   },
-  "include": ["web/admin/src"]
+  "include": ["web/admin/src"],
+  "exclude": ["web/admin/src/sw.ts"]
 }
