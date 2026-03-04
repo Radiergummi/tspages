@@ -190,8 +190,16 @@
         bg-blue-500 text-white text-sm font-semibold;
   }
 
+  .onboarding-step code {
+    @apply text-xs bg-base-100 dark:bg-base-950 px-1.5 py-0.5 rounded;
+  }
+
   .onboarding-step pre {
     @apply bg-base-100 dark:bg-base-950 p-3 rounded-md overflow-x-auto text-sm font-mono mt-2 mb-0;
+  }
+
+  .onboarding-step pre code {
+    @apply bg-transparent p-0 rounded-none;
   }
 
   .toggle-track {
