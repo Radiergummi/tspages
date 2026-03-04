@@ -1,41 +1,48 @@
 export class TspagesTimePills extends HTMLElement {
-  connectedCallback(): void {
-    this.render();
-  }
+    connectedCallback(): void {
+        this.render();
+    }
 
-  private render(): void {
-    const ranges = (this.getAttribute("ranges") ?? "").split(",");
-    const labels = (this.getAttribute("labels") ?? "").split(",");
-    const current = this.getAttribute("current") ?? "";
-    const baseURL = this.getAttribute("base-url") ?? "";
-    const preserveParams = (this.getAttribute("preserve-params") ?? "").split(",").filter(Boolean);
+    private render(): void {
+        const ranges = this.getAttribute("ranges")?.split(",") ?? [];
+        const labels = this.getAttribute("labels")?.split(",") ?? [];
+        const current = this.getAttribute("current") ?? "";
+        const baseUrl = this.getAttribute("base-url") ?? "";
+        const preserveParams = this.getAttribute("preserve-params")
+                                   ?.split(",")
+                                   .filter(Boolean) ?? [];
 
-    const currentParams = new URLSearchParams(window.location.search);
+        const currentParams = new URLSearchParams(window.location.search);
 
-    const nav = document.createElement("nav");
-    nav.setAttribute("aria-label", "Time range");
-    nav.className = "flex gap-1";
+        const nav = document.createElement("nav");
+        nav.setAttribute("aria-label", "Time range");
+        nav.className = "flex gap-1";
 
-    ranges.forEach((range, i) => {
-      const a = document.createElement("a");
-      a.className = "pill";
-      a.textContent = labels[i] ?? range;
+        ranges.forEach((range, index) => {
+            const node = document.createElement("a");
+            node.className = "pill";
+            node.textContent = labels[index] ?? range;
 
-      const params = new URLSearchParams();
-      params.set("range", range);
-      for (const p of preserveParams) {
-        const val = currentParams.get(p);
-        if (val) params.set(p, val);
-      }
-      a.href = `${baseURL}?${params.toString()}`;
+            const params = new URLSearchParams();
+            params.set("range", range);
 
-      if (range === current) {
-        a.setAttribute("aria-current", "step");
-      }
+            for (const name of preserveParams) {
+                const value = currentParams.get(name);
 
-      nav.appendChild(a);
-    });
+                if (value) {
+                    params.set(name, value);
+                }
+            }
 
-    this.replaceChildren(nav);
-  }
+            node.href = `${baseUrl}?${params.toString()}`;
+
+            if (range === current) {
+                node.setAttribute("aria-current", "step");
+            }
+
+            nav.appendChild(node);
+        });
+
+        this.replaceChildren(nav);
+    }
 }
