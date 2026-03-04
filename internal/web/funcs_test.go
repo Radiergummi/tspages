@@ -38,6 +38,28 @@ func TestEmptyState(t *testing.T) {
 	}
 }
 
+func TestIcon(t *testing.T) {
+	fn := funcMap["icon"].(func(string, ...int) template.HTML)
+
+	got := string(fn("arrow-left"))
+	if !strings.Contains(got, `width="18"`) {
+		t.Errorf("icon: expected default size 18, got: %s", got)
+	}
+	if !strings.Contains(got, `<path`) {
+		t.Errorf("icon: expected path elements, got: %s", got)
+	}
+
+	got = string(fn("arrow-left", 16))
+	if !strings.Contains(got, `width="16"`) {
+		t.Errorf("icon with size: expected size 16, got: %s", got)
+	}
+
+	got = string(fn("nonexistent"))
+	if !strings.Contains(got, "unknown icon") {
+		t.Errorf("icon unknown: expected comment, got: %s", got)
+	}
+}
+
 func TestTimeago(t *testing.T) {
 	fn := funcMap["timeago"].(func(any) template.HTML)
 	ts := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)

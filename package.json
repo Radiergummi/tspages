@@ -13,6 +13,7 @@
     "chart.js": "^4.5.1",
     "chartjs-chart-treemap": "^3.1.0",
     "fflate": "^0.8.2",
+    "lucide-static": "^0.577.0",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
