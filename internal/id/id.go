@@ -15,7 +15,9 @@ func New(prefix string) string {
 	raw := make([]byte, idLen*2) // over-read to reduce Read calls
 	i := 0
 	for i < idLen {
-		rand.Read(raw)
+		if _, err := rand.Read(raw); err != nil {
+			panic("crypto/rand: " + err.Error())
+		}
 		for _, b := range raw {
 			b &= 0x3F // mask to 6 bits (0-63)
 			if b < 58 {

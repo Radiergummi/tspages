@@ -494,7 +494,7 @@ func (h *SubmissionsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			parsed := map[string]string{}
 			if len(expanded) > 0 {
 				var m map[string]any
-				json.Unmarshal(expanded, &m) // best-effort: show partial data rather than fail the page
+				_ = json.Unmarshal(expanded, &m) // best-effort: show partial data rather than fail the page
 				for k, v := range m {
 					parsed[k] = fieldValueString(v)
 					if !seen[k] {
@@ -673,7 +673,7 @@ func (h *SubmissionDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	var fieldKeys []string
 	if len(sub.Fields) > 0 {
 		var m map[string]any
-		json.Unmarshal(sub.Fields, &m) // best-effort: show partial data rather than fail the page
+		_ = json.Unmarshal(sub.Fields, &m) // best-effort: show partial data rather than fail the page
 		for k, v := range m {
 			parsed[k] = fieldValueString(v)
 			fieldKeys = append(fieldKeys, k)
@@ -887,7 +887,7 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 	for i, s := range subs {
 		var m map[string]any
 		if len(s.Fields) > 0 {
-			json.Unmarshal(s.Fields, &m) // best-effort: export partial data rather than fail
+			_ = json.Unmarshal(s.Fields, &m) // best-effort: export partial data rather than fail
 		}
 		parsed[i] = m
 		for k := range m {
@@ -906,7 +906,7 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 	cw := csv.NewWriter(w)
 	// Header row: fixed columns + dynamic field columns.
 	header := append([]string{"id", "path", "created_at", "submitter", "submitter_name", "node", "ip"}, fieldKeys...)
-	cw.Write(header)
+	_ = cw.Write(header)
 
 	for i, s := range subs {
 		row := []string{s.ID, s.Path, s.CreatedAt, s.Submitter, s.SubmitterName, s.Node, s.IP}
@@ -917,7 +917,7 @@ func (h *ExportSubmissionsHandler) exportCSV(w http.ResponseWriter, siteName str
 			}
 			row = append(row, val)
 		}
-		cw.Write(row)
+		_ = cw.Write(row)
 	}
 	cw.Flush()
 	if err := cw.Error(); err != nil {

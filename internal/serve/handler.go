@@ -326,16 +326,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var isFile, isDir bool
-	if filePath == "." {
+	switch {
+	case filePath == ".":
 		// Root is always a directory; the index file check happens in the
 		// isDir branch below, same as any other directory.
 		isDir = true
-	} else if h.cachedFiles != nil {
+	case h.cachedFiles != nil:
 		_, isFile = h.cachedFiles[filePath]
 		if !isFile {
 			_, isDir = h.cachedDirs[filePath]
 		}
-	} else {
+	default:
 		if info, err := os.Stat(fullPath); err == nil {
 			isDir = info.IsDir()
 			isFile = !isDir
@@ -738,7 +739,7 @@ func (h *Handler) serveDirectoryListing(w http.ResponseWriter, dirPath, reqPath 
 		size := ""
 		modTime := ""
 		modISO := ""
-		ftype := "file"
+		var ftype string
 		if e.IsDir() {
 			ftype = "folder"
 		} else {

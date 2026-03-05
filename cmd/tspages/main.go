@@ -60,6 +60,13 @@ func main() {
 		}
 	}
 
+	if err := run(); err != nil {
+		slog.Error("fatal", "component", "server", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	configPath := flag.String("config", "tspages.toml", "path to config file")
 	dev := flag.Bool("dev", false, "enable Vite dev mode with HMR on localhost:8080")
 	showVersion := flag.Bool("version", false, "print version and exit")
@@ -67,19 +74,17 @@ func main() {
 
 	if *showVersion {
 		fmt.Println(version)
-		os.Exit(0)
+		return nil
 	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		slog.Error("loading config", "component", "server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	var logLevel slog.Level
 	if err := logLevel.UnmarshalText([]byte(cfg.Server.LogLevel)); err != nil {
-		slog.Error("invalid log level", "component", "server", "level", cfg.Server.LogLevel, "err", err)
-		os.Exit(1)
+		return fmt.Errorf("invalid log level %q: %w", cfg.Server.LogLevel, err)
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 
@@ -87,8 +92,7 @@ func main() {
 	store.CleanupOrphans()
 
 	if err := db.MigrateFilename(cfg.Server.DataDir, "analytics.db", "tspages.db"); err != nil {
-		slog.Error("migrating database filename", "component", "server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("migrating database filename: %w", err)
 	}
 
 	database, err := db.Open(
@@ -99,21 +103,19 @@ func main() {
 		pushnotify.Migrations,
 	)
 	if err != nil {
-		slog.Error("opening database", "component", "server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("opening database: %w", err)
 	}
-	defer database.Close() //nolint:errcheck // best-effort cleanup on shutdown
+	defer database.Close()
+
+	vapidPub, vapidPriv, err := pushnotify.LoadOrCreateVAPIDKeys(cfg.Server.DataDir)
+	if err != nil {
+		return fmt.Errorf("loading VAPID keys: %w", err)
+	}
 
 	recorder := analytics.NewRecorder(database)
 	defer recorder.Close()
 
 	webhookNotifier := webhooks.NewNotifier(database)
-
-	vapidPub, vapidPriv, err := pushnotify.LoadOrCreateVAPIDKeys(cfg.Server.DataDir)
-	if err != nil {
-		slog.Error("loading VAPID keys", "component", "server", "err", err)
-		os.Exit(1)
-	}
 	submissionStore := submissions.NewStore(database)
 
 	web.SetHideFooter(cfg.Server.HideFooter)
@@ -127,18 +129,16 @@ func main() {
 		AuthKey:  cfg.Tailscale.AuthKey,
 		UserLogf: func(format string, args ...any) { slog.Debug(fmt.Sprintf(format, args...), "component", "tsnet") },
 	}
-	defer srv.Close() //nolint:errcheck // best-effort cleanup on shutdown
+	defer srv.Close()
 
 	lc, err := srv.LocalClient()
 	if err != nil {
-		slog.Error("getting local client", "component", "server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("getting local client: %w", err)
 	}
 
 	ln, err := srv.ListenTLS("tcp", ":443")
 	if err != nil {
-		slog.Error("listen failed", "component", "server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("listen failed: %w", err)
 	}
 	defer ln.Close()
 
@@ -146,8 +146,7 @@ func main() {
 	var dnsSuffix string
 	status, err := lc.StatusWithoutPeers(context.Background())
 	if err != nil {
-		slog.Error("getting tailnet status", "component", "server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("getting tailnet status: %w", err)
 	}
 	if status.CurrentTailnet != nil {
 		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
@@ -292,42 +291,35 @@ func main() {
 	if *dev {
 		tmplDir, err := filepath.Abs("internal/admin/templates")
 		if err != nil {
-			slog.Error("resolving template dir", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving template dir: %w", err)
 		}
 		webhooksTmplDir, err := filepath.Abs("internal/webhooks/templates")
 		if err != nil {
-			slog.Error("resolving webhooks template dir", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving webhooks template dir: %w", err)
 		}
 		analyticsTmplDir, err := filepath.Abs("internal/analytics/templates")
 		if err != nil {
-			slog.Error("resolving analytics template dir", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving analytics template dir: %w", err)
 		}
 		submissionsTmplDir, err := filepath.Abs("internal/submissions/templates")
 		if err != nil {
-			slog.Error("resolving submissions template dir", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving submissions template dir: %w", err)
 		}
 		helpTmplDir, err := filepath.Abs("internal/help/templates")
 		if err != nil {
-			slog.Error("resolving help template dir", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving help template dir: %w", err)
 		}
 		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir, "help": helpTmplDir})
 
 		openapiPath, err := filepath.Abs("internal/help/openapi.yaml")
 		if err != nil {
-			slog.Error("resolving openapi path", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving openapi path: %w", err)
 		}
 		help.SetDevOpenAPIPath(openapiPath)
 
 		serveTmplDir, err := filepath.Abs("internal/serve/templates")
 		if err != nil {
-			slog.Error("resolving serve template dir", "component", "server", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("resolving serve template dir: %w", err)
 		}
 		serve.EnableDevMode(serveTmplDir)
 
@@ -404,6 +396,7 @@ func main() {
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown error", "component", "server", "err", err)
 	}
+	return nil
 }
 
 // compose chains two middleware functions: outer runs first, then inner.

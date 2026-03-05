@@ -25,6 +25,7 @@ linters:
         - (io.Closer).Close
         - (net.Conn).Close
         - (net.Listener).Close
+        - (*tailscale.com/tsnet.Server).Close
         - (*compress/gzip.Reader).Close
         - (*database/sql.Rows).Close
         - (*database/sql.Stmt).Close
@@ -58,6 +59,7 @@ linters:
         # SQL is constructed from trusted internal code, not user input.
         - G201 # SQL string formatting
         - G202 # SQL string concatenation
+        - G701 # SQL injection via taint
         # Webhook URLs are from operator config; static files are served intentionally.
         - G704 # SSRF via taint
         - G705 # XSS via taint
@@ -75,6 +77,7 @@ linters:
       # Tests: relax errcheck and gosec.
       - path: _test\.go
         linters:
+          - bodyclose
           - errcheck
           - gosec
       # Intentional: race-safe channel close guard with empty recover.

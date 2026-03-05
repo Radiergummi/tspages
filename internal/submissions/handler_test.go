@@ -3,6 +3,7 @@ package submissions
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -613,7 +614,7 @@ func TestDeleteSubmissionHandler_Delete(t *testing.T) {
 
 	// Verify it's gone.
 	_, err := subStore.GetSubmission("testsite", "sub_001")
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		t.Errorf("expected ErrNoRows, got %v", err)
 	}
 }
