@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-06
+
+### Changed
+
+- Extracted `run()` function in the server entrypoint so deferred cleanup (database, recorder,
+  tsnet) always runs on early startup errors instead of being skipped by `os.Exit`.
+- Added `golangci-lint` v2 configuration and resolved all 16 lint findings across the codebase:
+  unchecked error returns, ineffectual assignments, errorlint wrapping, and gocritic suggestions.
+
 ## [0.6.0] - 2026-03-04
 
 ### Added
@@ -231,7 +240,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tspages deploy` CLI subcommand with server auto-discovery.
 - GitHub Actions deploy action.
 
-[Unreleased]: https://github.com/Radiergummi/tspages/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Radiergummi/tspages/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Radiergummi/tspages/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Radiergummi/tspages/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Radiergummi/tspages/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Radiergummi/tspages/compare/v0.3.0...v0.4.0
