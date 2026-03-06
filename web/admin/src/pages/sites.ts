@@ -1,4 +1,3 @@
-import { closeModal, initModal, openModal } from "../lib/modal";
 import {
   CategoryScale,
   Chart,
@@ -58,23 +57,34 @@ function main(): void {
 
   // endregion
 
-  // region New Site Modal
+  // region View Toggle (progressive enhancement: persist preference in localStorage)
 
-  const modal = document.getElementById("new-site-modal");
+  const STORAGE_KEY = "tspages:sites-view";
+  const toggle = document.querySelector<HTMLElement>("[data-view-toggle]");
 
-  if (modal) {
-    initModal("new-site-modal");
+  if (toggle) {
+    const radios = toggle.querySelectorAll<HTMLInputElement>("input[name='view']");
 
-    document
-      .querySelector<HTMLButtonElement>("[data-action='new-site']")
-      ?.addEventListener("click", () => {
-        openModal("new-site-modal");
-        setTimeout(() => document.getElementById("site-name")?.focus(), 0);
+    radios.forEach((radio) => {
+      radio.addEventListener("change", () => {
+        try {
+          localStorage.setItem(STORAGE_KEY, radio.value);
+        } catch {
+          // storage unavailable
+        }
       });
+    });
 
-    modal
-      .querySelector<HTMLButtonElement>(".modal-close")
-      ?.addEventListener("click", () => closeModal("new-site-modal"));
+    // Restore saved preference
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === "grid" || saved === "list") {
+        const radio = document.getElementById(`view-${saved}`) as HTMLInputElement | null;
+        if (radio) radio.checked = true;
+      }
+    } catch {
+      // storage unavailable
+    }
   }
 
   // endregion

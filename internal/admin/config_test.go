@@ -2,8 +2,11 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,7 +18,7 @@ func TestGetSiteConfig_Empty(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
 
-	h := &SiteConfigHandler{handlerDeps{store: store}}
+	h := &SiteConfigHandler{store: store}
 	r := reqWithAuth("GET", "/sites/docs/config", []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
 	r.SetPathValue("site", "docs")
 	w := httptest.NewRecorder()
@@ -41,7 +44,7 @@ func TestGetSiteConfig_RequiresAdmin(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
 
-	h := &SiteConfigHandler{handlerDeps{store: store}}
+	h := &SiteConfigHandler{store: store}
 	// Only "view" access, not admin.
 	r := reqWithAuth("GET", "/sites/docs/config", []auth.Cap{{Access: "view"}}, auth.Identity{LoginName: "viewer@test"})
 	r.SetPathValue("site", "docs")
@@ -70,7 +73,7 @@ func TestPatchSiteConfig(t *testing.T) {
 	patchReq = patchReq.WithContext(ctx)
 	patchReq.SetPathValue("site", "docs")
 
-	patchHandler := &UpdateSiteConfigHandler{handlerDeps{store: store}}
+	patchHandler := &UpdateSiteConfigHandler{store: store}
 	pw := httptest.NewRecorder()
 	patchHandler.ServeHTTP(pw, patchReq)
 
@@ -79,7 +82,7 @@ func TestPatchSiteConfig(t *testing.T) {
 	}
 
 	// GET to verify the config persisted.
-	getHandler := &SiteConfigHandler{handlerDeps{store: store}}
+	getHandler := &SiteConfigHandler{store: store}
 	getReq := reqWithAuth("GET", "/sites/docs/config", caps, id)
 	getReq.SetPathValue("site", "docs")
 	gw := httptest.NewRecorder()
@@ -101,6 +104,54 @@ func TestPatchSiteConfig(t *testing.T) {
 	}
 }
 
+func TestPatchSiteConfig_InvalidatesHandler(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{}
+	h := &UpdateSiteConfigHandler{store: store, ensurer: mock}
+
+	body := `{"directory_listing": true}`
+	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
+	ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "admin@test"})
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mock.ensured) != 1 || mock.ensured[0] != "docs" {
+		t.Fatalf("expected EnsureServer(docs), got %v", mock.ensured)
+	}
+}
+
+func TestPostSiteConfig_InvalidatesHandler(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{}
+	h := &PostSiteConfigHandler{store: store, ensurer: mock}
+
+	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&directory_listing=true&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mock.ensured) != 1 || mock.ensured[0] != "docs" {
+		t.Fatalf("expected EnsureServer(docs), got %v", mock.ensured)
+	}
+}
+
 func TestPatchSiteConfig_ValidationError(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
@@ -114,7 +165,7 @@ func TestPatchSiteConfig_ValidationError(t *testing.T) {
 	r = r.WithContext(ctx)
 	r.SetPathValue("site", "docs")
 
-	h := &UpdateSiteConfigHandler{handlerDeps{store: store}}
+	h := &UpdateSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -136,7 +187,7 @@ func TestPatchSiteConfig_RequiresAdmin(t *testing.T) {
 	r = r.WithContext(ctx)
 	r.SetPathValue("site", "docs")
 
-	h := &UpdateSiteConfigHandler{handlerDeps{store: store}}
+	h := &UpdateSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -179,7 +230,7 @@ func TestPostSiteConfig_FormSubmit(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, caps, id)
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
@@ -206,6 +257,45 @@ func TestPostSiteConfig_FormSubmit(t *testing.T) {
 	}
 }
 
+func TestPostSiteConfig_PreservesEndpoints(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	// Pre-configure form endpoints.
+	enabled := true
+	store.WriteSiteConfig("docs", storage.SiteConfig{
+		Forms: &storage.FormsConfig{
+			Enabled:   &enabled,
+			Endpoints: []storage.FormEndpoint{{Path: "/contact", Name: "Contact"}},
+		},
+	})
+
+	caps := []auth.Cap{{Access: "admin"}}
+	id := auth.Identity{LoginName: "admin@test"}
+	body := "forms=false&forms=true&public=false&analytics=false&spa_routing=false&directory_listing=false&clean_urls=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, caps, id)
+	r.SetPathValue("site", "docs")
+
+	h := &PostSiteConfigHandler{store: store}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+
+	cfg, err := store.ReadSiteConfig("docs")
+	if err != nil {
+		t.Fatalf("reading config: %v", err)
+	}
+	if cfg.Forms == nil || !*cfg.Forms.Enabled {
+		t.Fatal("expected forms enabled")
+	}
+	if len(cfg.Forms.Endpoints) != 1 || cfg.Forms.Endpoints[0].Path != "/contact" {
+		t.Fatalf("expected endpoints preserved, got %+v", cfg.Forms.Endpoints)
+	}
+}
+
 func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
 	store := storage.New(t.TempDir())
 	store.CreateSite("docs")
@@ -214,12 +304,109 @@ func TestPostSiteConfig_RequiresAdmin(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "deploy"}}, auth.Identity{LoginName: "deployer@test"})
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestPatchSiteConfig_EnsureServerError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{err: errors.New("restart failed")}
+	h := &UpdateSiteConfigHandler{store: store, ensurer: mock}
+
+	body := `{"directory_listing": true}`
+	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
+	ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "admin@test"})
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	// Config update should still succeed even if EnsureServer fails.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mock.ensured) != 1 {
+		t.Fatalf("expected EnsureServer called once, got %d", len(mock.ensured))
+	}
+}
+
+func TestPostSiteConfig_EnsureServerError(t *testing.T) {
+	store := storage.New(t.TempDir())
+	store.CreateSite("docs")
+
+	mock := &mockEnsurer{err: errors.New("restart failed")}
+	h := &PostSiteConfigHandler{store: store, ensurer: mock}
+
+	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	// Config update should still succeed with redirect even if EnsureServer fails.
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPatchSiteConfig_WriteError(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("docs")
+
+	// Make the site config file unwritable by removing write permission on the site dir.
+	siteDir := filepath.Join(dir, "sites", "docs")
+	os.Chmod(siteDir, 0555)
+	t.Cleanup(func() { os.Chmod(siteDir, 0755) })
+
+	h := &UpdateSiteConfigHandler{store: store}
+	body := `{"index_page": "home.html"}`
+	r := httptest.NewRequest("PATCH", "/sites/docs/config", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
+	ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "admin@test"})
+	r = r.WithContext(ctx)
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for write failure, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPostSiteConfig_WriteError(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("docs")
+
+	// Make the site config file unwritable.
+	siteDir := filepath.Join(dir, "sites", "docs")
+	os.Chmod(siteDir, 0555)
+	t.Cleanup(func() { os.Chmod(siteDir, 0755) })
+
+	h := &PostSiteConfigHandler{store: store}
+	body := "public=false&analytics=false&clean_urls=false&spa_routing=false&directory_listing=false&index_page=&not_found_page=&trailing_slash=&webhook_url=&webhook_secret="
+	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
+	r.SetPathValue("site", "docs")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for write failure, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -232,7 +419,7 @@ func TestPostSiteConfig_ValidationError(t *testing.T) {
 	r := formReqWithAuth("/sites/docs/config", body, []auth.Cap{{Access: "admin"}}, auth.Identity{LoginName: "admin@test"})
 	r.SetPathValue("site", "docs")
 
-	h := &PostSiteConfigHandler{handlerDeps{store: store}}
+	h := &PostSiteConfigHandler{store: store}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 

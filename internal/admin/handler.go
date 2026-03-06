@@ -1,13 +1,12 @@
 package admin
 
 import (
-	"html/template"
 	"net/http"
 
 	"tspages/internal/analytics"
-	"tspages/internal/auth"
 	"tspages/internal/storage"
-	"tspages/internal/webhook"
+	"tspages/internal/web"
+	"tspages/internal/webhooks"
 )
 
 // SiteStatus is the per-site data returned by the sites list endpoint.
@@ -20,12 +19,16 @@ type SiteStatus struct {
 	LastDeployedByAvatar string `json:"last_deployed_by_avatar,omitempty"`
 	LastDeployedAt       string `json:"last_deployed_at,omitempty"`
 	CanDeploy            bool   `json:"can_deploy,omitempty"`
+	OGTitle              string `json:"og_title,omitempty"`
+	OGDescription        string `json:"og_description,omitempty"`
+	OGImage              string `json:"og_image,omitempty"`
+	Favicon              string `json:"favicon,omitempty"`
 }
 
 // SitesResponse is the JSON response for GET /sites.
 type SitesResponse struct {
 	Admin     bool         `json:"admin"`
-	User      UserInfo     `json:"user"`
+	User      web.UserInfo `json:"user"`
 	DNSSuffix string       `json:"dns_suffix"`
 	Sites     []SiteStatus `json:"sites"`
 }
@@ -36,155 +39,64 @@ type SiteDetailResponse struct {
 	Deployments []storage.DeploymentInfo `json:"deployments"`
 }
 
-// --- shared deps ---
-
-type handlerDeps struct {
-	store     *storage.Store
-	recorder  *analytics.Recorder
-	dnsSuffix string
-	defaults  storage.SiteConfig
-}
-
-// analyticsEnabled reports whether analytics are enabled for the given site
-// by reading the current deployment's config and merging with server defaults.
-func (d *handlerDeps) analyticsEnabled(site string) bool {
-	deployCfg, _ := d.store.ReadCurrentDeploymentConfig(site)
-	siteCfg, _ := d.store.ReadSiteConfig(site)
-	merged := deployCfg.Merge(siteCfg).Merge(d.defaults)
-	if merged.Analytics == nil {
-		return true
-	}
-	return *merged.Analytics
-}
-
-// UserInfo holds user display data for templates.
-type UserInfo struct {
-	Name          string `json:"name"`
-	ProfilePicURL string `json:"profile_pic_url,omitempty"`
-	Admin         bool   `json:"admin,omitempty"`
-	CanDeploy     bool   `json:"can_deploy,omitempty"`
-}
-
-func userInfo(identity auth.Identity, caps []auth.Cap) UserInfo {
-	name := identity.DisplayName
-	if name == "" {
-		name = identity.LoginName
-	}
-	return UserInfo{Name: name, ProfilePicURL: identity.ProfilePicURL, Admin: auth.HasAdminCap(caps), CanDeploy: auth.HasDeployCap(caps)}
-}
-
 // SiteEnsurer is the subset of multihost.Manager needed to start a site server.
 type SiteEnsurer interface {
 	EnsureServer(site string) error
 }
 
-// SiteHealthChecker is the subset of multihost.Manager needed for health checks.
-type SiteHealthChecker interface {
-	IsRunning(site string) bool
+// DeliveryLister provides webhook delivery data for the site detail page.
+type DeliveryLister interface {
+	Fire(event string, site string, cfg storage.SiteConfig, data map[string]any)
+	ListDeliveries(site, event, status string, limit, offset int) ([]webhooks.DeliverySummary, int, error)
 }
 
-// Handlers groups all admin HTTP handlers.
-type Handlers struct {
-	Sites            *SitesHandler
-	Site             *SiteHandler
-	Deployment       *DeploymentHandler
-	CreateSite       *CreateSiteHandler
-	Deployments      *DeploymentsHandler
-	Analytics        *AnalyticsHandler
-	PurgeAnalytics   *PurgeAnalyticsHandler
-	AllAnalytics     *AllAnalyticsHandler
-	Webhooks         *WebhooksHandler
-	WebhookDetail    *WebhookDetailHandler
-	WebhookRetry     *WebhookRetryHandler
-	SiteWebhooks     *SiteWebhooksHandler
-	SiteDeployments  *SiteDeploymentsHandler
-	Help             *HelpHandler
-	API              *APIHandler
-	Feed             *FeedHandler
-	SiteFeed         *SiteFeedHandler
-	SiteHealth       *SiteHealthHandler
-	SiteConfig       *SiteConfigHandler
-	UpdateSiteConfig *UpdateSiteConfigHandler
-	PostSiteConfig   *PostSiteConfigHandler
+// Config holds dependencies for admin route handlers.
+type Config struct {
+	Store     *storage.Store
+	Recorder  *analytics.Recorder
+	DNSSuffix string
+	Ensurer   SiteEnsurer
+	Defaults  storage.SiteConfig
+	Notifier  DeliveryLister
 }
 
-func NewHandlers(store *storage.Store, recorder *analytics.Recorder, dnsSuffix string, ensurer SiteEnsurer, checker SiteHealthChecker, defaults storage.SiteConfig, notifier *webhook.Notifier) *Handlers {
-	d := handlerDeps{store: store, recorder: recorder, dnsSuffix: dnsSuffix, defaults: defaults}
-	wh := &WebhooksHandler{handlerDeps: d, notifier: notifier}
-	return &Handlers{
-		Sites:            &SitesHandler{d},
-		Site:             &SiteHandler{handlerDeps: d, notifier: notifier},
-		Deployment:       &DeploymentHandler{d},
-		CreateSite:       &CreateSiteHandler{handlerDeps: d, ensurer: ensurer, notifier: notifier},
-		Deployments:      &DeploymentsHandler{d},
-		Analytics:        &AnalyticsHandler{d},
-		PurgeAnalytics:   &PurgeAnalyticsHandler{d},
-		AllAnalytics:     &AllAnalyticsHandler{d},
-		Webhooks:         wh,
-		WebhookDetail:    &WebhookDetailHandler{handlerDeps: d, notifier: notifier},
-		WebhookRetry:     &WebhookRetryHandler{handlerDeps: d, notifier: notifier},
-		SiteWebhooks:     &SiteWebhooksHandler{WebhooksHandler: wh},
-		SiteDeployments:  &SiteDeploymentsHandler{d},
-		Help:             &HelpHandler{},
-		API:              &APIHandler{},
-		Feed:             &FeedHandler{d},
-		SiteFeed:         &SiteFeedHandler{d},
-		SiteHealth:       &SiteHealthHandler{handlerDeps: d, checker: checker},
-		SiteConfig:       &SiteConfigHandler{d},
-		UpdateSiteConfig: &UpdateSiteConfigHandler{d},
-		PostSiteConfig:   &PostSiteConfigHandler{d},
-	}
-}
+// RegisterRoutes registers all admin UI routes on the given mux.
+func RegisterRoutes(mux *http.ServeMux, withAuth, withMutate, withQuery func(http.Handler) http.Handler, cfg Config) {
+	sites := &SitesHandler{store: cfg.Store, recorder: cfg.Recorder, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults}
+	site := &SiteHandler{store: cfg.Store, recorder: cfg.Recorder, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults, notifier: cfg.Notifier}
+	deployment := &DeploymentHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
+	createSite := &CreateSiteHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix, defaults: cfg.Defaults, ensurer: cfg.Ensurer, notifier: cfg.Notifier}
+	deployments := &DeploymentsHandler{store: cfg.Store}
+	siteDeployments := &SiteDeploymentsHandler{store: cfg.Store}
+	feed := &FeedHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
+	siteFeed := &SiteFeedHandler{store: cfg.Store, dnsSuffix: cfg.DNSSuffix}
+	siteConfig := &SiteConfigHandler{store: cfg.Store}
+	updateConfig := &UpdateSiteConfigHandler{store: cfg.Store, ensurer: cfg.Ensurer}
+	postConfig := &PostSiteConfigHandler{store: cfg.Store, defaults: cfg.Defaults, ensurer: cfg.Ensurer}
 
-// --- GET /help/{page...} ---
+	// Site creation
+	mux.Handle("POST /sites", withMutate(createSite))
 
-type HelpHandler struct{}
+	// Browse routes
+	mux.Handle("GET /sites", withQuery(sites))
+	mux.Handle("GET /sites.json", withQuery(sites))
+	mux.Handle("GET /sites/{site}", withQuery(site))
+	mux.Handle("GET /sites/{site}/deployments", withQuery(siteDeployments))
+	mux.Handle("GET /sites/{site}/deployments.json", withQuery(siteDeployments))
+	mux.Handle("GET /sites/{site}/deployments/{id}", withQuery(deployment))
 
-func (h *HelpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	caps := auth.CapsFromContext(r.Context())
-	identity := auth.IdentityFromContext(r.Context())
+	// Site config
+	mux.Handle("GET /sites/{site}/config", withAuth(siteConfig))
+	mux.Handle("PATCH /sites/{site}/config", withMutate(updateConfig))
+	mux.Handle("POST /sites/{site}/config", withMutate(postConfig))
 
-	pages := DocPages()
+	// Service worker
+	mux.Handle("GET /sw.js", ServiceWorkerHandler())
 
-	slug := r.PathValue("page")
-	if slug == "" {
-		slug = pages[0].Slug
-	}
-
-	var current *DocPage
-	for i := range pages {
-		if pages[i].Slug == slug {
-			current = &pages[i]
-			break
-		}
-	}
-	if current == nil {
-		RenderError(w, r, http.StatusNotFound, "")
-		return
-	}
-
-	content, err := RenderDoc(slug)
-	if err != nil {
-		RenderError(w, r, http.StatusNotFound, "")
-		return
-	}
-
-	renderPage(w, r, helpTmpl, "help", struct {
-		User    UserInfo
-		Pages   []DocPage
-		Current DocPage
-		Content template.HTML
-	}{userInfo(identity, caps), pages, *current, content})
-}
-
-// --- GET /api ---
-
-type APIHandler struct{}
-
-func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	caps := auth.CapsFromContext(r.Context())
-	identity := auth.IdentityFromContext(r.Context())
-	renderPage(w, r, apiTmpl, "api", struct {
-		User UserInfo
-	}{userInfo(identity, caps)})
+	// Feeds, assets
+	mux.Handle("GET /deployments", withQuery(deployments))
+	mux.Handle("GET /deployments.json", withQuery(deployments))
+	mux.Handle("GET /feed.atom", withQuery(feed))
+	mux.Handle("GET /sites/{site}/feed.atom", withQuery(siteFeed))
+	mux.Handle("GET /assets/dist/{file...}", AssetHandler())
 }

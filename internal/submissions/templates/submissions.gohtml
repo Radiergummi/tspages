@@ -1,0 +1,429 @@
+{{define "title"}} - {{.SiteName}} submissions{{end}}
+{{define "head-extra"}}{{end}}
+
+{{define "sort-icon"}}{{/* expects SortState */}}
+{{if .Desc}}
+    {{icon "arrow-down-a-z" 16}}
+    {{with .Position}}
+        <span class="text-[10px] font-bold leading-none">
+            {{.}}
+        </span>
+    {{end}}
+{{else if .Asc}}
+    {{icon "arrow-up-a-z" 16}}
+    {{with .Position}}
+        <span class="text-[10px] font-bold leading-none">
+            {{.}}
+        </span>
+    {{end}}
+{{else}}
+    <span class="opacity-0 group-hover/thead:opacity-50 transition-opacity">
+        {{icon "arrow-up-down" 16}}
+    </span>
+{{end}}
+{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        {{breadcrumbs "Sites" "/sites" .SiteName (printf "/sites/%s" .SiteName) "Submissions"}}
+
+        <header class="flex items-center justify-between">
+            <h1 class="text-2xl font-semibold tracking-tight">
+                Submissions
+            </h1>
+        </header>
+
+        {{if .Paths}}
+            <!-- region Analytics -->
+            <div class="grid grid-cols-1 sm:grid-cols-{{if and .FormPaths (gt (len .FormPaths) 1)}}3{{else}}2{{end}} gap-5">
+                <section
+                        class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25
+                        rounded-md overflow-hidden m-0"
+                >
+                    <header class="flex items-end justify-end gap-10 px-5 h-14">
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Submissions
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .TotalCount}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Submitters
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{fmtnum .Submitters}}
+                            </code>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                Forms
+                            </span>
+                            <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                {{len .Paths}}
+                            </code>
+                        </div>
+                    </header>
+
+                    {{if .TimeSeriesByForm}}
+                        <div class="relative pt-4">
+                            <canvas
+                                    id="submissions-chart"
+                                    height="180"
+                                    aria-label="Submissions over time"
+                                    role="img"
+                            ></canvas>
+                        </div>
+                    {{end}}
+                </section>
+
+                {{if and .FormPaths (gt (len .FormPaths) 1)}}
+                    <section
+                            class="bg-surface dark:ring-1
+                            dark:ring-base-500/25 rounded-md overflow-hidden m-0"
+                    >
+                        <header class="flex items-center justify-between px-5 h-14">
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                By form
+                            </h2>
+                        </header>
+                        <div class="relative px-4 pb-3 h-48">
+                            <canvas
+                                    id="forms-chart"
+                                    aria-label="Submissions by form"
+                                    role="img"
+                            ></canvas>
+                        </div>
+                    </section>
+                {{end}}
+
+            </div>
+            <!-- endregion -->
+            <!-- region Forms Navigation -->
+            {{if (gt (len .Paths) 1)}}
+                <nav aria-label="Form paths" class="flex flex-wrap gap-1">
+                    {{range .Paths}}
+                        <a
+                                class="pill inline-flex items-center gap-2 pe-1.5 group"
+                                href="/sites/{{$.SiteName}}/submissions?path={{.Path}}"
+                                {{if eq .Path $.CurrentPath}}aria-current="step"{{end}}
+                        >
+                            <span>{{.Name}}</span>
+                            <span
+                                    class="text-muted dark:text-base-100 bg-base-100 dark:bg-base-800/75
+                                    dark:group-hover:bg-base-800 group-aria-[current=step]:bg-blue-300/75
+                                    group-aria-[current=step]:text-paper dark:group-aria-[current=step]:bg-blue-700
+                                    group-hover:bg-base-200 rounded-full flex items-center justify-center p-1 min-w-6
+                                    transition"
+                            >
+                                {{.Count}}
+                            </span>
+                        </a>
+                    {{end}}
+                </nav>
+            {{end}}
+            <!-- endregion -->
+
+            {{if .Submissions}}
+                <div class="grid grid-cols-[1fr_auto] grid-rows-2">
+                    {{if .FormName}}
+                        <h2 class="text-lg font-semibold">
+                            {{.FormName}}
+                        </h2>
+
+                        {{if .FormDesc}}
+                            <p class="text-sm text-muted row-start-2">
+                                {{.FormDesc}}
+                            </p>
+                        {{else}}
+                            <span class="text-sm text-muted row-start-2">
+                                {{.CurrentPath}}
+                            </span>
+                        {{end}}
+                    {{else}}
+                        <span></span>
+                    {{end}}
+
+                    <!-- region Actions -->
+                    <div class="flex items-center gap-2 row-span-2">
+                        {{if .VAPIDKey}}
+                            <button
+                                    id="notify-btn"
+                                    class="group btn btn-outline inline-flex items-center gap-1.5"
+                                    data-site="{{.SiteName}}"
+                                    data-path="{{.CurrentPath}}"
+                                    data-vapid="{{.VAPIDKey}}"
+                                    hidden
+                            >
+                                <span class="group-aria-pressed:hidden">
+                                    {{icon "bell" 16}}
+                                </span>
+                                <span class="hidden group-aria-pressed:block">
+                                    {{icon "bell-off" 16}}
+                                </span>
+                                <span class="group-aria-pressed:hidden">Enable Notifications</span>
+                                <span class="hidden group-aria-pressed:inline">Disable Notifications</span>
+                            </button>
+                        {{end}}
+                        <a
+                                class="btn btn-outline inline-flex items-center gap-1.5 no-underline"
+                                href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
+                        >
+                            {{icon "package" 16}}
+
+                            <span>Export CSV</span>
+                        </a>
+                        {{if .Admin}}
+                            <form
+                                    method="POST"
+                                    action="/sites/{{.SiteName}}/submissions/delete"
+                                    onsubmit="return confirm('Delete all submissions for this form?')"
+                            >
+                                <input type="hidden" name="path" value="{{.CurrentPath}}">
+                                <button type="submit" class="btn btn-danger">Delete all</button>
+                            </form>
+                        {{end}}
+                    </div>
+                    <!-- endregion -->
+                </div>
+
+                <!-- region Overflow actions -->
+                {{if gt .TotalCount .PageSize}}
+                    <p class="text-sm text-muted">
+                        Showing {{.PageSize}} of {{.TotalCount}} submissions.
+                        <a
+                                href="/sites/{{.SiteName}}/submissions/export?path={{.CurrentPath}}&format=csv"
+                                class="text-blue-500 no-underline hover:underline"
+                        >
+                            Export all
+                        </a>
+                    </p>
+                {{end}}
+                <!-- endregion -->
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse rounded-md overflow-hidden text-sm">
+
+                        <!-- region Table Head -->
+                        <thead class="group/thead">
+                        <tr>
+                            <th
+                                    scope="col"
+                                    class="text-start ps-8 pe-4 py-3 text-xs uppercase tracking-wider text-muted
+                                    font-medium border-b-2 border-default whitespace-nowrap"
+                            >
+                                <a
+                                        class="no-underline text-inherit hover:text-black dark:hover:text-base-200
+                                        transition"
+                                        href="{{$.SortHref "submitter"}}"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        <span>Submitted by</span>
+                                        {{template "sort-icon" ($.SortInfo "submitter")}}
+                                    </span>
+                                </a>
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-start pe-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b-2 border-default whitespace-nowrap"
+                            >
+                                <a
+                                        class="no-underline text-inherit hover:text-black dark:hover:text-base-200
+                                        transition"
+                                        href="{{$.SortHref "date"}}"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        <span>Date</span>
+                                        {{template "sort-icon" ($.SortInfo "date")}}
+                                    </span>
+                                </a>
+                            </th>
+                            {{range .FieldKeys}}
+                                <th
+                                        scope="col"
+                                        class="text-start data-numeric:text-end pe-4 last:pe-0 py-3 text-xs uppercase
+                                        tracking-wider text-muted font-medium border-b-2 border-default
+                                        whitespace-nowrap"
+                                        {{if index $.NumericFields .}}data-numeric="true"{{end}}
+                                >
+                                    <a
+                                            class="no-underline text-inherit hover:text-black
+                                            dark:hover:text-base-200 transition"
+                                            href="{{$.SortHref .}}"
+                                    >
+                                        <span class="inline-flex items-center gap-1">
+                                            <span>{{index $.FieldLabels .}}</span>
+                                            {{template "sort-icon" ($.SortInfo .)}}
+                                        </span>
+                                    </a>
+                                </th>
+                            {{end}}
+                            <th scope="col" class="w-10 py-3 border-b-2 border-default">
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                        </thead>
+                        <!-- endregion -->
+
+                        <!-- region Table Body -->
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+                        {{range $sub := .Submissions}}
+                            <tr>
+                                <td class="pe-4 py-3 border-b border-default whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-2">
+                                        {{avatarHTML $sub.DisplayName $sub.SubmitterPicURL}}
+                                        {{$sub.DisplayName}}
+                                    </span>
+                                </td>
+
+                                <td class="pe-4 py-3 border-b border-default whitespace-nowrap text-muted">
+                                    <time datetime="{{abstime $sub.CreatedAt}}" title="{{abstime $sub.CreatedAt}}">
+                                        {{reltime $sub.CreatedAt}}
+                                    </time>
+                                </td>
+
+                                {{range $key := $.FieldKeys}}
+                                    <td
+                                            class="pe-4 last:pe-0 py-3 border-b border-default max-w-64
+                                            data-numeric:text-end data-numeric:tabular-nums"
+                                            {{if index $.NumericFields $key}}data-numeric="true"{{end}}
+                                    >
+                                        {{with index $sub.ParsedFields $key}}
+                                            <span
+                                                    class="whitespace-pre-wrap wrap-break-word line-clamp-3"
+                                                    title="{{.}}"
+                                            >{{.}}</span>
+                                        {{else}}
+                                            <span class="text-muted italic">—</span>
+                                        {{end}}
+                                    </td>
+                                {{end}}
+                                <td class="py-3 border-b border-default text-end min-w-8">
+                                    <a
+                                            href="/sites/{{$.SiteName}}/submissions/{{$sub.ID}}"
+                                            class="inline-block btn-icon"
+                                            aria-label="View"
+                                    >
+                                        {{icon "info"}}
+                                    </a>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                        <!-- endregion -->
+
+                        <!-- region Summary Footer -->
+                        {{if .HasSummary}}
+                            <tfoot>
+                            <tr class="border-t-2 border-default">
+                                <td
+                                        class="ps-8 pe-4 py-3 text-xs text-muted font-medium tracking-wider
+                                        whitespace-nowrap"
+                                >
+                                    {{len .Submissions}} of {{.TotalCount}}
+                                </td>
+
+                                <td class="pe-4 py-3 text-xs text-muted whitespace-nowrap">
+                                    {{.DateSummary}}
+                                </td>
+
+                                {{range .FieldKeys}}
+                                    <td
+                                            class="pe-4 last:pe-0 py-3 text-xs text-muted data-numeric:text-end
+                                            data-numeric:tabular-nums"
+                                            {{if index $.NumericFields .}}data-numeric="true"{{end}}
+                                    >
+                                        {{index $.Summary .}}
+                                    </td>
+                                {{end}}
+                                <td></td>
+                            </tr>
+                            </tfoot>
+                        {{end}}
+                        <!-- endregion -->
+                    </table>
+                </div>
+            {{else}}
+                <!-- region No submissions -->
+                <p class="text-center py-12 px-8 text-muted text-sm border border-default rounded-md bg-surface">
+                    No submissions for this form.
+                </p>
+                <!-- endregion -->
+            {{end}}
+        {{else}}
+            <!-- region Onboarding -->
+            <article class="onboarding">
+                <header>
+                    <h2 class="text-xl font-semibold tracking-tight m-0">
+                        Collect form submissions
+                    </h2>
+                    <p class="text-muted text-sm mt-1">
+                        Accept HTML form submissions on your site. Every submitter is automatically
+                        identified via Tailscale&hairsp;—&hairsp;no login forms needed.
+                    </p>
+                </header>
+
+                <ol class="flex flex-col gap-6 list-none p-0 m-0">
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">1</span>
+                        <div class="w-full min-w-0">
+                            <p class="font-medium m-0">Enable forms</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Add a <code>[forms]</code> section to <code>tspages.toml</code> in your deployment
+                                archive:
+                            </p>
+                            <!-- @formatter:off -->
+                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="p">[</span><span class="nx">forms</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="nx">enabled</span> <span class="p">=</span> <span class="kc">true</span>
+</span></span></code></pre>
+                            <!-- @formatter:on -->
+                        </div>
+                    </li>
+
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">2</span>
+                        <div class="w-full min-w-0">
+                            <p class="font-medium m-0">Add a form to your site</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Standard HTML forms work out of the box:
+                            </p>
+                            <!-- @formatter:off -->
+                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="p">&lt;</span><span class="nt">form</span> <span class="na">action</span><span class="o">=</span><span class="s">"/contact"</span> <span class="na">method</span><span class="o">=</span><span class="s">"POST"</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">input</span> <span class="na">name</span><span class="o">=</span><span class="s">"name"</span> <span class="na">type</span><span class="o">=</span><span class="s">"text"</span> <span class="na">required</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">input</span> <span class="na">name</span><span class="o">=</span><span class="s">"email"</span> <span class="na">type</span><span class="o">=</span><span class="s">"email"</span> <span class="na">required</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">textarea</span> <span class="na">name</span><span class="o">=</span><span class="s">"message"</span> <span class="na">required</span><span class="p">&gt;&lt;/</span><span class="nt">textarea</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">&lt;</span><span class="nt">button</span> <span class="na">type</span><span class="o">=</span><span class="s">"submit"</span><span class="p">&gt;</span>Send<span class="p">&lt;/</span><span class="nt">button</span><span class="p">&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">&lt;/</span><span class="nt">form</span><span class="p">&gt;</span>
+</span></span></code></pre>
+                            <!-- @formatter:on -->
+                        </div>
+                    </li>
+
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">3</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Submissions appear here</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Each submission shows the submitter, timestamp, and all form fields.
+                            </p>
+                        </div>
+                    </li>
+                </ol>
+
+                <footer class="text-sm flex justify-center">
+                    <a href="/help/forms" class="btn btn-primary">
+                        Read the full forms documentation
+                    </a>
+                </footer>
+            </article>
+            <!-- endregion -->
+        {{end}}
+    </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/submissions.ts"}}"></script>
+{{end}}

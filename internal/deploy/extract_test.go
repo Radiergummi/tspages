@@ -72,7 +72,7 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-// --- ExtractZip (existing tests) ---
+// region ExtractZip (existing tests)
 
 func TestExtractZip_Valid(t *testing.T) {
 	dir := t.TempDir()
@@ -120,7 +120,7 @@ func TestExtractZip_SizeLimit(t *testing.T) {
 	}
 }
 
-// --- Extract (multi-format) ---
+// region Extract (multi-format)
 
 func TestExtract_Zip(t *testing.T) {
 	dir := t.TempDir()

@@ -1,6 +1,4 @@
-import { confirmAction, copyToClipboard } from "../lib/api";
 import { initDeployDrop } from "../lib/deploy-drop";
-import { closeModal, initModal, openModal } from "../lib/modal";
 import {
   CategoryScale,
   Chart,
@@ -14,7 +12,7 @@ import {
 function main(): void {
   Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler);
 
-  const mainNode = document.querySelector<HTMLElement>("main")!;
+  const mainNode = document.querySelector<HTMLElement>("[data-site]")!;
   const siteName = mainNode.dataset.site!;
 
   // region Sparkline
@@ -74,65 +72,10 @@ function main(): void {
 
   // endregion
 
-  // region Deploy modal
-  const deployModal = document.getElementById("deploy-modal");
-
-  if (deployModal) {
-    initModal("deploy-modal");
-
-    document
-      .querySelector<HTMLButtonElement>("[data-action='deploy']")
-      ?.addEventListener("click", () => openModal("deploy-modal"));
-
-    deployModal
-      .querySelector<HTMLButtonElement>(".modal-close")
-      ?.addEventListener("click", () => closeModal("deploy-modal"));
-
+  // region Deploy drop
+  if (document.getElementById("deploy-modal")) {
     initDeployDrop(siteName);
   }
-
-  // endregion
-
-  // region Copy deploy command
-
-  document
-    .querySelector<HTMLButtonElement>("[data-action='copy-cmd']")
-    ?.addEventListener("click", () => copyToClipboard("deploy-cmd"));
-
-  // endregion
-
-  // region Activate deployment
-
-  document.querySelectorAll<HTMLButtonElement>("[data-action='activate']").forEach((button) => {
-    button.closest("form")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const id = button.dataset.deploymentId!;
-
-      return confirmAction({
-        message: `Activate deployment "${id}"?`,
-        url: `/deploy/${encodeURIComponent(siteName)}/${encodeURIComponent(id)}/activate`,
-        method: "POST",
-      });
-    });
-  });
-
-  // endregion
-
-  // region Delete site
-
-  document
-    .querySelector<HTMLButtonElement>("[data-action='delete-site']")
-    ?.closest("form")
-    ?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      return confirmAction({
-        message: `Delete site "${siteName}" and all its deployments?`,
-        url: `/deploy/${encodeURIComponent(siteName)}`,
-        method: "DELETE",
-        onSuccess: "/sites",
-      });
-    });
-
   // endregion
 
   // region Cleanup old deployments
@@ -168,28 +111,48 @@ function main(): void {
   // region Config editing (progressive enhancement)
 
   const configDetails = document.getElementById("config-details") as HTMLDetailsElement | null;
+
   if (configDetails) {
-    const spaToggle = configDetails.querySelector<HTMLInputElement>("[name='spa_routing'][type='checkbox']");
-    const dirToggle = configDetails.querySelector<HTMLInputElement>("[name='directory_listing'][type='checkbox']");
+    const spaToggle = configDetails.querySelector<HTMLInputElement>(
+      "[name='spa_routing'][type='checkbox']",
+    );
+    const dirToggle = configDetails.querySelector<HTMLInputElement>(
+      "[name='directory_listing'][type='checkbox']",
+    );
 
     spaToggle?.addEventListener("change", () => {
-      if (dirToggle) dirToggle.disabled = spaToggle.checked;
-    });
-    dirToggle?.addEventListener("change", () => {
-      if (spaToggle) spaToggle.disabled = dirToggle.checked;
+      if (dirToggle) {
+        dirToggle.disabled = spaToggle.checked;
+      }
     });
 
-    if (spaToggle?.checked && dirToggle) dirToggle.disabled = true;
-    if (dirToggle?.checked && spaToggle) spaToggle.disabled = true;
+    dirToggle?.addEventListener("change", () => {
+      if (spaToggle) {
+        spaToggle.disabled = dirToggle.checked;
+      }
+    });
+
+    if (spaToggle?.checked && dirToggle) {
+      dirToggle.disabled = true;
+    }
+
+    if (dirToggle?.checked && spaToggle) {
+      spaToggle.disabled = true;
+    }
 
     const webhookURL = configDetails.querySelector<HTMLInputElement>("[name='webhook_url']");
-    const webhookEvents = configDetails.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
+    const webhookEvents =
+      configDetails.querySelectorAll<HTMLInputElement>("[name='webhook_events']");
     const webhookSecret = configDetails.querySelector<HTMLInputElement>("[name='webhook_secret']");
 
     function updateWebhookFields(): void {
       const hasURL = !!webhookURL?.value.trim();
       webhookEvents.forEach((cb) => (cb.disabled = !hasURL));
-      if (webhookSecret) webhookSecret.disabled = !hasURL;
+
+      if (webhookSecret) {
+        webhookSecret.disabled = !hasURL;
+      }
+
       if (hasURL && !Array.from(webhookEvents).some((cb) => cb.checked)) {
         webhookEvents.forEach((cb) => (cb.checked = true));
       }
@@ -201,12 +164,16 @@ function main(): void {
     const toggleBtn = document.querySelector<HTMLButtonElement>("[data-action='config-toggle']");
 
     function syncToggleLabel(): void {
-      if (toggleBtn) toggleBtn.textContent = configDetails.open ? "Cancel" : "Edit";
+      if (toggleBtn && configDetails) {
+        toggleBtn.textContent = configDetails.open ? "Cancel" : "Edit";
+      }
     }
 
     function closeConfig(): void {
-      configDetails.querySelector("form")?.reset();
-      configDetails.open = false;
+      if (configDetails) {
+        configDetails.querySelector("form")?.reset();
+        configDetails.open = false;
+      }
     }
 
     toggleBtn?.addEventListener("click", () => {

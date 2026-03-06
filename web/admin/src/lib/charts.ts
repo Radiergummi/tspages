@@ -15,6 +15,11 @@ import {
   type TooltipItem,
   type TooltipModel,
 } from "chart.js";
+
+// Register Tooltip before importing the treemap plugin — it tries to register
+// a custom tooltip positioner at import time and warns if Tooltip is missing.
+Chart.register(Tooltip);
+
 import { TreemapController, TreemapElement } from "chartjs-chart-treemap";
 
 // region Theme
@@ -473,8 +478,8 @@ export function lineChart(
         y: {
           display: false,
           grace: "5%",
-          ...(options?.yMin !== null && {
-            min: options!.yMin,
+          ...(options?.yMin !== undefined && {
+            min: options.yMin,
           }),
         },
       },

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,13 +17,21 @@ import (
 	"tspages/internal/analytics"
 	"tspages/internal/auth"
 	"tspages/internal/cli"
+	"tspages/internal/db"
 	"tspages/internal/deploy"
+	"tspages/internal/help"
 	"tspages/internal/httplog"
-	"tspages/internal/metrics"
 	"tspages/internal/multihost"
+	"tspages/internal/notify"
+	"tspages/internal/pushnotify"
+	"tspages/internal/ratelimit"
+	"tspages/internal/serve"
 	"tspages/internal/storage"
+	"tspages/internal/submissions"
+	"tspages/internal/telemetry"
 	"tspages/internal/tsadapter"
-	"tspages/internal/webhook"
+	"tspages/internal/web"
+	"tspages/internal/webhooks"
 
 	"tailscale.com/tsnet"
 )
@@ -37,12 +44,14 @@ func main() {
 		switch os.Args[1] {
 		case "deploy":
 			if err := cli.Deploy(os.Args[2:]); err != nil {
-				log.Fatal(err)
+				slog.Error("deploy failed", "component", "cli", "err", err)
+				os.Exit(1)
 			}
 			return
 		case "init":
 			if err := cli.Init(os.Args[2:]); err != nil {
-				log.Fatal(err)
+				slog.Error("init failed", "component", "cli", "err", err)
+				os.Exit(1)
 			}
 			return
 		case "version":
@@ -51,6 +60,13 @@ func main() {
 		}
 	}
 
+	if err := run(); err != nil {
+		slog.Error("fatal", "component", "server", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	configPath := flag.String("config", "tspages.toml", "path to config file")
 	dev := flag.Bool("dev", false, "enable Vite dev mode with HMR on localhost:8080")
 	showVersion := flag.Bool("version", false, "print version and exit")
@@ -58,35 +74,52 @@ func main() {
 
 	if *showVersion {
 		fmt.Println(version)
-		os.Exit(0)
+		return nil
 	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("loading config: %v", err)
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	var logLevel slog.Level
 	if err := logLevel.UnmarshalText([]byte(cfg.Server.LogLevel)); err != nil {
-		log.Fatalf("invalid log level %q: %v", cfg.Server.LogLevel, err)
+		return fmt.Errorf("invalid log level %q: %w", cfg.Server.LogLevel, err)
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 
 	store := storage.New(cfg.Server.DataDir)
 	store.CleanupOrphans()
 
-	recorder, err := analytics.NewRecorder(filepath.Join(cfg.Server.DataDir, "analytics.db"))
-	if err != nil {
-		log.Fatalf("opening analytics db: %v", err)
-	}
-	defer recorder.Close() //nolint:errcheck // best-effort cleanup on shutdown
-
-	notifier, err := webhook.NewNotifier(recorder.DB())
-	if err != nil {
-		log.Fatalf("creating webhook notifier: %v", err) //nolint:gocritic // exitAfterDefer is intentional — process is dying
+	if err := db.MigrateFilename(cfg.Server.DataDir, "analytics.db", "tspages.db"); err != nil {
+		return fmt.Errorf("migrating database filename: %w", err)
 	}
 
-	admin.SetHideFooter(cfg.Server.HideFooter)
+	database, err := db.Open(
+		filepath.Join(cfg.Server.DataDir, "tspages.db"),
+		analytics.Migrations,
+		submissions.Migrations,
+		webhooks.Migrations,
+		pushnotify.Migrations,
+	)
+	if err != nil {
+		return fmt.Errorf("opening database: %w", err)
+	}
+	defer database.Close()
+
+	vapidPub, vapidPriv, err := pushnotify.LoadOrCreateVAPIDKeys(cfg.Server.DataDir)
+	if err != nil {
+		return fmt.Errorf("loading VAPID keys: %w", err)
+	}
+
+	recorder := analytics.NewRecorder(database)
+	defer recorder.Close()
+
+	webhookNotifier := webhooks.NewNotifier(database)
+	submissionStore := submissions.NewStore(database)
+
+	web.SetHideFooter(cfg.Server.HideFooter)
+	admin.SetupWeb()
 
 	// Control plane tsnet server — start it and listen before creating
 	// handlers so we can resolve the DNS suffix first.
@@ -94,17 +127,18 @@ func main() {
 		Hostname: cfg.Tailscale.Hostname,
 		Dir:      cfg.Tailscale.StateDir,
 		AuthKey:  cfg.Tailscale.AuthKey,
+		UserLogf: func(format string, args ...any) { slog.Debug(fmt.Sprintf(format, args...), "component", "tsnet") },
 	}
-	defer srv.Close() //nolint:errcheck // best-effort cleanup on shutdown
+	defer srv.Close()
 
 	lc, err := srv.LocalClient()
 	if err != nil {
-		log.Fatalf("getting local client: %v", err)
+		return fmt.Errorf("getting local client: %w", err)
 	}
 
 	ln, err := srv.ListenTLS("tcp", ":443")
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		return fmt.Errorf("listen failed: %w", err)
 	}
 	defer ln.Close()
 
@@ -112,26 +146,93 @@ func main() {
 	var dnsSuffix string
 	status, err := lc.StatusWithoutPeers(context.Background())
 	if err != nil {
-		log.Fatalf("getting tailnet status: %v", err)
+		return fmt.Errorf("getting tailnet status: %w", err)
 	}
 	if status.CurrentTailnet != nil {
 		dnsSuffix = status.CurrentTailnet.MagicDNSSuffix
+	}
+
+	// Create push notifier after DNS suffix is known so the VAPID subject
+	// contains the full FQDN (Apple rejects bare hostnames without a TLD).
+	vapidContact := "https://" + cfg.Tailscale.Hostname
+	if dnsSuffix != "" {
+		vapidContact = "https://" + cfg.Tailscale.Hostname + "." + dnsSuffix
+	}
+	pushNotifier := pushnotify.NewNotifier(database, vapidPub, vapidPriv, vapidContact)
+	notifier := notify.Multi{webhookNotifier, pushNotifier}
+
+	var limiter *ratelimit.Limiter
+	rl := cfg.RateLimits
+	if rl.MutateRate > 0 || rl.SubmitRate > 0 || rl.QueryRate > 0 {
+		limiter = ratelimit.New(
+			ratelimit.TierConfig{Rate: rl.MutateRate, Burst: rl.MutateBurst},
+			ratelimit.TierConfig{Rate: rl.SubmitRate, Burst: rl.SubmitBurst},
+			ratelimit.TierConfig{Rate: rl.QueryRate, Burst: rl.QueryBurst},
+		)
+	}
+
+	buildStack := func(site string, handler *serve.Handler, whoIs auth.WhoIsClient, isPublic bool) http.Handler {
+		var withSiteAuth func(http.Handler) http.Handler
+		if isPublic {
+			withSiteAuth = auth.MiddlewareAllowAnonymous(whoIs, cfg.Tailscale.Capability)
+		} else {
+			withSiteAuth = auth.Middleware(whoIs, cfg.Tailscale.Capability)
+		}
+
+		logged := httplog.Wrap(handler, slog.String("site", site))
+		recorded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sw := &statusWriter{ResponseWriter: w, status: 200}
+			start := time.Now()
+			logged.ServeHTTP(sw, r)
+			telemetry.ObserveRequest(site, sw.status, time.Since(start))
+			if recorder != nil && handler.AnalyticsEnabled() {
+				ri := auth.RequestInfoFromContext(r.Context())
+				recorder.Record(analytics.Event{
+					Timestamp:     start,
+					Site:          site,
+					Path:          r.URL.Path,
+					Status:        sw.status,
+					UserLogin:     ri.UserLogin,
+					UserName:      ri.UserName,
+					ProfilePicURL: ri.ProfilePicURL,
+					NodeName:      ri.NodeName,
+					NodeIP:        ri.NodeIP,
+					OS:            ri.OS,
+					OSVersion:     ri.OSVersion,
+					Device:        ri.Device,
+					Tags:          ri.Tags,
+				})
+			}
+		})
+		formHandler := submissions.NewHandler(submissionStore, notifier, site, handler.Config)
+		formLogged := httplog.Wrap(formHandler, slog.String("site", site))
+		submitLimited := ratelimit.Middleware(limiter, ratelimit.Submit, nil)(formLogged)
+
+		cop := http.NewCrossOriginProtection()
+		mux := http.NewServeMux()
+		mux.Handle("GET /{path...}", withSiteAuth(recorded))
+		mux.Handle("POST /{path...}", withSiteAuth(submitLimited))
+		return cop.Handler(mux)
 	}
 
 	mgr := multihost.New(multihost.ManagerConfig{
 		Store:      store,
 		StateDir:   cfg.Tailscale.StateDir,
 		AuthKey:    cfg.Tailscale.AuthKey,
-		Capability: cfg.Tailscale.Capability,
-		MaxSites:   cfg.Server.MaxSites,
-		Recorder:   recorder,
 		DNSSuffix:  dnsSuffix,
 		Defaults:   cfg.Defaults,
+		MaxSites:   cfg.Server.MaxSites,
+		BuildStack: buildStack,
 	})
 	defer mgr.Close()
 
 	whoIsClient := tsadapter.New(lc)
 	withAuth := auth.Middleware(whoIsClient, cfg.Tailscale.Capability)
+	denyRateLimit := func(w http.ResponseWriter, r *http.Request) {
+		web.RenderError(w, r, http.StatusTooManyRequests, "Rate limit exceeded. Please wait a moment and try again.")
+	}
+	withMutate := compose(withAuth, ratelimit.Middleware(limiter, ratelimit.Mutate, denyRateLimit))
+	withQuery := compose(withAuth, ratelimit.Middleware(limiter, ratelimit.Query, denyRateLimit))
 
 	deployHandler := deploy.NewHandler(deploy.HandlerConfig{
 		Store:          store,
@@ -147,13 +248,42 @@ func main() {
 	deleteDeploymentHandler := deploy.NewDeleteDeploymentHandler(store)
 	cleanupDeploymentsHandler := deploy.NewCleanupDeploymentsHandler(store)
 	activateHandler := deploy.NewActivateHandler(store, mgr)
-	h := admin.NewHandlers(store, recorder, dnsSuffix, mgr, mgr, cfg.Defaults, notifier)
-	healthHandler := admin.NewHealthHandler(store, recorder)
-
 	mux := http.NewServeMux()
-	registerRoutes(mux, withAuth, h, healthHandler,
-		deployHandler, listHandler, deleteHandler,
-		deleteDeploymentHandler, cleanupDeploymentsHandler, activateHandler)
+
+	// Deploy API — mutate tier
+	mux.Handle("POST /deploy/{site}", withMutate(deployHandler))
+	mux.Handle("POST /deploy/{site}/{filename}", withMutate(deployHandler))
+	mux.Handle("PUT /deploy/{site}", withMutate(deployHandler))
+	mux.Handle("PUT /deploy/{site}/{filename}", withMutate(deployHandler))
+	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
+	mux.Handle("DELETE /deploy/{site}", withMutate(deleteHandler))
+	mux.Handle("DELETE /deploy/{site}/deployments", withMutate(cleanupDeploymentsHandler))
+	mux.Handle("DELETE /deploy/{site}/{id}", withMutate(deleteDeploymentHandler))
+	mux.Handle("POST /deploy/{site}/{id}/activate", withMutate(activateHandler))
+
+	// POST aliases for HTML form submissions (forms can't send DELETE) — mutate tier
+	mux.Handle("POST /sites/{site}/delete", withMutate(deleteHandler))
+	mux.Handle("POST /sites/{site}/cleanup", withMutate(cleanupDeploymentsHandler))
+
+	// Per-module route registration
+	telemetry.RegisterRoutes(mux, withAuth, telemetry.Config{
+		Store:    store,
+		Recorder: recorder,
+		Checker:  mgr,
+	})
+	admin.RegisterRoutes(mux, withAuth, withMutate, withQuery, admin.Config{
+		Store:     store,
+		Recorder:  recorder,
+		DNSSuffix: dnsSuffix,
+		Ensurer:   mgr,
+		Defaults:  cfg.Defaults,
+		Notifier:  webhookNotifier,
+	})
+	help.RegisterRoutes(mux, withAuth)
+	webhooks.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, cfg.Defaults, webhookNotifier)
+	analytics.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, recorder, cfg.Defaults)
+	submissions.RegisterRoutes(mux, withAuth, withMutate, withQuery, store, submissionStore, cfg.Defaults, vapidPub)
+	pushnotify.RegisterRoutes(mux, withAuth, withMutate, withQuery, pushNotifier, vapidPub)
 
 	listenErr := make(chan error, 3)
 
@@ -161,9 +291,37 @@ func main() {
 	if *dev {
 		tmplDir, err := filepath.Abs("internal/admin/templates")
 		if err != nil {
-			log.Fatalf("resolving template dir: %v", err)
+			return fmt.Errorf("resolving template dir: %w", err)
 		}
-		admin.EnableDevMode(tmplDir)
+		webhooksTmplDir, err := filepath.Abs("internal/webhooks/templates")
+		if err != nil {
+			return fmt.Errorf("resolving webhooks template dir: %w", err)
+		}
+		analyticsTmplDir, err := filepath.Abs("internal/analytics/templates")
+		if err != nil {
+			return fmt.Errorf("resolving analytics template dir: %w", err)
+		}
+		submissionsTmplDir, err := filepath.Abs("internal/submissions/templates")
+		if err != nil {
+			return fmt.Errorf("resolving submissions template dir: %w", err)
+		}
+		helpTmplDir, err := filepath.Abs("internal/help/templates")
+		if err != nil {
+			return fmt.Errorf("resolving help template dir: %w", err)
+		}
+		web.EnableDevMode(map[string]string{"admin": tmplDir, "webhooks": webhooksTmplDir, "analytics": analyticsTmplDir, "submissions": submissionsTmplDir, "help": helpTmplDir})
+
+		openapiPath, err := filepath.Abs("internal/help/openapi.yaml")
+		if err != nil {
+			return fmt.Errorf("resolving openapi path: %w", err)
+		}
+		help.SetDevOpenAPIPath(openapiPath)
+
+		serveTmplDir, err := filepath.Abs("internal/serve/templates")
+		if err != nil {
+			return fmt.Errorf("resolving serve template dir: %w", err)
+		}
+		serve.EnableDevMode(serveTmplDir)
 
 		// Vite asset proxy on the main mux so it works on both listeners.
 		proxy := admin.DevAssetProxy()
@@ -174,7 +332,7 @@ func main() {
 
 		// Localhost listener with mock admin auth (no tailscale needed).
 		go func() {
-			slog.Info("dev server started", "addr", "http://localhost:8080", "hint", "run 'npx vite' for HMR")
+			slog.Info("dev server started", "component", "server", "addr", "http://localhost:8080", "hint", "run 'npx vite' for HMR")
 			if err := http.ListenAndServe(":8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				ctx := auth.ContextWithCaps(r.Context(), []auth.Cap{{Access: "admin"}})
 				ctx = auth.ContextWithIdentity(ctx, auth.Identity{LoginName: "dev@localhost", DisplayName: "Developer"})
@@ -194,15 +352,15 @@ func main() {
 			http.Redirect(w, r, "/sites", http.StatusFound)
 			return
 		}
-		admin.RenderError(w, r, http.StatusNotFound, "")
+		web.RenderError(w, r, http.StatusNotFound, "")
 	})
 
 	// Local health check listener (plain HTTP, localhost only).
 	if addr := cfg.Server.HealthAddr; addr != "" {
 		healthMux := http.NewServeMux()
-		healthMux.Handle("GET /healthz", healthHandler)
+		healthMux.Handle("GET /healthz", telemetry.NewHealthHandler(store, recorder))
 		go func() {
-			slog.Info("health check listening", "addr", addr)
+			slog.Info("health check listening", "component", "server", "addr", addr)
 			if err := http.ListenAndServe(addr, healthMux); err != nil {
 				listenErr <- fmt.Errorf("health listener: %w", err)
 			}
@@ -211,99 +369,53 @@ func main() {
 
 	// Start servers for all sites with active deployments
 	if err := mgr.StartExistingSites(); err != nil {
-		slog.Warn("starting existing sites", "err", err)
+		slog.Warn("starting existing sites", "component", "server", "err", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	httpSrv := &http.Server{Handler: httplog.Wrap(mux)}
+	cop := http.NewCrossOriginProtection()
+	httpSrv := &http.Server{Handler: httplog.Wrap(cop.Handler(mux))}
 	go func() {
 		if err := httpSrv.Serve(ln); err != http.ErrServerClosed {
 			listenErr <- fmt.Errorf("serve: %w", err)
 		}
 	}()
 
-	slog.Info("tspages control plane listening", "hostname", cfg.Tailscale.Hostname)
+	slog.Info("tspages control plane listening", "component", "server", "hostname", cfg.Tailscale.Hostname)
 	select {
 	case <-ctx.Done():
 	case err := <-listenErr:
-		slog.Error("listener failed", "err", err)
+		slog.Error("listener failed", "component", "server", "err", err)
 	}
-	slog.Info("shutting down")
+	slog.Info("shutting down", "component", "server")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("shutdown error", "err", err)
+		slog.Error("shutdown error", "component", "server", "err", err)
+	}
+	return nil
+}
+
+// compose chains two middleware functions: outer runs first, then inner.
+func compose(outer, inner func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return outer(inner(h))
 	}
 }
 
-func registerRoutes(
-	mux *http.ServeMux,
-	withAuth func(http.Handler) http.Handler,
-	h *admin.Handlers,
-	healthHandler http.Handler,
-	deployHandler http.Handler,
-	listHandler http.Handler,
-	deleteHandler http.Handler,
-	deleteDeploymentHandler http.Handler,
-	cleanupDeploymentsHandler http.Handler,
-	activateHandler http.Handler,
-) {
-	// Health checks
-	mux.Handle("GET /healthz", healthHandler)
-	mux.Handle("GET /sites/{site}/healthz", withAuth(h.SiteHealth))
-	// Deploy API (JSON only)
-	mux.Handle("POST /deploy/{site}", withAuth(deployHandler))
-	mux.Handle("POST /deploy/{site}/{filename}", withAuth(deployHandler))
-	mux.Handle("PUT /deploy/{site}", withAuth(deployHandler))
-	mux.Handle("PUT /deploy/{site}/{filename}", withAuth(deployHandler))
-	mux.Handle("GET /deploy/{site}", withAuth(listHandler))
-	mux.Handle("DELETE /deploy/{site}", withAuth(deleteHandler))
-	mux.Handle("DELETE /deploy/{site}/deployments", withAuth(cleanupDeploymentsHandler))
-	mux.Handle("DELETE /deploy/{site}/{id}", withAuth(deleteDeploymentHandler))
-	mux.Handle("POST /deploy/{site}/{id}/activate", withAuth(activateHandler))
-	// POST aliases for HTML form submissions (forms can't send DELETE)
-	mux.Handle("POST /sites/{site}/delete", withAuth(deleteHandler))
-	mux.Handle("POST /sites/{site}/cleanup", withAuth(cleanupDeploymentsHandler))
-	// Browse routes (HTML + JSON via Accept header or .json suffix)
-	mux.Handle("POST /sites", withAuth(h.CreateSite))
-	mux.Handle("GET /sites", withAuth(h.Sites))
-	mux.Handle("GET /sites.json", withAuth(h.Sites))
-	mux.Handle("GET /sites/{site}", withAuth(h.Site))
-	mux.Handle("GET /sites/{site}/deployments", withAuth(h.SiteDeployments))
-	mux.Handle("GET /sites/{site}/deployments.json", withAuth(h.SiteDeployments))
-	mux.Handle("GET /sites/{site}/deployments/{id}", withAuth(h.Deployment))
-	mux.Handle("GET /sites/{site}/analytics", withAuth(h.Analytics))
-	mux.Handle("GET /sites/{site}/analytics.json", withAuth(h.Analytics))
-	mux.Handle("POST /sites/{site}/analytics/purge", withAuth(h.PurgeAnalytics))
-	mux.Handle("GET /sites/{site}/config", withAuth(h.SiteConfig))
-	mux.Handle("PATCH /sites/{site}/config", withAuth(h.UpdateSiteConfig))
-	mux.Handle("POST /sites/{site}/config", withAuth(h.PostSiteConfig))
-	mux.Handle("GET /sites/{site}/webhooks", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /sites/{site}/webhooks.json", withAuth(h.SiteWebhooks))
-	mux.Handle("GET /deployments", withAuth(h.Deployments))
-	mux.Handle("GET /deployments.json", withAuth(h.Deployments))
-	mux.Handle("GET /webhooks", withAuth(h.Webhooks))
-	mux.Handle("GET /webhooks.json", withAuth(h.Webhooks))
-	mux.Handle("GET /webhooks/{id}", withAuth(h.WebhookDetail))
-	mux.Handle("POST /webhooks/{id}/retry", withAuth(h.WebhookRetry))
-	mux.Handle("GET /analytics", withAuth(h.AllAnalytics))
-	mux.Handle("GET /analytics.json", withAuth(h.AllAnalytics))
-	mux.Handle("GET /feed.atom", withAuth(h.Feed))
-	mux.Handle("GET /sites/{site}/feed.atom", withAuth(h.SiteFeed))
-	mux.Handle("GET /help", withAuth(h.Help))
-	mux.Handle("GET /help/{page...}", withAuth(h.Help))
-	mux.Handle("GET /assets/dist/{file...}", admin.AssetHandler())
-	mux.Handle("GET /api", withAuth(h.API))
-	mux.Handle("GET /openapi.yaml", admin.OpenAPIHandler())
-	mux.Handle("GET /openapi", admin.SwaggerUIHandler())
-	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		metrics.Handler().ServeHTTP(w, r)
-	})))
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }

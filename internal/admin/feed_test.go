@@ -40,7 +40,7 @@ type atomLink struct {
 	Rel  string `xml:"rel,attr"`
 }
 
-// --- GET /feed.atom ---
+// region GET /feed.atom
 
 func TestFeedHandler_AdminSeesAllSites(t *testing.T) {
 	hs, _ := setupHandlers(t)
@@ -138,7 +138,7 @@ func TestFeedHandler_EntryContentWithComment(t *testing.T) {
 	store.ActivateDeployment("docs", "aaa11111")
 
 	recorder := setupRecorder(t)
-	hs := NewHandlers(store, recorder, "test.ts.net", &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := newTestHandlers(store, recorder, "test.ts.net", &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
 	rec := httptest.NewRecorder()
@@ -178,7 +178,7 @@ func TestFeedHandler_EntryContentWithoutComment(t *testing.T) {
 	}
 }
 
-// --- GET /sites/{site}/feed.atom ---
+// region GET /sites/{site}/feed.atom
 
 func TestSiteFeedHandler_ReturnsOnlySiteDeployments(t *testing.T) {
 	hs, store := setupHandlers(t)
@@ -249,7 +249,7 @@ func TestFeedHandler_EmptyStore(t *testing.T) {
 	store := storage.New(t.TempDir())
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := newTestHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/feed.atom", adminCaps, adminID)
 	rec := httptest.NewRecorder()
@@ -281,7 +281,7 @@ func TestSiteFeedHandler_SiteWithNoDeployments(t *testing.T) {
 
 	recorder := setupRecorder(t)
 	dnsSuffix := "test.ts.net"
-	hs := NewHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, &mockEnsurer{}, storage.SiteConfig{}, nil)
+	hs := newTestHandlers(store, recorder, dnsSuffix, &mockEnsurer{}, storage.SiteConfig{})
 
 	req := reqWithAuth("GET", "/sites/empty/feed.atom", adminCaps, adminID)
 	req.SetPathValue("site", "empty")

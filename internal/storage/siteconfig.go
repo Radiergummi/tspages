@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ type SiteConfig struct {
 	TrailingSlash    string                       `toml:"trailing_slash" json:"trailing_slash,omitempty"`
 	Headers          map[string]map[string]string `toml:"headers" json:"headers,omitempty"`
 	Redirects        []RedirectRule               `toml:"redirects" json:"redirects,omitempty"`
+	Forms            *FormsConfig                 `toml:"forms" json:"forms,omitempty"`
 	WebhookURL       string                       `toml:"webhook_url" json:"webhook_url,omitempty"`
 	WebhookEvents    []string                     `toml:"webhook_events" json:"webhook_events,omitempty"`
 	WebhookSecret    string                       `toml:"webhook_secret" json:"webhook_secret,omitempty"`
@@ -33,6 +35,30 @@ type RedirectRule struct {
 	From   string `toml:"from" json:"from"`
 	To     string `toml:"to" json:"to"`
 	Status int    `toml:"status,omitempty" json:"status,omitempty"`
+}
+
+// FormsConfig holds form collection configuration for a site.
+// In TOML: [forms] enabled = true with [[forms.endpoints]] for endpoints.
+type FormsConfig struct {
+	Enabled   *bool          `toml:"enabled" json:"enabled,omitempty"`
+	Endpoints []FormEndpoint `toml:"endpoints" json:"endpoints,omitempty"`
+}
+
+// FormEndpoint defines a single form collection endpoint.
+type FormEndpoint struct {
+	Path        string      `toml:"path" json:"path"`
+	Name        string      `toml:"name" json:"name,omitempty"`
+	Description string      `toml:"description" json:"description,omitempty"`
+	Fields      []FormField `toml:"fields" json:"fields,omitempty"`
+}
+
+// FormField describes an expected field in a form endpoint.
+type FormField struct {
+	Key       string `toml:"key" json:"key"`
+	Label     string `toml:"label" json:"label,omitempty"`
+	Type      string `toml:"type" json:"type,omitempty"`
+	Aggregate string `toml:"aggregate" json:"aggregate,omitempty"`
+	Multiple  *bool  `toml:"multiple" json:"multiple,omitempty"`
 }
 
 const siteConfigFile = "config.toml"
@@ -96,14 +122,61 @@ func (c SiteConfig) Validate() error {
 		}
 	}
 
+	if c.Forms != nil {
+		validFieldTypes := map[string]bool{
+			"":       true,
+			"text":   true,
+			"email":  true,
+			"number": true,
+			"url":    true,
+			"tel":    true,
+			"date":   true,
+		}
+		validAggregates := map[string]bool{
+			"": true,
+			// General (any type).
+			"unique": true, "total": true,
+			"count_empty": true, "count_not_empty": true,
+			"percent_empty": true, "percent_not_empty": true,
+			// Numeric.
+			"sum": true, "avg": true, "mean": true, "median": true,
+			"min": true, "max": true, "range": true,
+		}
+		seenPaths := make(map[string]bool, len(c.Forms.Endpoints))
+		for i, ep := range c.Forms.Endpoints {
+			if ep.Path == "" {
+				return fmt.Errorf("forms.endpoints[%d]: path is required", i)
+			}
+			if !strings.HasPrefix(ep.Path, "/") {
+				return fmt.Errorf("forms.endpoints[%d]: path must start with /", i)
+			}
+			if seenPaths[ep.Path] {
+				return fmt.Errorf("forms.endpoints[%d]: duplicate path %q", i, ep.Path)
+			}
+			seenPaths[ep.Path] = true
+			for j, f := range ep.Fields {
+				if f.Key == "" {
+					return fmt.Errorf("forms.endpoints[%d].fields[%d]: key is required", i, j)
+				}
+				if !validFieldTypes[f.Type] {
+					return fmt.Errorf("forms.endpoints[%d].fields[%d]: invalid type %q", i, j, f.Type)
+				}
+				if !validAggregates[f.Aggregate] {
+					return fmt.Errorf("forms.endpoints[%d].fields[%d]: invalid aggregate %q", i, j, f.Aggregate)
+				}
+			}
+		}
+	}
+
 	if c.WebhookURL != "" && !strings.HasPrefix(c.WebhookURL, "http://") && !strings.HasPrefix(c.WebhookURL, "https://") {
 		return fmt.Errorf("webhook_url: must start with http:// or https://, got %q", c.WebhookURL)
 	}
 	validEvents := map[string]bool{
-		"deploy.success": true,
-		"deploy.failed":  true,
-		"site.created":   true,
-		"site.deleted":   true,
+		"deploy.success":  true,
+		"deploy.failed":   true,
+		"site.created":    true,
+		"site.deleted":    true,
+		"form.submission": true,
 	}
 	for i, ev := range c.WebhookEvents {
 		if !validEvents[ev] {
@@ -233,6 +306,9 @@ func ParseHeadersFile(data []byte) (map[string]map[string]string, error) {
 // ReadSiteConfig reads site-level config overrides from data/sites/{site}/config.toml.
 // Returns a zero SiteConfig if the file does not exist.
 func (s *Store) ReadSiteConfig(site string) (SiteConfig, error) {
+	if !ValidSiteName(site) {
+		return SiteConfig{}, fmt.Errorf("invalid site name: %q", site)
+	}
 	path := filepath.Join(s.dataDir, "sites", site, siteConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -269,6 +345,12 @@ func (s *Store) WriteDeploymentConfig(site, id string, cfg SiteConfig) error {
 
 // ReadDeploymentConfig reads per-deployment config from the deployment directory.
 func (s *Store) ReadDeploymentConfig(site, id string) (SiteConfig, error) {
+	if !ValidSiteName(site) {
+		return SiteConfig{}, fmt.Errorf("invalid site name: %q", site)
+	}
+	if !ValidDeploymentID(id) {
+		return SiteConfig{}, fmt.Errorf("invalid deployment ID: %q", id)
+	}
 	path := filepath.Join(s.dataDir, "sites", site, "deployments", id, siteConfigFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -335,6 +417,19 @@ func (c SiteConfig) Merge(defaults SiteConfig) SiteConfig {
 		merged.Redirects = c.Redirects
 	}
 
+	if c.Forms != nil {
+		cp := *c.Forms
+		if c.Forms.Endpoints != nil {
+			cp.Endpoints = append([]FormEndpoint(nil), c.Forms.Endpoints...)
+		}
+		// Inherit Enabled from defaults when the deployment supplies a Forms
+		// block but doesn't set Enabled explicitly (nil = inherit).
+		if cp.Enabled == nil && merged.Forms != nil {
+			cp.Enabled = merged.Forms.Enabled
+		}
+		merged.Forms = &cp
+	}
+
 	if c.WebhookURL != "" {
 		merged.WebhookURL = c.WebhookURL
 		merged.WebhookEvents = c.WebhookEvents
@@ -351,4 +446,13 @@ func (s *Store) ReadCurrentDeploymentConfig(site string) (SiteConfig, error) {
 		return SiteConfig{}, nil //nolint:nilerr // no deployment → zero config (use defaults)
 	}
 	return s.ReadDeploymentConfig(site, id)
+}
+
+// ResolveConfig returns the fully merged config for a site: deployment config → site config → defaults.
+// It always returns a usable config (falling back to defaults on errors).
+// The returned error, if non-nil, describes which reads failed.
+func (s *Store) ResolveConfig(site string, defaults SiteConfig) (SiteConfig, error) {
+	deployCfg, dErr := s.ReadCurrentDeploymentConfig(site)
+	siteCfg, sErr := s.ReadSiteConfig(site)
+	return deployCfg.Merge(siteCfg).Merge(defaults), errors.Join(dErr, sErr)
 }

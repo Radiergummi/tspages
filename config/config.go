@@ -12,9 +12,19 @@ import (
 )
 
 type Config struct {
-	Tailscale TailscaleConfig    `toml:"tailscale"`
-	Server    ServerConfig       `toml:"server"`
-	Defaults  storage.SiteConfig `toml:"defaults"`
+	Tailscale  TailscaleConfig    `toml:"tailscale"`
+	Server     ServerConfig       `toml:"server"`
+	Defaults   storage.SiteConfig `toml:"defaults"`
+	RateLimits RateLimitsConfig   `toml:"rate_limits"`
+}
+
+type RateLimitsConfig struct {
+	MutateRate  float64 `toml:"mutate_rate"`
+	MutateBurst int     `toml:"mutate_burst"`
+	SubmitRate  float64 `toml:"submit_rate"`
+	SubmitBurst int     `toml:"submit_burst"`
+	QueryRate   float64 `toml:"query_rate"`
+	QueryBurst  int     `toml:"query_burst"`
 }
 
 type TailscaleConfig struct {
@@ -47,7 +57,7 @@ func Load(path string) (*Config, error) {
 		for i, k := range undecoded {
 			keys[i] = k.String()
 		}
-		slog.Warn("unknown keys in config file (check for typos)", "keys", strings.Join(keys, ", "))
+		slog.Warn("unknown keys in config file (check for typos)", "component", "config", "keys", strings.Join(keys, ", "))
 	}
 
 	// All fields follow TOML > env var > default precedence.
@@ -71,6 +81,25 @@ func Load(path string) (*Config, error) {
 
 	boolDefault(md, &cfg.Server.HideFooter, "TSPAGES_HIDE_FOOTER", false, "server", "hide_footer")
 
+	if err := floatDefault(md, &cfg.RateLimits.MutateRate, "TSPAGES_RATE_MUTATE_RATE", 2, "rate_limits", "mutate_rate"); err != nil {
+		return nil, err
+	}
+	if err := intDefault(md, &cfg.RateLimits.MutateBurst, "TSPAGES_RATE_MUTATE_BURST", 5, "rate_limits", "mutate_burst"); err != nil {
+		return nil, err
+	}
+	if err := floatDefault(md, &cfg.RateLimits.SubmitRate, "TSPAGES_RATE_SUBMIT_RATE", 5, "rate_limits", "submit_rate"); err != nil {
+		return nil, err
+	}
+	if err := intDefault(md, &cfg.RateLimits.SubmitBurst, "TSPAGES_RATE_SUBMIT_BURST", 10, "rate_limits", "submit_burst"); err != nil {
+		return nil, err
+	}
+	if err := floatDefault(md, &cfg.RateLimits.QueryRate, "TSPAGES_RATE_QUERY_RATE", 5, "rate_limits", "query_rate"); err != nil {
+		return nil, err
+	}
+	if err := intDefault(md, &cfg.RateLimits.QueryBurst, "TSPAGES_RATE_QUERY_BURST", 10, "rate_limits", "query_burst"); err != nil {
+		return nil, err
+	}
+
 	if cfg.Server.MaxUploadMB < 0 {
 		return nil, fmt.Errorf("max_upload_mb must be non-negative, got %d", cfg.Server.MaxUploadMB)
 	}
@@ -79,6 +108,34 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Server.MaxDeployments < 0 {
 		return nil, fmt.Errorf("max_deployments must be non-negative, got %d", cfg.Server.MaxDeployments)
+	}
+
+	if cfg.RateLimits.MutateRate < 0 {
+		return nil, fmt.Errorf("mutate_rate must be non-negative, got %g", cfg.RateLimits.MutateRate)
+	}
+	if cfg.RateLimits.MutateBurst < 0 {
+		return nil, fmt.Errorf("mutate_burst must be non-negative, got %d", cfg.RateLimits.MutateBurst)
+	}
+	if cfg.RateLimits.MutateRate > 0 && cfg.RateLimits.MutateBurst == 0 {
+		return nil, fmt.Errorf("mutate_burst must be at least 1 when mutate_rate is set (got burst=%d, rate=%g)", cfg.RateLimits.MutateBurst, cfg.RateLimits.MutateRate)
+	}
+	if cfg.RateLimits.SubmitRate < 0 {
+		return nil, fmt.Errorf("submit_rate must be non-negative, got %g", cfg.RateLimits.SubmitRate)
+	}
+	if cfg.RateLimits.SubmitBurst < 0 {
+		return nil, fmt.Errorf("submit_burst must be non-negative, got %d", cfg.RateLimits.SubmitBurst)
+	}
+	if cfg.RateLimits.SubmitRate > 0 && cfg.RateLimits.SubmitBurst == 0 {
+		return nil, fmt.Errorf("submit_burst must be at least 1 when submit_rate is set (got burst=%d, rate=%g)", cfg.RateLimits.SubmitBurst, cfg.RateLimits.SubmitRate)
+	}
+	if cfg.RateLimits.QueryRate < 0 {
+		return nil, fmt.Errorf("query_rate must be non-negative, got %g", cfg.RateLimits.QueryRate)
+	}
+	if cfg.RateLimits.QueryBurst < 0 {
+		return nil, fmt.Errorf("query_burst must be non-negative, got %d", cfg.RateLimits.QueryBurst)
+	}
+	if cfg.RateLimits.QueryRate > 0 && cfg.RateLimits.QueryBurst == 0 {
+		return nil, fmt.Errorf("query_burst must be at least 1 when query_rate is set (got burst=%d, rate=%g)", cfg.RateLimits.QueryBurst, cfg.RateLimits.QueryRate)
 	}
 
 	return &cfg, nil
@@ -107,6 +164,24 @@ func intDefault(md toml.MetaData, dst *int, envKey string, def int, tomlPath ...
 			return fmt.Errorf("%s: %w", envKey, err)
 		}
 		*dst = n
+		return nil
+	}
+	*dst = def
+	return nil
+}
+
+// floatDefault fills *dst from envKey if the TOML key was not defined,
+// then falls back to def.
+func floatDefault(md toml.MetaData, dst *float64, envKey string, def float64, tomlPath ...string) error {
+	if md.IsDefined(tomlPath...) {
+		return nil
+	}
+	if v := os.Getenv(envKey); v != "" {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return fmt.Errorf("%s: %w", envKey, err)
+		}
+		*dst = f
 		return nil
 	}
 	*dst = def

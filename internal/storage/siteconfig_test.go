@@ -858,3 +858,300 @@ func TestSiteConfig_Merge_WebhookInherit(t *testing.T) {
 		t.Errorf("webhook_secret = %q, want global-secret", merged.WebhookSecret)
 	}
 }
+
+func TestParseSiteConfig_FormsEnabled(t *testing.T) {
+	input := `
+[forms]
+enabled = true
+`
+	cfg, err := ParseSiteConfig([]byte(input))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.Forms == nil {
+		t.Fatal("forms should not be nil")
+	}
+	if cfg.Forms.Enabled == nil || *cfg.Forms.Enabled != true {
+		t.Error("forms.enabled should be true")
+	}
+}
+
+func TestParseSiteConfig_FormsEndpoints(t *testing.T) {
+	input := `
+[forms]
+enabled = true
+
+[[forms.endpoints]]
+path = "/contact"
+name = "Contact Form"
+description = "Send us a message"
+
+[[forms.endpoints.fields]]
+key = "name"
+label = "Full Name"
+type = "text"
+
+[[forms.endpoints.fields]]
+key = "email"
+label = "Email Address"
+type = "email"
+
+[[forms.endpoints]]
+path = "/feedback"
+name = "Feedback"
+`
+	cfg, err := ParseSiteConfig([]byte(input))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.Forms == nil {
+		t.Fatal("forms should not be nil")
+	}
+	if cfg.Forms.Enabled == nil || *cfg.Forms.Enabled != true {
+		t.Error("forms.enabled should be true")
+	}
+	if len(cfg.Forms.Endpoints) != 2 {
+		t.Fatalf("endpoints count = %d, want 2", len(cfg.Forms.Endpoints))
+	}
+	ep0 := cfg.Forms.Endpoints[0]
+	if ep0.Path != "/contact" {
+		t.Errorf("endpoint 0 path = %q", ep0.Path)
+	}
+	if ep0.Name != "Contact Form" {
+		t.Errorf("endpoint 0 name = %q", ep0.Name)
+	}
+	if ep0.Description != "Send us a message" {
+		t.Errorf("endpoint 0 description = %q", ep0.Description)
+	}
+	if len(ep0.Fields) != 2 {
+		t.Fatalf("endpoint 0 fields count = %d, want 2", len(ep0.Fields))
+	}
+	if ep0.Fields[0].Key != "name" || ep0.Fields[0].Label != "Full Name" || ep0.Fields[0].Type != "text" {
+		t.Errorf("field 0 = %+v", ep0.Fields[0])
+	}
+	if ep0.Fields[1].Key != "email" || ep0.Fields[1].Type != "email" {
+		t.Errorf("field 1 = %+v", ep0.Fields[1])
+	}
+	if cfg.Forms.Endpoints[1].Path != "/feedback" {
+		t.Errorf("endpoint 1 path = %q", cfg.Forms.Endpoints[1].Path)
+	}
+}
+
+func TestParseSiteConfig_FormsEmpty(t *testing.T) {
+	cfg, err := ParseSiteConfig([]byte(""))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.Forms != nil {
+		t.Error("forms should be nil for empty config")
+	}
+}
+
+func TestValidateSiteConfig_FormsValid(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Enabled: boolPtr(true),
+			Endpoints: []FormEndpoint{
+				{
+					Path: "/contact",
+					Name: "Contact",
+					Fields: []FormField{
+						{Key: "name", Label: "Name", Type: "text"},
+						{Key: "email", Type: "email"},
+					},
+				},
+			},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateSiteConfig_FormsEndpointEmptyPath(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{{Path: "", Name: "Bad"}},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for empty endpoint path")
+	}
+}
+
+func TestValidateSiteConfig_FormsEndpointNoSlash(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{{Path: "contact", Name: "Bad"}},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for endpoint path without leading /")
+	}
+}
+
+func TestValidateSiteConfig_FormsDuplicateEndpointPaths(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{
+				{Path: "/contact"},
+				{Path: "/contact"},
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for duplicate endpoint paths")
+	}
+}
+
+func TestValidateSiteConfig_FormsInvalidFieldType(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{
+				{
+					Path:   "/contact",
+					Fields: []FormField{{Key: "name", Type: "invalid"}},
+				},
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for invalid field type")
+	}
+}
+
+func TestValidateSiteConfig_FormsEmptyFieldKey(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{
+				{
+					Path:   "/contact",
+					Fields: []FormField{{Key: ""}},
+				},
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for empty field key")
+	}
+}
+
+func TestValidateSiteConfig_FormsValidFieldTypes(t *testing.T) {
+	validTypes := []string{"text", "email", "number", "url", "tel", "date", ""}
+	for _, ft := range validTypes {
+		cfg := SiteConfig{
+			Forms: &FormsConfig{
+				Endpoints: []FormEndpoint{
+					{
+						Path:   "/contact",
+						Fields: []FormField{{Key: "f", Type: ft}},
+					},
+				},
+			},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("type %q should be valid, got: %v", ft, err)
+		}
+	}
+}
+
+func TestValidateSiteConfig_FormsValidAggregates(t *testing.T) {
+	valid := []string{"", "unique", "total", "count_empty", "count_not_empty",
+		"percent_empty", "percent_not_empty", "sum", "avg", "mean", "median",
+		"min", "max", "range"}
+	for _, agg := range valid {
+		cfg := SiteConfig{
+			Forms: &FormsConfig{
+				Endpoints: []FormEndpoint{
+					{Path: "/f", Fields: []FormField{{Key: "k", Aggregate: agg}}},
+				},
+			},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("aggregate %q should be valid, got: %v", agg, err)
+		}
+	}
+}
+
+func TestValidateSiteConfig_FormsInvalidAggregate(t *testing.T) {
+	cfg := SiteConfig{
+		Forms: &FormsConfig{
+			Endpoints: []FormEndpoint{
+				{Path: "/f", Fields: []FormField{{Key: "k", Aggregate: "bogus"}}},
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for invalid aggregate")
+	}
+}
+
+func TestSiteConfig_Merge_FormsEnabled(t *testing.T) {
+	defaults := SiteConfig{
+		Forms: &FormsConfig{Enabled: boolPtr(true)},
+	}
+
+	// nil Forms inherits from defaults
+	deploy := SiteConfig{}
+	merged := deploy.Merge(defaults)
+	if merged.Forms == nil || merged.Forms.Enabled == nil || *merged.Forms.Enabled != true {
+		t.Error("should inherit forms from defaults")
+	}
+
+	// non-nil Forms overrides
+	deploy2 := SiteConfig{
+		Forms: &FormsConfig{Enabled: boolPtr(false)},
+	}
+	merged2 := deploy2.Merge(defaults)
+	if merged2.Forms == nil || merged2.Forms.Enabled == nil || *merged2.Forms.Enabled != false {
+		t.Error("deployment should override forms")
+	}
+}
+
+func TestValidateSiteConfig_FormSubmissionWebhookEvent(t *testing.T) {
+	cfg := SiteConfig{
+		WebhookURL:    "https://example.com/hook",
+		WebhookEvents: []string{"form.submission"},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("form.submission should be valid: %v", err)
+	}
+}
+
+func TestSiteConfig_Merge_FormsEndpoints(t *testing.T) {
+	defaults := SiteConfig{
+		Forms: &FormsConfig{
+			Enabled:   boolPtr(true),
+			Endpoints: []FormEndpoint{{Path: "/default-form"}},
+		},
+	}
+
+	// nil Forms inherits endpoints
+	deploy := SiteConfig{}
+	merged := deploy.Merge(defaults)
+	if merged.Forms == nil || len(merged.Forms.Endpoints) != 1 || merged.Forms.Endpoints[0].Path != "/default-form" {
+		t.Error("should inherit form endpoints from defaults")
+	}
+
+	// non-nil Forms overrides entirely
+	deploy2 := SiteConfig{
+		Forms: &FormsConfig{
+			Enabled:   boolPtr(true),
+			Endpoints: []FormEndpoint{{Path: "/contact"}},
+		},
+	}
+	merged2 := deploy2.Merge(defaults)
+	if merged2.Forms == nil || len(merged2.Forms.Endpoints) != 1 || merged2.Forms.Endpoints[0].Path != "/contact" {
+		t.Error("deployment should override form endpoints entirely")
+	}
+
+	// mutating merged result must not affect source
+	merged2.Forms.Endpoints = append(merged2.Forms.Endpoints, FormEndpoint{Path: "/new"})
+	if len(deploy2.Forms.Endpoints) != 1 {
+		t.Error("Merge allowed mutation of source Forms.Endpoints via merged result")
+	}
+	merged2.Forms.Enabled = boolPtr(false)
+	if !*deploy2.Forms.Enabled {
+		t.Error("Merge allowed mutation of source Forms.Enabled via merged result")
+	}
+}

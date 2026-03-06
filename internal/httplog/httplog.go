@@ -28,7 +28,8 @@ func Wrap(h http.Handler, attrs ...slog.Attr) http.Handler {
 		rec := &statusRecorder{ResponseWriter: w, status: 200}
 		start := time.Now()
 		h.ServeHTTP(rec, r)
-		args := make([]any, 0, len(attrs)+4)
+		args := make([]any, 0, len(attrs)+5)
+		args = append(args, slog.String("component", "http"))
 		for _, a := range attrs {
 			args = append(args, a)
 		}

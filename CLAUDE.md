@@ -14,6 +14,13 @@ go test -run TestHandler_ServesFile ./internal/serve/...  # run a single test
 
 No linter, Makefile, or CI configuration exists. The module is `tspages` using Go 1.25.
 
+## Logging
+
+**Always use `log/slog` for logging. Never use the `log` standard library package.** All log calls
+must include a `"component"` attribute as the first key-value pair after the message string to
+identify the subsystem. Use the package name as the component value (e.g. `"deploy"`, `"serve"`,
+`"multihost"`). For `tsnet.Server.UserLogf` callbacks, use `"component", "tsnet"`.
+
 ## Changelog
 
 **Every commit that has implications for users must include a corresponding update to `CHANGELOG.md`.** Add a bullet
@@ -39,6 +46,7 @@ demo.tailnet.ts.net      → serves demo site
 ```
 cmd/tspages/main.go
   ├── config          — TOML config loading with defaults
+  ├── db              — SQLite open + unified migration runner
   ├── multihost       — manages per-site tsnet.Server lifecycle
   │     ├── serve     — static file handler (one per site)
   │     │     ├── compress — gzip/brotli compression + precompressed asset serving
@@ -47,9 +55,14 @@ cmd/tspages/main.go
   │     └── tsadapter — wraps tailscale LocalClient → auth.WhoIsClient
   ├── deploy          — ZIP upload + site/deployment management (control plane only)
   │     └── extract   — ZIP/tar/markdown extraction with zip-slip protection
-  ├── admin           — web dashboard, Atom feeds, help docs, OpenAPI (control plane only)
-  ├── webhook         — deploy/site event notifications with delivery tracking
-  ├── analytics       — SQLite-based per-request recording + queries
+  ├── admin           — sites, deployments, feeds (control plane only)
+  ├── help        — help pages, API docs, OpenAPI spec
+  ├── analytics       — SQLite-based per-request recording, queries + admin handlers
+  ├── submissions     — form submission handling, storage + admin pages
+  ├── webhooks        — event notifications with delivery tracking + admin pages
+  ├── pushnotify      — browser push notifications for form submissions
+  ├── notify          — Notifier interface + Multi fan-out (dependency inversion)
+  ├── web             — shared HTML rendering, templates, response helpers
   ├── metrics         — Prometheus counters/histograms/gauges
   ├── cli             — `tspages deploy` subcommand with server auto-discovery
   └── storage         — filesystem-based site/deployment storage + site config
@@ -145,3 +158,9 @@ gauge), webhook delivery log.
 
 **CLI:** `tspages deploy <path> <site>` with `--no-activate`, `--server` flag, env var, or
 auto-discovery via Tailscale API.
+
+When adding new pages to the admin dashboard, ensure there is an equivalent API endpoint for any user-facing data, and
+that the API is documented in the OpenAPI spec.
+
+When adding or updating features, update the documentation in `internal/help/docs/` and add appropriate test coverage.
+For deploy features, ensure the CLI supports them as well.

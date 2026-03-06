@@ -1,0 +1,23 @@
+{{define "pagination"}}
+{{if .Visible}}
+<nav aria-label="Pagination" class="grid grid-cols-3 items-center mt-4">
+    <div>
+        {{if .HasPrev}}
+            <a class="btn btn-ghost inline-flex items-center gap-2 no-underline" href="{{.PrevURL}}">
+                {{icon "arrow-left"}}
+                <span>Newer</span>
+            </a>
+        {{end}}
+    </div>
+    <span class="text-muted text-sm text-center">Page {{.Page}} of {{.TotalPages}}</span>
+    <div class="place-self-end">
+        {{if .HasNext}}
+            <a class="btn btn-ghost inline-flex items-center gap-2 no-underline" href="{{.NextURL}}">
+                <span>Older</span>
+                {{icon "arrow-right"}}
+            </a>
+        {{end}}
+    </div>
+</nav>
+{{end}}
+{{end}}

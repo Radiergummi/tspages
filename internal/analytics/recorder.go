@@ -8,9 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "modernc.org/sqlite"
-
-	"tspages/internal/sqlmigrate"
 	"tspages/internal/timeseries"
 )
 
@@ -39,25 +36,20 @@ type Recorder struct {
 	closed atomic.Bool
 }
 
-func NewRecorder(dbPath string) (*Recorder, error) {
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
-	if err != nil {
-		return nil, err
-	}
-	if err := sqlmigrate.Apply(db, migrations); err != nil {
-		db.Close()
-		return nil, err
-	}
+func NewRecorder(db *sql.DB) *Recorder {
 	r := &Recorder{
 		db: db,
 		ch: make(chan Event, 1024),
 	}
 	r.wg.Add(1)
 	go r.writer()
-	return r, nil
+	return r
 }
 
-var migrations = []func(*sql.Tx) error{
+// Migrations is the ordered list of schema migrations for the analytics tables.
+// It is exported so that the db package can include it in the unified migration
+// sequence.
+var Migrations = []func(*sql.Tx) error{
 	// 1: baseline schema with all current columns.
 	func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
@@ -139,12 +131,12 @@ func (r *Recorder) writer() {
 func (r *Recorder) flush(events []Event) {
 	tx, err := r.db.Begin()
 	if err != nil {
-		slog.Error("analytics: begin tx failed", "err", err)
+		slog.Error("analytics: begin tx failed", "component", "analytics", "err", err)
 		return
 	}
 	stmt, err := tx.Prepare(`INSERT INTO requests (ts, site, path, status, user_login, user_name, profile_pic_url, node_name, node_ip, os, os_version, device, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		slog.Error("analytics: prepare failed", "err", err)
+		slog.Error("analytics: prepare failed", "component", "analytics", "err", err)
 		tx.Rollback()
 		return
 	}
@@ -159,35 +151,32 @@ func (r *Recorder) flush(events []Event) {
 			e.OS, e.OSVersion, e.Device, tags,
 		)
 		if err != nil {
-			slog.Error("analytics: insert failed", "err", err)
+			slog.Error("analytics: insert failed", "component", "analytics", "err", err)
 			tx.Rollback()
 			return
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		slog.Error("analytics: commit failed", "err", err)
+		slog.Error("analytics: commit failed", "component", "analytics", "err", err)
 	}
 }
-
-// DB returns the underlying database connection for shared use.
-func (r *Recorder) DB() *sql.DB { return r.db }
 
 // Ping checks whether the analytics database is reachable.
 func (r *Recorder) Ping() error {
 	return r.db.Ping()
 }
 
-// Close drains the event channel and shuts down the writer.
-func (r *Recorder) Close() error {
+// Close drains the event channel and shuts down the writer. It does not close
+// the underlying database connection, which is owned by the caller.
+func (r *Recorder) Close() {
 	r.closed.Store(true)
 	close(r.ch)
 	r.wg.Wait()
-	return r.db.Close()
 }
 
 var bucketSQL = timeseries.BucketSQL("ts")
 
-// --- Query types ---
+// region Query types
 
 type TimeBucket struct {
 	Time  string `json:"time"`
@@ -234,7 +223,7 @@ type NodeCount struct {
 	Count    int64  `json:"count"`
 }
 
-// --- Query methods ---
+// region Query methods
 
 func (r *Recorder) TotalRequests(site string, from, to time.Time) (int64, error) {
 	return r.TotalRequestsMulti([]string{site}, from, to)
@@ -257,7 +246,6 @@ func (r *Recorder) UniquePages(site string, from, to time.Time) (int64, error) {
 func (r *Recorder) RequestsOverTime(site string, from, to time.Time) ([]TimeBucket, error) {
 	return r.RequestsOverTimeMulti([]string{site}, from, to)
 }
-
 
 func (r *Recorder) RequestsOverTimeByStatus(site string, from, to time.Time) ([]StatusTimeBucket, error) {
 	return r.RequestsOverTimeByStatusMulti([]string{site}, from, to)
@@ -305,7 +293,7 @@ func (r *Recorder) NodeBreakdown(site string, from, to time.Time) ([]NodeCount, 
 	return r.NodeBreakdownMulti([]string{site}, from, to)
 }
 
-// --- Aggregate query methods (filtered to given sites) ---
+// region Aggregate query methods (filtered to given sites)
 
 type SiteCount struct {
 	Site  string `json:"site"`

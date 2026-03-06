@@ -2,10 +2,12 @@ package admin
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"tspages/internal/auth"
 	"tspages/internal/storage"
+	"tspages/internal/web"
 )
 
 // formBool returns true if the last value for name is "true".
@@ -20,46 +22,51 @@ func formBool(form map[string][]string, name string) bool {
 
 func boolPtr(b bool) *bool { return &b }
 
-// --- GET /sites/{site}/config ---
+// region GET /sites/{site}/config
 
-type SiteConfigHandler struct{ handlerDeps }
+type SiteConfigHandler struct {
+	store *storage.Store
+}
 
 func (h *SiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps, siteName) {
-		RenderError(w, r, http.StatusForbidden, "forbidden")
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	cfg, err := h.store.ReadSiteConfig(siteName)
 	if err != nil {
-		RenderError(w, r, http.StatusInternalServerError, "reading site config")
+		web.RenderError(w, r, http.StatusInternalServerError, "reading site config")
 		return
 	}
 
-	writeJSON(w, cfg)
+	web.WriteJSON(w, cfg)
 }
 
-// --- PATCH /sites/{site}/config ---
+// region PATCH /sites/{site}/config
 
-type UpdateSiteConfigHandler struct{ handlerDeps }
+type UpdateSiteConfigHandler struct {
+	store   *storage.Store
+	ensurer SiteEnsurer
+}
 
 func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps, siteName) {
-		RenderError(w, r, http.StatusForbidden, "forbidden")
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
@@ -69,17 +76,35 @@ func (h *UpdateSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
+	if err := cfg.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
+		slog.Error("writing site config failed", "component", "admin", "site", siteName, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 
-	writeJSON(w, cfg)
+	// Invalidate the serve handler's cached config so the new settings take
+	// effect immediately. EnsureServer on a running site just calls
+	// InvalidateConfig (and restarts if the public flag changed).
+	if h.ensurer != nil {
+		if err := h.ensurer.EnsureServer(siteName); err != nil {
+			slog.Warn("server failed to restart after config update", "component", "admin", "site", siteName, "err", err)
+		}
+	}
+
+	web.WriteJSON(w, cfg)
 }
 
-// --- POST /sites/{site}/config ---
+// region POST /sites/{site}/config
 
-type PostSiteConfigHandler struct{ handlerDeps }
+type PostSiteConfigHandler struct {
+	store    *storage.Store
+	defaults storage.SiteConfig
+	ensurer  SiteEnsurer
+}
 
 func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 	form := r.Form
@@ -89,12 +114,14 @@ func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 			events = append(events, v)
 		}
 	}
+	formsEnabled := formBool(form, "forms")
 	return storage.SiteConfig{
 		Public:           boolPtr(formBool(form, "public")),
 		SPARouting:       boolPtr(formBool(form, "spa_routing")),
 		HTMLExtensions:   boolPtr(!formBool(form, "clean_urls")),
 		Analytics:        boolPtr(formBool(form, "analytics")),
 		DirectoryListing: boolPtr(formBool(form, "directory_listing")),
+		Forms:            &storage.FormsConfig{Enabled: boolPtr(formsEnabled)},
 		IndexPage:        r.FormValue("index_page"),
 		NotFoundPage:     r.FormValue("not_found_page"),
 		TrailingSlash:    r.FormValue("trailing_slash"),
@@ -105,27 +132,44 @@ func parseSiteConfigForm(r *http.Request) storage.SiteConfig {
 }
 
 func (h *PostSiteConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	siteName := trimSuffix(r.PathValue("site"))
+	siteName := web.TrimSuffix(r.PathValue("site"))
 	if !storage.ValidSiteName(siteName) {
-		http.Error(w, "invalid site name", http.StatusBadRequest)
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
 		return
 	}
 
 	caps := auth.CapsFromContext(r.Context())
 	if !auth.IsAdmin(caps, siteName) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form data", http.StatusBadRequest)
+		web.RenderError(w, r, http.StatusBadRequest, "invalid form data")
 		return
 	}
 
 	cfg := parseSiteConfigForm(r)
-	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+
+	// Preserve endpoint config that the HTML form doesn't carry.
+	if existing, err := h.store.ReadSiteConfig(siteName); err == nil && existing.Forms != nil {
+		cfg.Forms.Endpoints = existing.Forms.Endpoints
+	}
+
+	if err := cfg.Validate(); err != nil {
+		web.RenderError(w, r, http.StatusBadRequest, err.Error())
 		return
+	}
+	if err := h.store.WriteSiteConfig(siteName, cfg); err != nil {
+		slog.Error("writing site config failed", "component", "admin", "site", siteName, "err", err)
+		web.RenderError(w, r, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	if h.ensurer != nil {
+		if err := h.ensurer.EnsureServer(siteName); err != nil {
+			slog.Warn("server failed to restart after config update", "component", "admin", "site", siteName, "err", err)
+		}
 	}
 
 	http.Redirect(w, r, "/sites/"+siteName, http.StatusSeeOther)

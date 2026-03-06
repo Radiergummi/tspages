@@ -1,0 +1,363 @@
+{{define "title"}} - webhooks{{if .Site}} - {{.Site}}{{end}}{{end}}
+{{define "head-extra"}}
+    <link rel="alternate" type="application/json" title="Webhooks (JSON)" href="{{.BasePath}}">
+{{end}}
+
+{{define "content"}}
+    <article class="flex flex-col gap-8">
+        {{if .Site}}
+            {{breadcrumbs "Sites" "/sites" .Site (printf "/sites/%s" .Site) "Webhooks"}}
+        {{end}}
+
+        <header class="flex items-center justify-between">
+            <!-- region Page title -->
+            <h1 class="inline-flex items-center gap-2 text-2xl font-semibold tracking-tight">
+                <span>Webhooks</span>
+
+                {{if .Site}}
+                    <span class="text-muted font-normal">
+                        {{.Site}}
+                    </span>
+                {{end}}
+
+                {{helpicon "webhooks" "About webhooks"}}
+            </h1>
+            <!-- endregion -->
+
+            {{if or .Total (len .Deliveries)}}
+                <tspages-time-pills
+                    ranges="PT24H,P7D,P30D,all"
+                    labels="24H,7D,30D,ALL"
+                    current="{{.Range}}"
+                    base-url="{{.BasePath}}"
+                    preserve-params="event,status">
+                </tspages-time-pills>
+            {{end}}
+        </header>
+
+        {{if or .Total (len .Deliveries)}}
+            {{if .Total}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <!-- region Delivery chart -->
+                    <section class="col-span-1 sm:col-span-2 bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                        <header class="flex items-end justify-end gap-10 px-5 h-14">
+                            <div class="flex flex-col">
+                                <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                    Total
+                                </span>
+                                <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                    {{fmtnum .Total}}
+                                </code>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                    <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-green-500"></span>
+                                    Succeeded
+                                </span>
+                                <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                    {{fmtnum .Succeeded}}
+                                </code>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                    <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-red-400"></span>
+                                    Failed
+                                </span>
+                                <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                    {{fmtnum .Failed}}
+                                </code>
+                            </div>
+                        </header>
+
+                        {{if .TimeSeries}}
+                            <div class="relative pt-4 h-48">
+                                <canvas
+                                        id="deliveries-chart"
+                                        height="140"
+                                        aria-label="Deliveries over time"
+                                        role="img"
+                                ></canvas>
+                            </div>
+                        {{end}}
+                    </section>
+                    <!-- endregion -->
+
+                    <!-- region Events chart -->
+                    {{if .Events}}
+                        <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                            <header class="flex items-center justify-between px-5 h-14">
+                                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted m-0">
+                                    Events
+                                </h2>
+                            </header>
+                            <div class="relative px-4 pb-3 h-48">
+                                <canvas id="events-chart" aria-label="Deliveries by event type" role="img"></canvas>
+                            </div>
+                        </section>
+                    {{end}}
+                    <!-- endregion -->
+                </div>
+
+                <!-- region Latency chart -->
+                {{if .Latency}}
+                    <section class="bg-surface dark:ring-1 dark:ring-base-500/25 rounded-md overflow-hidden m-0">
+                        <header class="flex items-end justify-between px-5 h-14">
+                            <div class="flex flex-col">
+                                <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                    Duration
+                                </span>
+                                <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                    {{fmtms .LatencyStats.Min}}
+                                    <span class="text-muted mx-1">&mdash;</span>
+                                    {{fmtms .LatencyStats.Max}}
+                                </code>
+                            </div>
+                            <div class="flex gap-10">
+                                <div class="flex flex-col">
+                                    <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                        <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-blue-500"></span>
+                                        Avg
+                                    </span>
+                                    <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                        {{fmtms .LatencyStats.Avg}}
+                                    </code>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-[0.5rem] uppercase tracking-widest text-muted font-medium">
+                                        <span class="inline-block w-1 h-2.5 rounded-sm mr-1 align-middle bg-orange-400"></span>
+                                        P95
+                                    </span>
+                                    <code class="font-mono text-2xl font-semibold tracking-tight leading-tight">
+                                        {{fmtms .LatencyStats.P95}}
+                                    </code>
+                                </div>
+                            </div>
+                        </header>
+                        <div class="relative pt-4 h-48">
+                            <canvas
+                                    id="latency-chart"
+                                    height="140"
+                                    aria-label="Response latency over time"
+                                    role="img"
+                            ></canvas>
+                        </div>
+                    </section>
+                {{end}}
+                <!-- endregion -->
+            {{end}}
+
+            <div class="flex justify-end flex-wrap gap-3" role="search" aria-label="Filter webhook deliveries">
+                <!-- region Event filter -->
+                <form method="GET" action="{{.BasePath}}" class="contents">
+                    {{if .Range}}
+                        <input type="hidden" name="range" value="{{.Range}}">
+                    {{end}}
+
+                    {{if .Status}}
+                        <input type="hidden" name="status" value="{{.Status}}">
+                    {{end}}
+
+                    <select
+                            name="event"
+                            aria-label="Event type"
+                            onchange="this.form.submit()"
+                            class="select"
+                    >
+                        <option value="">All events</option>
+                        <option value="deploy.success"{{if eq .Event "deploy.success"}} selected{{end}}>
+                            Deployment succeeded
+                        </option>
+                        <option value="deploy.failed"{{if eq .Event "deploy.failed"}} selected{{end}}>
+                            Deployment failed
+                        </option>
+                        <option value="site.created"{{if eq .Event "site.created"}} selected{{end}}>
+                            Site created
+                        </option>
+                        <option value="site.deleted"{{if eq .Event "site.deleted"}} selected{{end}}>
+                            Site deleted
+                        </option>
+                    </select>
+                </form>
+                <!-- endregion -->
+
+                <!-- region Status filter -->
+                <div class="segmented-control" role="group" aria-label="Delivery status">
+                    <a
+                            href="{{.BasePath}}?{{if .Range}}range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
+                            {{if eq .Status ""}}aria-current="true"{{end}}
+                    >
+                        All
+                    </a>
+                    <a
+                            href="{{.BasePath}}?status=succeeded{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
+                            {{if eq .Status "succeeded"}}aria-current="true"{{end}}
+                    >
+                        Succeeded
+                    </a>
+                    <a
+                            href="{{.BasePath}}?status=failed{{if .Range}}&range={{.Range}}{{end}}{{if .Event}}&event={{.Event}}{{end}}"
+                            {{if eq .Status "failed"}}aria-current="true"{{end}}
+                    >
+                        Failed
+                    </a>
+                </div>
+                <!-- endregion -->
+            </div>
+
+            {{if .Deliveries}}
+                <!-- region Deliveries table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse rounded-md overflow-hidden">
+                        <thead>
+                        <tr>
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
+                            >
+                                Event
+                            </th>
+
+                            {{if .Global}}
+                                <th
+                                        scope="col"
+                                        class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                    border-b border-default"
+                                >
+                                    Site
+                                </th>
+                            {{end}}
+
+                            <th
+                                    scope="col"
+                                    class="text-start px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
+                            >
+                                Status
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
+                            >
+                                Attempts
+                            </th>
+                            <th
+                                    scope="col"
+                                    class="text-end px-4 py-3 text-xs uppercase tracking-wider text-muted font-medium
+                                border-b border-default"
+                            >
+                                Time
+                            </th>
+                        </tr>
+                        </thead>
+
+                        <tbody class="[&>tr:last-child>td]:border-b-0">
+
+                        {{range .Deliveries}}
+                            <tr
+                                    class="hover:bg-base-100/50 dark:hover:bg-base-900/50 cursor-pointer"
+                                    onclick="window.location='/webhooks/{{.WebhookID}}'"
+                            >
+                                <td class="px-4 py-3 text-xs border-b border-default">
+                                    <span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-base-500/10 text-muted">
+                                        {{.Event}}
+                                    </span>
+                                </td>
+
+                                {{if $.Global}}
+                                    <td class="px-4 py-3 text-xs border-b border-default">
+                                        {{.Site}}
+                                    </td>
+                                {{end}}
+
+                                <td class="px-4 py-3 text-xs border-b border-default">
+                                    {{if .Succeeded}}
+                                        {{badge "ok"}}
+                                    {{else}}
+                                        {{badge "failed"}}
+                                    {{end}}
+                                </td>
+                                <td class="px-4 py-3 text-xs border-b border-default text-muted text-end tabular-nums">
+                                    {{.Attempts}}
+                                </td>
+                                <td class="px-4 py-3 text-xs border-b border-default text-muted text-end">
+                                    {{timeago .FirstAttempt}}
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </div>
+                <!-- endregion -->
+
+                {{template "pagination" .Pager}}
+
+            {{else}}
+                {{emptystate "No webhook deliveries yet."}}
+            {{end}}
+
+        {{else}}
+            <!-- region Onboarding -->
+            <article class="onboarding">
+                <header>
+                    <h2 class="text-xl font-semibold tracking-tight m-0">
+                        Get notified when events happen
+                    </h2>
+                    <p class="text-muted text-sm mt-1">
+                        Webhooks send HTTP notifications to your server when deployments, site changes,
+                        or form submissions occur.
+                    </p>
+                </header>
+
+                <ol class="flex flex-col gap-6 list-none p-0 m-0">
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">1</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Configure a webhook URL</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Add webhook fields to <code>tspages.toml</code> in your deployment archive:
+                            </p>
+                            <pre>webhook_url = "https://example.com/hook"
+webhook_events = ["deploy.success"]
+webhook_secret = "whsec_..."</pre>
+                        </div>
+                    </li>
+
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">2</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Deploy your site</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Webhooks fire automatically on the configured events:
+                            </p>
+                            <pre>curl -X POST -T site.zip \
+  https://pages.tailnet.ts.net/sites/mysite/deploy</pre>
+                        </div>
+                    </li>
+
+                    <li class="onboarding-step">
+                        <span class="onboarding-step-number">3</span>
+                        <div class="min-w-0">
+                            <p class="font-medium m-0">Deliveries appear here</p>
+                            <p class="text-sm text-muted mt-0.5 mb-0">
+                                Each delivery shows the event, status, response time, and full payload.
+                            </p>
+                        </div>
+                    </li>
+                </ol>
+
+                <footer class="text-sm flex justify-center">
+                    <a href="/help/webhooks" class="btn btn-primary">
+                        Read the full webhooks documentation
+                    </a>
+                </footer>
+            </article>
+            <!-- endregion -->
+        {{end}}
+    </article>
+{{end}}
+
+{{define "script"}}
+    <script type="module" src="{{asset "pages/webhooks.ts"}}"></script>
+{{end}}

@@ -34,80 +34,76 @@
 @layer components {
   .btn {
     @apply px-3.5 py-1.5 text-sm font-medium border rounded-md select-none outline-hidden
-      dark:shadow-sm transition-all duration-150 ease-in-out cursor-pointer
-      hover:shadow-xs dark:hover:shadow-md hover:-translate-y-[0.5px]
-      active:shadow-none active:translate-y-[0.5px]
-      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
-      disabled:opacity-50 disabled:pointer-events-none disabled:shadow-none;
+        dark:shadow-sm transition-all duration-150 ease-in-out cursor-pointer
+        hover:shadow-xs dark:hover:shadow-md hover:-translate-y-[0.5px]
+        active:shadow-none active:translate-y-[0.5px]
+        focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+        disabled:opacity-50 disabled:pointer-events-none disabled:shadow-none;
   }
 
   .btn-primary {
     @apply bg-blue-500 text-white border-blue-500
-      hover:bg-blue-600 hover:border-blue-600
-      active:bg-blue-700 active:border-blue-700;
+        hover:bg-blue-600 hover:border-blue-600
+        active:bg-blue-700 active:border-blue-700;
   }
 
   .btn-danger {
     @apply border-muted text-red-600 dark:text-red-400
-      hover:border-red-600 dark:hover:border-red-400 hover:bg-red-600/10 dark:hover:bg-red-400/10
-      active:bg-red-600/20 dark:active:bg-red-400/20;
+        hover:border-red-600 dark:hover:border-red-400 hover:bg-red-600/10 dark:hover:bg-red-400/10
+        active:bg-red-600/20 dark:active:bg-red-400/20;
   }
 
   .btn-outline {
-    @apply border-muted
-      hover:border-blue-500
-      active:bg-base-50 dark:active:bg-base-900;
+    @apply border-muted hover:border-blue-500 active:bg-base-50 dark:active:bg-base-900;
   }
 
   .btn-ghost {
-    @apply border-transparent bg-base-100 dark:bg-base-800
-      hover:bg-base-200 dark:hover:bg-base-700
-      active:bg-base-300 dark:active:bg-base-700;
+    @apply border-transparent bg-base-100 dark:bg-base-800 hover:bg-base-200 dark:hover:bg-base-700
+    active:bg-base-300 dark:active:bg-base-700;
   }
 
   .pill {
-    @apply px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline select-none outline-hidden
-      text-muted transition-all duration-150 ease-in-out
-      dark:shadow-xs dark:hover:shadow-sm hover:-translate-y-[0.5px]
-      hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900
-      active:shadow-none active:translate-y-[0.5px]
-      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
-      aria-[current=step]:text-white aria-[current=step]:bg-blue-500 aria-[current=step]:shadow-sm
-      aria-[current=step]:hover:bg-blue-600 aria-[current=step]:hover:text-white;
+    @apply px-3.5 py-1.5 text-xs font-semibold rounded-full no-underline select-none outline-hidden text-muted
+    transition-all duration-150 ease-in-out dark:shadow-xs dark:hover:shadow-sm hover:-translate-y-[0.5px]
+    hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-900 active:shadow-none
+    active:translate-y-[0.5px] focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2
+    focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black aria-[current=step]:text-white
+    aria-[current=step]:bg-blue-500 aria-[current=step]:shadow-sm aria-[current=step]:hover:bg-blue-600
+    aria-[current=step]:hover:text-white;
   }
 
   .btn-icon {
     @apply p-1.5 text-muted bg-transparent border-0 cursor-pointer rounded-full select-none outline-hidden
-      transition-all duration-150 ease-in-out
-      hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-800
-      active:bg-base-200 dark:active:bg-base-700
-      focus-visible:ring-2 focus-visible:ring-blue-500/40;
+        transition-all duration-150 ease-in-out
+        hover:text-black dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-800
+        active:bg-base-200 dark:active:bg-base-700
+        focus-visible:ring-2 focus-visible:ring-blue-500/40;
   }
 
   .btn-inline {
     @apply bg-transparent border-0 text-blue-500 cursor-pointer underline outline-hidden
-      transition-colors duration-150 ease-in-out
-      hover:text-blue-400
-      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:rounded-sm;
+        transition-colors duration-150 ease-in-out
+        hover:text-blue-400
+        focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:rounded-sm;
   }
 
   .input {
     @apply w-full text-sm h-9 px-3 py-2 bg-paper dark:bg-base-950 border border-default rounded-md
-      text-black dark:text-base-200 outline-hidden transition-colors duration-150 ease-in-out
-      placeholder:text-muted
-      hover:border-base-300 dark:hover:border-base-600
-      focus:border-blue-500 dark:focus:border-blue-500
-      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
-      disabled:opacity-50 disabled:pointer-events-none;
+        text-black dark:text-base-200 outline-hidden transition-colors duration-150 ease-in-out
+        placeholder:text-muted
+        hover:border-base-300 dark:hover:border-base-600
+        focus:border-blue-500 dark:focus:border-blue-500
+        focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+        disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .select {
     @apply text-sm h-9 px-3 py-2 bg-surface border border-default rounded-md
-      text-black dark:text-base-200 outline-hidden transition-colors duration-150 ease-in-out
-      hover:border-base-300 dark:hover:border-base-600
-      focus:border-blue-500 dark:focus:border-blue-500
-      focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
-      disabled:opacity-50 disabled:pointer-events-none;
+        text-black dark:text-base-200 outline-hidden transition-colors duration-150 ease-in-out
+        hover:border-base-300 dark:hover:border-base-600
+        focus:border-blue-500 dark:focus:border-blue-500
+        focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper dark:focus-visible:ring-offset-black
+        disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .toggle {
@@ -119,19 +115,101 @@
   }
 
   .segmented-control a,
-  .segmented-control button {
-    @apply px-3 py-1 text-sm rounded-md no-underline outline-hidden
-      transition-colors duration-150 ease-in-out text-muted
-      hover:text-black dark:hover:text-base-200
-      focus-visible:ring-2 focus-visible:ring-blue-500/40
-      aria-current:bg-base-300 dark:aria-current:bg-base-700 aria-current:text-black
-    dark:aria-current:text-base-200 aria-current:font-medium;
+  .segmented-control button,
+  .segmented-control label {
+    @apply px-3 py-1.5 text-sm rounded-md no-underline outline-hidden cursor-pointer
+        transition-colors duration-150 ease-in-out text-muted
+        hover:text-black dark:hover:text-base-200
+        focus-visible:ring-2 focus-visible:ring-blue-500/40
+        aria-current:bg-base-300 dark:aria-current:bg-base-700 aria-current:text-black
+        dark:aria-current:text-base-200 aria-current:font-medium;
+  }
+
+  .segmented-control input:checked + label {
+    @apply bg-base-300 dark:bg-base-700 text-black dark:text-base-200 font-medium;
+  }
+
+  .segmented-control input:focus-visible + label {
+    @apply ring-2 ring-blue-500/40;
+  }
+
+  /* CSS-only view switching: hide the non-selected panel. */
+  :has(#view-list:checked) [data-view-panel="grid"] {
+    display: none;
+  }
+  :has(#view-grid:checked) [data-view-panel="list"] {
+    display: none;
+  }
+
+  .popover-menu {
+    @apply border border-default bg-surface rounded-lg shadow-lg p-1 min-w-40;
+    inset: unset;
+    margin: 0;
+  }
+
+  /* Anchor positioning for browsers that support it (Chrome 125+);
+     others get browser-default popover placement. */
+  @supports (top: anchor(bottom)) {
+    .popover-menu {
+      top: anchor(bottom, 0.25rem);
+      right: anchor(right);
+    }
+  }
+
+  .popover-menu button,
+  .popover-menu a {
+    @apply flex items-center gap-2 w-full px-3 py-1.5 text-sm text-start rounded-md
+        no-underline cursor-pointer bg-transparent border-0 outline-hidden
+        transition-colors duration-150
+        hover:bg-base-100 dark:hover:bg-base-800
+        focus-visible:ring-2 focus-visible:ring-blue-500/40;
+  }
+
+  .popover-menu .menu-danger {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .popover-detail {
+    @apply border border-default bg-surface rounded-lg shadow-2xl p-0 w-full max-w-lg;
+    inset: 0;
+    margin: auto;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .popover-detail::backdrop {
+    @apply bg-black/25 backdrop-blur-md backdrop-saturate-150;
+  }
+
+  .onboarding {
+    @apply flex flex-col gap-8 w-full border border-default rounded-md bg-surface px-8 py-12 max-w-xl mx-auto;
+  }
+
+  .onboarding-step {
+    @apply flex gap-4 items-start;
+  }
+
+  .onboarding-step-number {
+    @apply flex-none flex items-center justify-center w-7 h-7 rounded-full
+        bg-blue-500 text-white text-sm font-semibold;
+  }
+
+  .onboarding-step code {
+    @apply text-xs bg-base-100 dark:bg-base-950 px-1.5 py-0.5 rounded;
+  }
+
+  .onboarding-step pre {
+    @apply bg-base-100 dark:bg-base-950 p-3 rounded-md overflow-x-auto text-sm font-mono mt-2 mb-0;
+  }
+
+  .onboarding-step pre code {
+    @apply bg-transparent p-0 rounded-none;
   }
 
   .toggle-track {
     @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full
-      border-2 border-transparent bg-base-300 dark:bg-base-700
-      transition-colors duration-200;
+        border-2 border-transparent bg-base-300 dark:bg-base-700
+        transition-colors duration-200;
 
     .toggle:checked + & {
       @apply bg-blue-500;
@@ -148,7 +226,7 @@
     &::after {
       content: "";
       @apply block h-4 w-4 rounded-full bg-white shadow-sm
-        transition-transform duration-200;
+            transition-transform duration-200;
     }
 
     .toggle:checked + &::after {
@@ -157,41 +235,34 @@
   }
 
   .prose {
-    font-size: 1rem;
-    line-height: 1.7;
-    overflow-wrap: break-word;
+    @apply text-base leading-relaxed wrap-break-word;
 
     & h2,
     & h3,
     & h4,
     & h5,
     & h6 {
-      margin: 1.5em 0 0.5em;
-      @apply font-semibold;
-      line-height: 1.3;
+      @apply font-semibold leading-snug mt-6 mb-2 scroll-m-2;
     }
 
     & h2 {
-      font-size: 1.5em;
-      padding-bottom: 0.3em;
-      @apply border-b border-default;
+      @apply text-2xl pb-1 border-b border-default;
     }
 
     & h3 {
-      font-size: 1.25em;
+      @apply text-xl;
     }
 
     & h4 {
-      font-size: 1em;
+      @apply text-base;
     }
 
     & h5 {
-      font-size: 0.875em;
+      @apply text-sm;
     }
 
     & h6 {
-      font-size: 0.85em;
-      @apply text-muted;
+      @apply text-sm text-muted;
     }
 
     & p,
@@ -200,9 +271,8 @@
     & dl,
     & blockquote,
     & pre,
-    & table,
     & details {
-      margin: 0 0 1em;
+      @apply mb-4;
     }
 
     & a {
@@ -210,117 +280,241 @@
     }
 
     & a:hover {
-      @apply text-blue-600 dark:text-blue-300;
-      text-decoration: underline;
+      @apply text-blue-600 dark:text-blue-300 underline;
     }
 
     & ul,
     & ol {
-      padding-left: 2em;
+      @apply ps-8;
     }
 
     & ul {
-      list-style: disc;
+      @apply list-disc;
     }
 
     & ol {
-      list-style: decimal;
+      @apply list-decimal;
     }
 
     & li + li {
-      margin-top: 0.25em;
+      @apply mt-1;
     }
 
     & li > ul,
     & li > ol {
-      margin-top: 0.25em;
-      margin-bottom: 0;
+      @apply mt-1 mb-0;
     }
 
     & blockquote {
-      margin-left: 0;
-      margin-right: 0;
-      padding: 0.5em 1em;
-      @apply border-l-4 border-default text-muted;
+      @apply mx-0 py-2 px-4 border-l-4 border-default text-muted;
     }
 
     & blockquote > :last-child {
-      margin-bottom: 0;
+      @apply mb-0;
     }
 
     & code {
-      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.875em;
-      @apply bg-surface;
-      padding: 0.2em 0.4em;
-      border-radius: 6px;
+      @apply font-mono text-sm bg-surface py-0.5 px-1.5 rounded-md;
     }
 
     & pre {
-      @apply bg-surface;
-      padding: 1em;
-      border-radius: 6px;
-      overflow-x: auto;
-      line-height: 1.5;
+      @apply bg-surface relative p-4 rounded-md overflow-x-auto leading-normal;
     }
 
     & pre code {
-      background: none;
-      padding: 0;
-      border-radius: 0;
+      @apply bg-none p-0 rounded-none;
+    }
+
+    & pre .copy-btn {
+      @apply absolute top-2 right-2 flex items-center justify-center p-1.5 rounded-md border-none cursor-pointer
+            opacity-0 bg-base-100 dark:bg-base-800 text-base-600 dark:text-base-400 transition-all duration-150;
+    }
+
+    & pre:hover .copy-btn,
+    & pre .copy-btn:focus-visible {
+      @apply opacity-100;
+    }
+
+    & pre .copy-btn:hover {
+      @apply bg-base-200 dark:bg-base-700;
+    }
+
+    & pre .copy-btn.copied {
+      @apply text-green-600;
+    }
+
+    @media (hover: none) {
+      & pre .copy-btn {
+        @apply opacity-100;
+      }
+    }
+
+    & .table-wrap {
+      @apply overflow-x-auto mb-4 w-full max-w-full;
     }
 
     & table {
-      display: block;
-      overflow-x: auto;
-      border-collapse: collapse;
-      width: max-content;
-      max-width: 100%;
-    }
+      @apply border-collapse w-full;
 
-    & th,
-    & td {
-      padding: 0.5em 1em;
-      @apply border border-default;
-      text-align: left;
-      white-space: nowrap;
-    }
+      & th,
+      & td {
+        @apply pe-3 py-1.5 border-b border-default text-start align-top;
+      }
 
-    & th {
-      @apply font-semibold;
+      & th {
+        @apply font-semibold border-b-2;
+      }
+
+      & tr:last-child td {
+        @apply border-b-0;
+      }
     }
 
     & tr:nth-child(even) {
-      @apply bg-surface;
+      @apply bg-base-50/25 dark:bg-base-900;
     }
 
     & hr {
-      border: none;
-      height: 2px;
-      @apply bg-base-100 dark:bg-base-800;
-      margin: 1.5em 0;
+      @apply border-0 h-0.5 my-6 bg-base-100 dark:bg-base-800;
     }
 
     & img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 6px;
+      @apply max-w-full h-auto rounded-md;
     }
 
     & dt {
-      @apply font-semibold;
-      margin-top: 1em;
+      @apply font-semibold mt-4;
     }
 
     & dd {
-      margin-left: 1.5em;
-      margin-bottom: 0.5em;
+      @apply ms-6 mb-2;
     }
 
     & strong {
       @apply font-semibold;
     }
+
+    & .anchor {
+      @apply no-underline opacity-0 transition-opacity duration-150 me-1 -ms-6 font-normal text-base-400
+            dark:text-base-600;
+    }
+
+    & :is(h2, h3, h4):hover .anchor,
+    & .anchor:focus-visible {
+      @apply opacity-100;
+    }
+
+    & .anchor:hover {
+      @apply text-blue-500 no-underline;
+    }
   }
+}
+
+/* Syntax highlighting — Chroma CSS classes with Flexoki palette */
+
+:root {
+  --hl-comment: var(--color-base-500);
+  --hl-keyword: var(--color-blue-600);
+  --hl-type: var(--color-cyan-600);
+  --hl-string: var(--color-green-600);
+  --hl-number: var(--color-purple-600);
+  --hl-function: var(--color-orange-600);
+  --hl-name: var(--color-cyan-600);
+  --hl-error: var(--color-red-600);
+  --hl-diff-add: var(--color-green-600);
+  --hl-diff-del: var(--color-red-600);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hl-keyword: var(--color-blue-300);
+    --hl-type: var(--color-cyan-300);
+    --hl-string: var(--color-green-300);
+    --hl-number: var(--color-purple-300);
+    --hl-function: var(--color-orange-300);
+    --hl-name: var(--color-cyan-300);
+    --hl-error: var(--color-red-300);
+    --hl-diff-add: var(--color-green-300);
+    --hl-diff-del: var(--color-red-300);
+  }
+}
+
+.chroma .c,
+.chroma .ch,
+.chroma .cm,
+.chroma .c1,
+.chroma .cs,
+.chroma .cp,
+.chroma .cpf {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+
+.chroma .k,
+.chroma .kc,
+.chroma .kd,
+.chroma .kn,
+.chroma .kp,
+.chroma .kr,
+.chroma .nt {
+  color: var(--hl-keyword);
+}
+
+.chroma .kt {
+  color: var(--hl-type);
+}
+
+.chroma .s,
+.chroma .sa,
+.chroma .sb,
+.chroma .sc,
+.chroma .sd,
+.chroma .se,
+.chroma .sh,
+.chroma .si,
+.chroma .sr,
+.chroma .s1,
+.chroma .s2,
+.chroma .ss,
+.chroma .l,
+.chroma .ld {
+  color: var(--hl-string);
+}
+
+.chroma .m,
+.chroma .mb,
+.chroma .mf,
+.chroma .mh,
+.chroma .mi,
+.chroma .mo,
+.chroma .il,
+.chroma .no {
+  color: var(--hl-number);
+}
+
+.chroma .na,
+.chroma .nf,
+.chroma .nb {
+  color: var(--hl-function);
+}
+
+.chroma .nc,
+.chroma .nd,
+.chroma .ne,
+.chroma .ni {
+  color: var(--hl-name);
+}
+
+.chroma .err {
+  color: var(--hl-error);
+}
+
+.chroma .gd {
+  color: var(--hl-diff-del);
+}
+
+.chroma .gi {
+  color: var(--hl-diff-add);
 }
 
 @theme {

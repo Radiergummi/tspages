@@ -36,7 +36,11 @@ async function main(): Promise<void> {
   const response = await fetch(window.location.href, {
     headers: { Accept: "application/json" },
   });
-  if (!response.ok) return;
+
+  if (!response.ok) {
+    return;
+  }
+
   const data: WebhookData = await response.json();
 
   if (data.time_series?.length) {

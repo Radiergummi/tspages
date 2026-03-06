@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"tspages/internal/auth"
-	"tspages/internal/metrics"
+	"tspages/internal/notify"
 	"tspages/internal/storage"
-	"tspages/internal/webhook"
+	"tspages/internal/telemetry"
 )
 
 // SiteManager manages per-site tsnet server lifecycle.
@@ -35,7 +35,7 @@ type Handler struct {
 	maxUploadMB    int
 	maxDeployments int
 	dnsSuffix      string
-	notifier       *webhook.Notifier
+	notifier       notify.Notifier
 	defaults       storage.SiteConfig
 }
 
@@ -46,7 +46,7 @@ type HandlerConfig struct {
 	MaxUploadMB    int
 	MaxDeployments int
 	DNSSuffix      string
-	Notifier       *webhook.Notifier
+	Notifier       notify.Notifier
 	Defaults       storage.SiteConfig
 }
 
@@ -142,15 +142,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// markFailed writes a manifest (if possible) and marks the deployment as failed.
 	markFailed := func(size int64, reason string) {
 		if err := writeManifest(size); err != nil {
-			slog.Warn("writing manifest for failed deployment", "site", site, "deployment", id, "err", err)
+			slog.Warn("writing manifest for failed deployment", "component", "deploy", "site", site, "deployment", id, "err", err)
 		}
 		if files, err := h.store.ListDeploymentFiles(site, id); err == nil {
 			if err := h.store.WriteFileIndex(site, id, files); err != nil {
-				slog.Warn("writing file index for failed deployment", "site", site, "deployment", id, "err", err)
+				slog.Warn("writing file index for failed deployment", "component", "deploy", "site", site, "deployment", id, "err", err)
 			}
 		}
 		if err := h.store.MarkFailed(site, id, reason); err != nil {
-			slog.Warn("marking deployment as failed", "site", site, "deployment", id, "err", err)
+			slog.Warn("marking deployment as failed", "component", "deploy", "site", site, "deployment", id, "err", err)
 		}
 	}
 
@@ -193,7 +193,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		siteCfg.Redirects = rules
 		if err := os.Remove(redirectsPath); err != nil && !os.IsNotExist(err) {
-			slog.Warn("removing _redirects", "err", err)
+			slog.Warn("removing _redirects", "component", "deploy", "err", err)
 		}
 		hasConfig = hasConfig || len(rules) > 0
 	}
@@ -210,7 +210,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		siteCfg.Headers = hdrs
 		if err := os.Remove(headersPath); err != nil && !os.IsNotExist(err) {
-			slog.Warn("removing _headers", "err", err)
+			slog.Warn("removing _headers", "component", "deploy", "err", err)
 		}
 		hasConfig = hasConfig || len(hdrs) > 0
 	}
@@ -227,7 +227,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		siteCfg = tomlCfg.Merge(siteCfg)
 		if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
-			slog.Warn("removing tspages.toml", "err", err)
+			slog.Warn("removing tspages.toml", "component", "deploy", "err", err)
 		}
 		hasConfig = true
 	}
@@ -248,9 +248,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Cache the file index so ListDeploymentFiles can skip hashing later.
 	if files, err := h.store.ListDeploymentFiles(site, id); err != nil {
-		slog.Warn("listing deployment files", "site", site, "deployment", id, "err", err)
+		slog.Warn("listing deployment files", "component", "deploy", "site", site, "deployment", id, "err", err)
 	} else if err := h.store.WriteFileIndex(site, id, files); err != nil {
-		slog.Warn("writing file index", "site", site, "deployment", id, "err", err)
+		slog.Warn("writing file index", "component", "deploy", "site", site, "deployment", id, "err", err)
+	}
+
+	// Extract preview metadata from the site's index page.
+	indexFile := "index.html"
+	if hasConfig && siteCfg.IndexPage != "" {
+		indexFile = siteCfg.IndexPage
+	}
+	preview := storage.ExtractPreview(contentDir, indexFile)
+	if (preview != storage.Preview{}) {
+		if err := h.store.WritePreview(site, id, preview); err != nil {
+			slog.Warn("writing preview", "component", "deploy", "site", site, "deployment", id, "err", err)
+		}
 	}
 
 	if err := h.store.MarkComplete(site, id); err != nil {
@@ -265,20 +277,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.manager.EnsureServer(site); err != nil {
-			slog.Warn("site deployed but server failed to start", "site", site, "err", err)
+			slog.Warn("site deployed but server failed to start", "component", "deploy", "site", site, "err", err)
 		}
 	}
 
 	// Clean up old deployments, keeping the configured maximum.
 	if h.maxDeployments > 0 {
 		if n, err := h.store.CleanupOldDeployments(site, h.maxDeployments); err != nil {
-			slog.Warn("cleaning old deployments", "site", site, "err", err)
+			slog.Warn("cleaning old deployments", "component", "deploy", "site", site, "err", err)
 		} else if n > 0 {
-			slog.Info("cleaned old deployments", "count", n, "site", site)
+			slog.Info("cleaned old deployments", "component", "deploy", "count", n, "site", site)
 		}
 	}
 
-	metrics.CountDeploy(site, extractedBytes)
+	telemetry.CountDeploy(site, extractedBytes)
 
 	resp := DeployResponse{
 		DeploymentID: id,
@@ -288,8 +300,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 
 	if h.notifier != nil {
-		siteLevelCfg, _ := h.store.ReadSiteConfig(site)
-		resolvedCfg := siteCfg.Merge(siteLevelCfg).Merge(h.defaults)
+		resolvedCfg, _ := h.store.ResolveConfig(site, h.defaults)
 		meta := map[string]any{
 			"site":          site,
 			"deployment_id": id,
@@ -308,9 +319,7 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 	if h.notifier == nil {
 		return
 	}
-	deployCfg, _ := h.store.ReadCurrentDeploymentConfig(site)
-	siteCfg, _ := h.store.ReadSiteConfig(site)
-	resolvedCfg := deployCfg.Merge(siteCfg).Merge(h.defaults)
+	resolvedCfg, _ := h.store.ResolveConfig(site, h.defaults)
 	h.notifier.Fire("deploy.failed", site, resolvedCfg, map[string]any{
 		"site":  site,
 		"error": err.Error(),
@@ -320,6 +329,6 @@ func (h *Handler) fireDeployFailed(site string, err error) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Warn("encoding JSON response", "err", err)
+		slog.Warn("encoding JSON response", "component", "deploy", "err", err)
 	}
 }

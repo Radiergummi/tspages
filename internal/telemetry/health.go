@@ -1,0 +1,148 @@
+package telemetry
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+
+	"tspages/internal/analytics"
+	"tspages/internal/auth"
+	"tspages/internal/storage"
+	"tspages/internal/web"
+)
+
+// SiteHealthChecker is the subset of multihost.Manager needed for health checks.
+type SiteHealthChecker interface {
+	IsRunning(site string) bool
+}
+
+// Config holds dependencies for telemetry route handlers.
+type Config struct {
+	Store    *storage.Store
+	Recorder *analytics.Recorder
+	Checker  SiteHealthChecker
+}
+
+// RegisterRoutes registers health check and metrics routes on the given mux.
+func RegisterRoutes(mux *http.ServeMux, withAuth func(http.Handler) http.Handler, cfg Config) {
+	healthHandler := NewHealthHandler(cfg.Store, cfg.Recorder)
+	siteHealth := &SiteHealthHandler{store: cfg.Store, checker: cfg.Checker}
+
+	// Health check (no auth, no rate limit)
+	mux.Handle("GET /healthz", healthHandler)
+
+	// Metrics (auth + metrics capability check)
+	mux.Handle("GET /metrics", withAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !auth.CanScrapeMetrics(auth.CapsFromContext(r.Context())) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		Handler().ServeHTTP(w, r)
+	})))
+
+	// Per-site health check (auth required)
+	mux.Handle("GET /sites/{site}/healthz", withAuth(siteHealth))
+}
+
+// region GET /healthz
+
+// HealthHandler returns platform health. It is unauthenticated.
+type HealthHandler struct {
+	store    *storage.Store
+	recorder *analytics.Recorder
+}
+
+func NewHealthHandler(store *storage.Store, recorder *analytics.Recorder) *HealthHandler {
+	return &HealthHandler{store: store, recorder: recorder}
+}
+
+func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	type checkResult struct {
+		Storage   string `json:"storage"`
+		Analytics string `json:"analytics"`
+	}
+
+	status := "ok"
+	checks := checkResult{
+		Storage:   "ok",
+		Analytics: "disabled",
+	}
+
+	if _, err := h.store.ListSites(); err != nil {
+		checks.Storage = "error"
+		status = "degraded"
+	}
+
+	if h.recorder != nil {
+		checks.Analytics = "ok"
+		if err := h.recorder.Ping(); err != nil {
+			checks.Analytics = "error"
+			status = "degraded"
+		}
+	}
+
+	code := http.StatusOK
+	if status != "ok" {
+		code = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"status": status,
+		"checks": checks,
+	}); err != nil {
+		slog.Warn("encoding health response failed", "component", "telemetry", "err", err)
+	}
+}
+
+// region GET /sites/{site}/healthz
+
+// SiteHealthHandler returns health for a single site. It requires auth.
+type SiteHealthHandler struct {
+	store   *storage.Store
+	checker SiteHealthChecker
+}
+
+func (h *SiteHealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	siteName := web.TrimSuffix(r.PathValue("site"))
+	if !storage.ValidSiteName(siteName) {
+		web.RenderError(w, r, http.StatusBadRequest, "invalid site name")
+		return
+	}
+
+	caps := auth.CapsFromContext(r.Context())
+	if !auth.CanView(caps, siteName) {
+		web.RenderError(w, r, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	site, err := h.store.GetSite(siteName)
+	if err != nil {
+		web.RenderError(w, r, http.StatusNotFound, "site not found")
+		return
+	}
+
+	running := h.checker.IsRunning(siteName)
+
+	status := "ok"
+	if !running {
+		status = "error"
+	}
+
+	code := http.StatusOK
+	if status != "ok" {
+		code = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"status":            status,
+		"site":              siteName,
+		"server":            map[bool]string{true: "running", false: "stopped"}[running],
+		"active_deployment": site.ActiveDeploymentID,
+	}); err != nil {
+		slog.Warn("encoding health response failed", "component", "telemetry", "site", siteName, "err", err)
+	}
+}

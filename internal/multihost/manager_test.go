@@ -2,13 +2,23 @@ package multihost
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
+	"tspages/internal/analytics"
+	"tspages/internal/auth"
+	"tspages/internal/db"
+	"tspages/internal/httplog"
+	"tspages/internal/notify"
+	"tspages/internal/serve"
 	"tspages/internal/storage"
+	"tspages/internal/submissions"
 )
 
 // newTestManager creates a Manager with a fake startSite that records calls
@@ -17,10 +27,12 @@ func newTestManager(t *testing.T, maxSites int) (*Manager, *startLog) {
 	t.Helper()
 	store := storage.New(t.TempDir())
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   maxSites,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: maxSites,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	sl := &startLog{}
 	m.startSite = sl.starter()
@@ -133,10 +145,12 @@ func TestStartExistingSites(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   dir,
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: dir,
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	sl := &startLog{}
 	m.startSite = sl.starter()
@@ -226,10 +240,12 @@ func TestClose(t *testing.T) {
 func TestClose_WithCloserError(t *testing.T) {
 	store := storage.New(t.TempDir())
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	m.startSite = func(site string) (*siteServer, error) {
 		return &siteServer{closer: func() error {
@@ -251,10 +267,12 @@ func TestClose_WithCloserError(t *testing.T) {
 func TestStopServer_WithCloserError(t *testing.T) {
 	store := storage.New(t.TempDir())
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	m.startSite = func(site string) (*siteServer, error) {
 		return &siteServer{closer: func() error {
@@ -282,10 +300,12 @@ func TestStartExistingSites_ListError(t *testing.T) {
 	os.WriteFile(sitesDir, []byte("not a dir"), 0644)
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 	m.startSite = func(site string) (*siteServer, error) {
 		return &siteServer{closer: func() error { return nil }}, nil
@@ -301,10 +321,12 @@ func TestEnsureServer_PublicToggle_Restart(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 
 	var startCount atomic.Int32
@@ -356,10 +378,12 @@ func TestEnsureServer_PublicUnchanged_NoRestart(t *testing.T) {
 	dir := t.TempDir()
 	store := storage.New(dir)
 	m := New(ManagerConfig{
-		Store:      store,
-		StateDir:   t.TempDir(),
-		Capability: "test/cap",
-		MaxSites:   10,
+		Store:    store,
+		StateDir: t.TempDir(),
+		MaxSites: 10,
+		BuildStack: func(string, *serve.Handler, auth.WhoIsClient, bool) http.Handler {
+			return http.NotFoundHandler()
+		},
 	})
 
 	var startCount atomic.Int32
@@ -388,5 +412,100 @@ func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func newTestSubmissionStore(t *testing.T) *submissions.Store {
+	t.Helper()
+	return submissions.NewStore(db.OpenTestDB(t, analytics.Migrations, submissions.Migrations))
+}
+
+type mockNotifier struct {
+	calls []struct{ event, site string }
+}
+
+func (n *mockNotifier) Fire(event string, site string, cfg storage.SiteConfig, data map[string]any) {
+	n.calls = append(n.calls, struct{ event, site string }{event, site})
+}
+
+// buildSiteMux constructs the same mux that defaultStartSite creates,
+// but without tsnet. This lets tests verify POST/GET routing without
+// a real tailscale server.
+func buildSiteMux(store *storage.Store, subStore *submissions.Store, notifier notify.Notifier, site string, defaults storage.SiteConfig) http.Handler {
+	handler := serve.NewHandler(store, site, "", defaults)
+	logged := httplog.Wrap(handler)
+	formHandler := submissions.NewHandler(subStore, notifier, site, handler.Config)
+	formLogged := httplog.Wrap(formHandler)
+	mux := http.NewServeMux()
+	mux.Handle("GET /{path...}", logged)
+	mux.Handle("POST /{path...}", formLogged)
+	return mux
+}
+
+func TestFormHandler_POSTRoute_FormsEnabled(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("mysite")
+	depDir, _ := store.CreateDeployment("mysite", "d1")
+	contentDir := filepath.Join(depDir, "content")
+	os.MkdirAll(contentDir, 0755)
+	writeFile(t, contentDir, "index.html", "<html>hello</html>")
+	store.MarkComplete("mysite", "d1")
+	store.ActivateDeployment("mysite", "d1")
+
+	boolTrue := true
+	store.WriteDeploymentConfig("mysite", "d1", storage.SiteConfig{
+		Forms: &storage.FormsConfig{Enabled: &boolTrue},
+	})
+
+	subStore := newTestSubmissionStore(t)
+
+	notif := &mockNotifier{}
+	mux := buildSiteMux(store, subStore, notif, "mysite", storage.SiteConfig{})
+
+	// POST with form data should NOT return 405.
+	body := "name=Alice"
+	req := httptest.NewRequest(http.MethodPost, "/contact", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(auth.ContextWithCaps(req.Context(), []auth.Cap{{Access: "view"}}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Forms are enabled so we expect 303 (redirect after submission), not 405.
+	if w.Code == http.StatusMethodNotAllowed {
+		t.Fatal("POST returned 405, but forms are enabled — route should be registered")
+	}
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+}
+
+func TestFormHandler_POSTRoute_FormsDisabled(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.New(dir)
+	store.CreateSite("mysite")
+	depDir, _ := store.CreateDeployment("mysite", "d1")
+	contentDir := filepath.Join(depDir, "content")
+	os.MkdirAll(contentDir, 0755)
+	writeFile(t, contentDir, "index.html", "<html>hello</html>")
+	store.MarkComplete("mysite", "d1")
+	store.ActivateDeployment("mysite", "d1")
+
+	// No forms config — forms disabled by default.
+	subStore := newTestSubmissionStore(t)
+
+	notif := &mockNotifier{}
+	mux := buildSiteMux(store, subStore, notif, "mysite", storage.SiteConfig{})
+
+	body := "name=Alice"
+	req := httptest.NewRequest(http.MethodPost, "/contact", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(auth.ContextWithCaps(req.Context(), []auth.Cap{{Access: "view"}}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Forms are disabled so the form handler should return 405.
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d (forms disabled)", w.Code, http.StatusMethodNotAllowed)
 	}
 }
