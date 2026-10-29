@@ -5,6 +5,7 @@ linters:
   enable:
     - bodyclose
     - copyloopvar
+    - depguard
     - errcheck
     - errorlint
     - gocritic
@@ -18,6 +19,12 @@ linters:
     - staticcheck
     - unconvert
   settings:
+    depguard:
+      rules:
+        logging:
+          deny:
+            - pkg: "log$"
+              desc: use log/slog with a "component" attribute
     errcheck:
       exclude-functions:
         # Read-only close — error is unactionable.
